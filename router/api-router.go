@@ -194,6 +194,7 @@ func SetApiRouter(router *gin.Engine) {
 			resellerAdminRoute.PUT("/resellers/:id/model_prices/:model", controller.AdminUpsertResellerModelPrice)
 			resellerAdminRoute.DELETE("/resellers/:id/model_prices/:model", controller.AdminDeleteResellerModelPrice)
 			resellerAdminRoute.GET("/resellers/:id/ledger", controller.AdminGetResellerLedger)
+			resellerAdminRoute.GET("/resellers/:id/customers", controller.AdminListResellerCustomers)
 			resellerAdminRoute.GET("/reports/gross_profit", controller.AdminGrossProfitReport)
 			resellerAdminRoute.GET("/reports/reseller_reconcile", controller.AdminReconcileResellers)
 			resellerAdminRoute.GET("/invoices", controller.AdminListInvoices)

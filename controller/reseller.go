@@ -205,6 +205,40 @@ func AdminGetReseller(c *gin.Context) {
 	common.ApiSuccess(c, resellerView(user))
 }
 
+// AdminListResellerCustomers lists the customers owned by reseller :id
+// (admin read-only view of ResellerListCustomers).
+func AdminListResellerCustomers(c *gin.Context) {
+	id, ok := paramId(c, "id")
+	if !ok {
+		return
+	}
+	if _, ok := loadReseller(c, id); !ok {
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	var users []model.User
+	var total int64
+	query := model.DB.Model(&model.User{}).Omit("password").Where("reseller_id = ?", id)
+	if keyword := strings.TrimSpace(c.Query("keyword")); keyword != "" {
+		query = query.Where("username LIKE ? OR display_name LIKE ?", "%"+keyword+"%", "%"+keyword+"%")
+	}
+	if err := query.Count(&total).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := query.Order("id desc").Offset(pageInfo.GetStartIdx()).Limit(pageInfo.GetPageSize()).Find(&users).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	items := make([]gin.H, 0, len(users))
+	for i := range users {
+		items = append(items, customerView(&users[i]))
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
 func AdminCreateReseller(c *gin.Context) {
 	var req adminResellerRequest
 	if err := common.DecodeJson(c.Request.Body, &req); err != nil {

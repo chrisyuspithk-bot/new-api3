@@ -123,3 +123,45 @@ func TestResellerCreditCustomerRejectsMoneyUsdAboveAvailableBalance(t *testing.T
 	assert.Equal(t, false, resp["success"])
 	assert.Equal(t, model.ErrAmountExceedsResellerBalance.Error(), resp["message"])
 }
+
+func TestAdminListResellerCustomersScopedToPathReseller(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: 9503, Username: "other-c", ResellerId: 9599, Status: common.UserStatusEnabled, AffCode: "oc1",
+	}).Error)
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(resellerID)}}
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/admin/resellers/"+strconv.Itoa(resellerID)+"/customers", nil)
+	AdminListResellerCustomers(ctx)
+
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Total int              `json:"total"`
+			Items []map[string]any `json:"items"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.True(t, resp.Success)
+	assert.Equal(t, 1, resp.Data.Total)
+	require.Len(t, resp.Data.Items, 1)
+	assert.EqualValues(t, customerID, resp.Data.Items[0]["id"])
+}
+
+func TestFillResellerNamesSetsNamesOnlyForAffiliatedUsers(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+	require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", resellerID).Update("display_name", "Reseller R").Error)
+
+	users := []*model.User{{Id: customerID, ResellerId: resellerID}, {Id: 1, ResellerId: 0}}
+	require.NoError(t, model.FillResellerNames(users))
+
+	assert.Equal(t, "cred-r", users[0].ResellerUsername)
+	assert.Equal(t, "Reseller R", users[0].ResellerDisplayName)
+	assert.Empty(t, users[1].ResellerUsername)
+	assert.Empty(t, users[1].ResellerDisplayName)
+}

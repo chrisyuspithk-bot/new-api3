@@ -342,6 +342,10 @@ func GetAllUsers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	if err := model.FillResellerNames(users); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(users)
@@ -369,6 +373,10 @@ func SearchUsers(c *gin.Context) {
 	sortOptions := model.NewUserSortOptions(c.Query("sort_by"), c.Query("sort_order"))
 	users, total, err := model.SearchUsers(keyword, group, role, status, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), sortOptions)
 	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.FillResellerNames(users); err != nil {
 		common.ApiError(c, err)
 		return
 	}

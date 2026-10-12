@@ -404,6 +404,36 @@ func CountResellerCustomers(resellerId int) (int64, error) {
 	return count, err
 }
 
+// FillResellerNames sets ResellerUsername / ResellerDisplayName on users that
+// belong to a reseller, loading all referenced resellers in one query.
+// Soft-deleted resellers are included so historical affiliation stays readable.
+func FillResellerNames(users []*User) error {
+	ids := make([]int, 0, len(users))
+	for _, user := range users {
+		if user.ResellerId > 0 && !slices.Contains(ids, user.ResellerId) {
+			ids = append(ids, user.ResellerId)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var resellers []User
+	if err := DB.Unscoped().Select("id", "username", "display_name").Where("id IN ?", ids).Find(&resellers).Error; err != nil {
+		return err
+	}
+	byId := make(map[int]*User, len(resellers))
+	for i := range resellers {
+		byId[resellers[i].Id] = &resellers[i]
+	}
+	for _, user := range users {
+		if reseller, ok := byId[user.ResellerId]; ok {
+			user.ResellerUsername = reseller.Username
+			user.ResellerDisplayName = reseller.DisplayName
+		}
+	}
+	return nil
+}
+
 // AdjustQuotaWithLedger credits (delta>0) or debits (delta<0) a user's wallet
 // and appends a ledger row in ONE database transaction, so a balance change
 // never exists without its audit row (and vice versa). Debits never take a

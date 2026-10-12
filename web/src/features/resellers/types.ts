@@ -45,6 +45,20 @@ export interface Reseller {
   customer_count?: number
 }
 
+export interface ResellerCustomer {
+  id: number
+  username: string
+  display_name: string
+  status: number
+  group: string
+  quota: number
+  used_quota: number
+  request_count: number
+  markup?: number | null
+  remark?: string
+  created_at?: number
+}
+
 export interface PageData<T> {
   items: T[]
   total: number

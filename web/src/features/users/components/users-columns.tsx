@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { ColumnDef } from '@tanstack/react-table'
+import { Link } from '@tanstack/react-router'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -234,6 +235,44 @@ export function useUsersColumns(): ColumnDef<User>[] {
         enableSorting: false,
         size: 120,
         meta: { mobileOrder: 20 },
+      },
+      {
+        id: 'reseller',
+        header: t('Reseller'),
+        cell: ({ row }) => {
+          const user = row.original
+          const resellerId = user.reseller_id || 0
+
+          if (resellerId === 0) {
+            return <span className='text-muted-foreground text-sm'>—</span>
+          }
+
+          const username = user.reseller_username || `#${resellerId}`
+          const displayName = user.reseller_display_name
+
+          return (
+            <div className='flex min-w-0 flex-col gap-1'>
+              <Link
+                to='/resellers/$id'
+                params={{ id: String(resellerId) }}
+                className='text-primary max-w-[140px] text-sm hover:underline'
+              >
+                <LongText>{username}</LongText>
+              </Link>
+              {displayName && displayName !== username && (
+                <div
+                  data-table-text='secondary'
+                  className='text-muted-foreground max-w-[140px] text-xs font-normal'
+                >
+                  <LongText>{displayName}</LongText>
+                </div>
+              )}
+            </div>
+          )
+        },
+        size: 160,
+        enableSorting: false,
+        meta: { mobileHidden: true },
       },
       {
         id: 'invite_info',

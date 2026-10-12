@@ -24,6 +24,7 @@ import type {
   PageData,
   ReconcileIssue,
   Reseller,
+  ResellerCustomer,
   ResellerFormData,
   ResellerLedgerRow,
   ResellerModelPrice,
@@ -123,6 +124,14 @@ export async function getResellerLedger(
   params: { p?: number; page_size?: number } = {}
 ): Promise<ApiResponse<PageData<ResellerLedgerRow>>> {
   const res = await api.get(`/api/admin/resellers/${id}/ledger`, { params })
+  return res.data
+}
+
+export async function listResellerCustomers(
+  id: number,
+  params: { p?: number; page_size?: number; keyword?: string } = {}
+): Promise<ApiResponse<PageData<ResellerCustomer>>> {
+  const res = await api.get(`/api/admin/resellers/${id}/customers`, { params })
   return res.data
 }
 

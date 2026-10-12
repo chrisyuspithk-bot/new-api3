@@ -117,6 +117,10 @@ type User struct {
 	ResellerId int `json:"reseller_id" gorm:"type:int;not null;default:0;index:idx_users_reseller_id;index:idx_users_reseller_status,priority:1"`
 	// Markup overrides the reseller default markup for this customer (nil = inherit).
 	Markup *float64 `json:"markup,omitempty" gorm:"type:decimal(18,6)"`
+	// ResellerUsername / ResellerDisplayName are filled by FillResellerNames
+	// for admin listings; never persisted.
+	ResellerUsername    string `json:"reseller_username,omitempty" gorm:"-:all"`
+	ResellerDisplayName string `json:"reseller_display_name,omitempty" gorm:"-:all"`
 }
 
 func (user *User) ToBaseUser() *UserBase {

@@ -48,6 +48,7 @@ import {
   setResellerGroups,
   upsertResellerModelPrice,
 } from '../api'
+import { ResellerCustomersTab } from './reseller-customers-tab'
 
 export function ResellerDetail({ id }: { id: number }) {
   const { t } = useTranslation()
@@ -136,6 +137,7 @@ export function ResellerDetail({ id }: { id: number }) {
           <Tabs defaultValue='overview'>
             <TabsList>
               <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
+              <TabsTrigger value='customers'>{t('Customers')}</TabsTrigger>
               <TabsTrigger value='groups'>{t('Groups')}</TabsTrigger>
               <TabsTrigger value='prices'>{t('Model Prices')}</TabsTrigger>
               <TabsTrigger value='ledger'>{t('Ledger')}</TabsTrigger>
@@ -182,6 +184,10 @@ export function ResellerDetail({ id }: { id: number }) {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value='customers' className='mt-4'>
+              <ResellerCustomersTab resellerId={id} />
             </TabsContent>
 
             <TabsContent value='groups' className='mt-4 space-y-3'>
