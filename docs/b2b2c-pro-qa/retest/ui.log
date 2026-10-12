@@ -1,0 +1,16 @@
+[Pass] TC03r Status 註冊旗標預設關閉: {"register_enabled":false,"password_register_enabled":false,"oauth_register_enabled":false}
+[Pass] TC17 登入頁無註冊入口: count=0; url=http://127.0.0.1:3310/sign-in; body=New API 登入 用戶名或電郵 密碼 忘記密碼？ 登入
+[Pass] TC18 /sign-up 深鏈在註冊關閉時導向登入: url=http://127.0.0.1:3310/sign-in; confirmFields=0; createBtn=0; body=New API 登入 用戶名或電郵 密碼 忘記密碼？ 登入
+[Pass] SM-ADMIN-1 Admin 代理商列表: url=http://127.0.0.1:3310/resellers; body=跳到主內容 Toggle Sidebar New API 未知版本 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 A 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 管理員 渠道 模型 用戶 Resellers 兌換碼 訂
+[Pass] SM-ADMIN-2 Admin 用戶管理: url=http://127.0.0.1:3310/users; body=跳到主內容 Toggle Sidebar New API 未知版本 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 A 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 管理員 渠道 模型 用戶 Resellers 兌換碼 訂閱 系統
+file:///workspace/b2b2c-pro-qa/retest_qa.mjs:29
+  if (!body.success) throw new Error(`login ${username}: ${JSON.stringify(body)}`);
+                           ^
+
+Error: login reseller1: {"message":"Username or password is incorrect, or user has been banned","message_key":"Username or password is incorrect, or user has been banned","success":false}
+    at apiLogin (file:///workspace/b2b2c-pro-qa/retest_qa.mjs:29:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async authedContext (file:///workspace/b2b2c-pro-qa/retest_qa.mjs:49:31)
+    at async file:///workspace/b2b2c-pro-qa/retest_qa.mjs:160:25
+
+Node.js v20.19.2

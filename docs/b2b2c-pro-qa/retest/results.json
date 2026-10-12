@@ -1,0 +1,173 @@
+[
+  {
+    "id": "TC03r",
+    "title": "Status 註冊旗標預設關閉",
+    "expected": "三旗標均 false",
+    "actual": "{\"register_enabled\":false,\"password_register_enabled\":false,\"oauth_register_enabled\":false}",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  },
+  {
+    "id": "TC17",
+    "title": "登入頁無註冊入口",
+    "expected": "a[href*=\"sign-up\"]=0",
+    "actual": "count=0; url=http://127.0.0.1:3310/sign-in; body=New API 登入 用戶名或電郵 密碼 忘記密碼？ 登入",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/public-login.png",
+    "notes": ""
+  },
+  {
+    "id": "TC18",
+    "title": "/sign-up 深鏈在註冊關閉時導向登入",
+    "expected": "redirect → /sign-in；不顯示密碼註冊表單",
+    "actual": "url=http://127.0.0.1:3310/sign-in; confirmFields=0; createBtn=0; body=New API 登入 用戶名或電郵 密碼 忘記密碼？ 登入",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/public-signup-redirect.png",
+    "notes": "BUG-01 retest"
+  },
+  {
+    "id": "SM-ADMIN-1",
+    "title": "Admin 代理商列表",
+    "expected": "可開啟 /resellers",
+    "actual": "url=http://127.0.0.1:3310/resellers; body=跳到主內容 Toggle Sidebar New API 未知版本 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 A 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 管理員 渠道 模型 用戶 Resellers 兌換碼 訂閱 系統資訊 任务外掛 系統設定 Resellers Add Reseller ID 用戶名 Brand 狀態 餘額 Markup Customers 分組 3 reseller2 Reseller Two Brand Two 已啟用 $0 2.0000 1 default 2 re",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/admin-resellers.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-ADMIN-2",
+    "title": "Admin 用戶管理",
+    "expected": "可開啟 /users",
+    "actual": "url=http://127.0.0.1:3310/users; body=跳到主內容 Toggle Sidebar New API 未知版本 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 A 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 管理員 渠道 模型 用戶 Resellers 兌換碼 訂閱 系統資訊 任务外掛 系統設定 用戶 新增用戶 狀態 角色 用戶分組 查看 ID 用戶名 狀態 可用餘額 ($) 用戶分組 角色 邀請資訊 時間 操作 6 cust2 Customer Two 已啟用 無餘額 default 用戶 — 建立時間 2026-10-12 19:25:3",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/admin-users.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-RSL-reseller-console",
+    "title": "Reseller 總覽",
+    "expected": "可開啟 /reseller",
+    "actual": "url=http://127.0.0.1:3310/reseller; body=跳到主內容 Toggle Sidebar New API 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 R 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 RESELLER Reseller Overview Customers Model Markups 兌換碼 使用日誌 Gross Profit Reseller Overview Top up cost balance Cost Balance $10 Used Cost $0 Customers 2 Brand Brand One Default Markup Markup 儲存 Allowed groups: default Recent Ledger 時間 類型 Delta Customer 備註 12/10/2026 下午7:26:1",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/reseller-console.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-RSL-reseller-customers",
+    "title": "Reseller 客戶列表",
+    "expected": "可開啟 /reseller/customers",
+    "actual": "url=http://127.0.0.1:3310/reseller/customers; body=跳到主內容 Toggle Sidebar New API 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 R 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 RESELLER Reseller Overview Customers Model Markups 兌換碼 使用日誌 Gross Profit Customers Add Customer ID 用戶名 狀態 分組 額度 Markup 5 cust1b Customer 1B 已啟用 default $0 預設 Credit停用刪除 4 cust1 Customer One 已啟用 default $4 預設 Credit停用刪除 總計: 2 上一步 1 / 1 下一步 Command Palette Search for a command",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/reseller-customers.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-RSL-reseller-wallet",
+    "title": "Reseller 錢包儲值頁",
+    "expected": "可開啟 /wallet",
+    "actual": "url=http://127.0.0.1:3310/wallet; body=跳到主內容 Toggle Sidebar New API 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 R 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 RESELLER Reseller Overview Customers Model Markups 兌換碼 使用日誌 Gross Profit 錢包 目前餘額 $10 剩餘配額 總用量 $0 總消耗額度 API 請求 0 總請求數 增加資金 選擇金額和支付方式 訂單歷史 尚未啟用線上儲值。請使用兌換碼或聯絡管理員。 管理員確認合規條款之前，兌換碼功能不可用。 推薦計劃 Earn rewards when users join through your referral link. Transfer accumulated rewards to",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/reseller-wallet.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-CUST-cust-profile",
+    "title": "Customer 個人資料／代理商卡片",
+    "expected": "可開啟 /profile",
+    "actual": "url=http://127.0.0.1:3310/profile; body=跳到主內容 Toggle Sidebar New API 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 C 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 C Customer One 用戶 用戶 ID 4 @cust1 • default 目前餘額 $4 剩餘配額 總用量 $0.0001 總消耗額度 API 請求 1 總請求數 Reseller Contact 供應商: Brand One You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock. 設定 設",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/cust-profile.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-CUST-cust-wallet",
+    "title": "Customer 錢包儲值頁",
+    "expected": "可開啟 /wallet",
+    "actual": "url=http://127.0.0.1:3310/wallet; body=跳到主內容 Toggle Sidebar New API 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 C 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 錢包 目前餘額 $4 剩餘配額 總用量 $0.0001 總消耗額度 API 請求 1 總請求數 增加資金 選擇金額和支付方式 訂單歷史 尚未啟用線上儲值。請使用兌換碼或聯絡管理員。 管理員確認合規條款之前，兌換碼功能不可用。 Command Palette Search for a command to run...",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/cust-wallet.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-CUST-cust-dashboard",
+    "title": "Customer 概覽",
+    "expected": "可開啟 /dashboard",
+    "actual": "url=http://127.0.0.1:3310/dashboard/overview; body=跳到主內容 Toggle Sidebar New API 主頁 控制台 模型廣場 排行榜 文件 關於 搜尋 ⌘ K 更改語言 C 聊天 遊樂場 聊天 常規 概覽 數據看板 API 金鑰 使用日誌 稽核日誌 任務日誌 個人 錢包 個人資料 安全與存取 概覽 設定引導 Served by reseller: Brand One. You can top up online; contact them for support. 用量概覽 監控餘額、用量和請求量 近 24 小時消耗 $0.0001 近 24 小時消耗量 (USD) 歷史使用情況 $0.0001 總消耗 (USD) 請求計數 1 總請求數 剩餘額度 正常 $4 近 24 小時消耗 $0.0001 可用時長 999+ 日 錢包 API 資訊 已設定路由和延遲檢測 未設定 API 路由 公告 最新平台更新和通知 目前暫無公告 常見問答 ",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/cust-dashboard.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-CUST-cust-forbidden-reseller",
+    "title": "Customer 進 Reseller 區應 403",
+    "expected": "403",
+    "actual": "url=http://127.0.0.1:3310/403; body=403 禁止存取 您沒有必要的權限 查看此資源。 返回 返回主頁",
+    "result": "Pass",
+    "shot": "/workspace/b2b2c-pro-qa/retest/cust-forbidden-reseller.png",
+    "notes": ""
+  },
+  {
+    "id": "SM-API-CARD",
+    "title": "Customer self 含代理商卡片且不洩漏成本",
+    "expected": "有 reseller_display_name；無 markup/cost",
+    "actual": "reseller={\"online_topup_enabled\":true,\"reseller_display_name\":\"Brand One\",\"reseller_id\":2,\"role\":\"customer\"}; online_topup=undefined",
+    "result": "Pass",
+    "shot": null,
+    "notes": "field is reseller_display_name"
+  },
+  {
+    "id": "SM-API-TOPUP-C",
+    "title": "Customer topup info 未被封鎖",
+    "expected": "HTTP 200",
+    "actual": "HTTP200 success=true msg=",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  },
+  {
+    "id": "SM-API-TOPUP-R",
+    "title": "Reseller topup info 未被封鎖",
+    "expected": "HTTP 200",
+    "actual": "HTTP200 success=true",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  },
+  {
+    "id": "SM-API-ISO",
+    "title": "跨代理商隔離",
+    "expected": "外國客戶 404",
+    "actual": "foreign6=404 msg=customer not found",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  },
+  {
+    "id": "SM-API-ADMIN-R",
+    "title": "Admin 讀取代理商詳情",
+    "expected": "HTTP 200",
+    "actual": "HTTP200 success=true",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  },
+  {
+    "id": "SM-API-REG",
+    "title": "公開註冊 API 仍關閉",
+    "expected": "success=false",
+    "actual": "HTTP200 success=false msg=New user registration has been disabled by administrator",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  },
+  {
+    "id": "SM-API-TOKENS",
+    "title": "Reseller 客戶 Token 列表",
+    "expected": "HTTP 200",
+    "actual": "HTTP200 success=true count=2",
+    "result": "Pass",
+    "shot": null,
+    "notes": ""
+  }
+]
