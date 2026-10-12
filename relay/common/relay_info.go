@@ -81,13 +81,23 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId           int
-	TokenKey          string
-	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
-	UserGroup         string // 用户所在分组
-	TokenUnlimited    bool
+	TokenId        int
+	TokenKey       string
+	TokenGroup     string
+	UserId         int
+	UsingGroup     string // 使用的分组，当auto跨分组重试时，会变动
+	UserGroup      string // 用户所在分组
+	TokenUnlimited bool
+	// ResellerId is the owning reseller of a B2B2C customer (0 = direct user).
+	ResellerId int
+	// ResellerMarkup / ResellerCostFactor are resolved by HandleGroupRatio and
+	// folded into GroupRatio so every billing engine path yields the customer
+	// charge; ResellerPricingErr fails billing closed when resolution failed.
+	ResellerMarkup     float64
+	ResellerCostFactor float64
+	ResellerPricingErr error
+	// ResellerCostQuota is the settled reseller cost leg, written to logs.
+	ResellerCostQuota int
 	StartTime         time.Time
 	FirstResponseTime time.Time
 	isFirstResponse   bool
@@ -615,6 +625,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		UserId:     common.GetContextKeyInt(c, constant.ContextKeyUserId),
 		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),
+		ResellerId: common.GetContextKeyInt(c, constant.ContextKeyUserResellerId),
 		UserQuota:  common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
 		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 

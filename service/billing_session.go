@@ -39,6 +39,74 @@ type BillingSession struct {
 	refunded         bool   // Refund 已调用
 	lang             string // 请求声明的语言，为空表示未声明
 	mu               sync.Mutex
+
+	// Reseller leg (B2B2C). resellerId == 0 means a direct user and the leg is
+	// inert. The reseller leg is reserved before and released after the customer
+	// leg, and is never bypassed by trust quota (no reseller overdraft on reserve).
+	resellerId          int
+	resellerMarkup      float64
+	resellerPreConsumed int
+	resellerSettled     bool
+	resellerCostQuota   int
+}
+
+// reserveResellerLeg atomically reserves cost for the reseller wallet.
+func (s *BillingSession) reserveResellerLeg(cost int) error {
+	if s.resellerId <= 0 || cost <= 0 {
+		return nil
+	}
+	ok, err := model.TryReserveUserQuota(s.resellerId, cost)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrResellerInsufficient
+	}
+	s.resellerPreConsumed += cost
+	return nil
+}
+
+// releaseResellerLeg returns amount of the reseller reservation.
+func (s *BillingSession) releaseResellerLeg(amount int) {
+	if s.resellerId <= 0 || amount <= 0 {
+		return
+	}
+	if err := model.IncreaseUserQuota(s.resellerId, amount, false); err != nil {
+		common.SysError(common.LogText("error releasing reseller reserve (resellerId=%d, amount=%d): %s", s.resellerId, amount, err.Error()))
+		return
+	}
+	s.resellerPreConsumed -= amount
+}
+
+// settleResellerLeg commits the reseller cost for the final customer charge.
+// A positive top-up may take the reseller below zero once (upstream cost was
+// already incurred); new requests are then rejected at reserve time.
+func (s *BillingSession) settleResellerLeg(actualQuota int) error {
+	if s.resellerId <= 0 || s.resellerSettled {
+		return nil
+	}
+	cost := ResellerCostFromCharge(actualQuota, s.resellerMarkup)
+	delta := cost - s.resellerPreConsumed
+	var err error
+	if delta > 0 {
+		err = model.DecreaseUserQuota(s.resellerId, delta, false)
+	} else if delta < 0 {
+		err = model.IncreaseUserQuota(s.resellerId, -delta, false)
+	}
+	if err != nil {
+		return err
+	}
+	s.resellerSettled = true
+	s.resellerCostQuota = cost
+	s.relayInfo.ResellerCostQuota = cost
+	return nil
+}
+
+func resellerInsufficientError(c *gin.Context) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		errors.New(i18n.T(c, i18n.MsgQuotaUserInsufficient, map[string]any{"Remaining": "-"})),
+		types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+		types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 }
 
 // Settle 根据实际消耗额度进行结算。
@@ -49,6 +117,12 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	defer s.mu.Unlock()
 	if s.settled {
 		return nil
+	}
+	// 0) Reseller leg first: upstream cost is already incurred, so it is never
+	// rolled back if a later customer-leg step fails.
+	if err := s.settleResellerLeg(actualQuota); err != nil {
+		common.SysError(common.LogText("error settling reseller leg (resellerId=%d, userId=%d): %s", s.resellerId, s.relayInfo.UserId, err.Error()))
+		return err
 	}
 	delta := actualQuota - s.preConsumedQuota
 	if delta == 0 {
@@ -108,8 +182,19 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	extraReserved := s.extraReserved
 	subscriptionId := s.relayInfo.SubscriptionId
 	funding := s.funding
+	resellerId := s.resellerId
+	resellerReserved := 0
+	if !s.resellerSettled {
+		resellerReserved = s.resellerPreConsumed
+	}
 
 	gopool.Go(func() {
+		// 0) 退还 Reseller 腿
+		if resellerId > 0 && resellerReserved > 0 {
+			if err := model.IncreaseUserQuota(resellerId, resellerReserved, false); err != nil {
+				common.SysLog(common.LogText("error refunding reseller reserve: %s", err.Error()))
+			}
+		}
 		// 1) 退还资金来源
 		if err := funding.Refund(); err != nil {
 			common.SysLog(common.LogText("error refunding billing source: %s", err.Error()))
@@ -143,6 +228,9 @@ func (s *BillingSession) needsRefundLocked() bool {
 	if s.tokenConsumed > 0 {
 		return true
 	}
+	if s.resellerPreConsumed > 0 && !s.resellerSettled {
+		return true
+	}
 	// 订阅可能在 tokenConsumed=0 时仍预扣了额度
 	if sub, ok := s.funding.(*SubscriptionFunding); ok && sub.preConsumed > 0 {
 		return true
@@ -173,11 +261,19 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 		return nil
 	}
 
+	resellerDelta := ResellerCostFromCharge(targetQuota, s.resellerMarkup) - s.resellerPreConsumed
+	if s.resellerId > 0 && resellerDelta > 0 {
+		if err := s.reserveResellerLeg(resellerDelta); err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
+	}
 	if err := s.reserveFunding(delta, imageRequest); err != nil {
+		s.releaseResellerLeg(resellerDelta)
 		return err
 	}
 	if err := s.reserveToken(delta); err != nil {
 		s.rollbackFundingReserve(delta)
+		s.releaseResellerLeg(resellerDelta)
 		return err
 	}
 
@@ -200,6 +296,17 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIError {
 	effectiveQuota := quota
 
+	// ---- 0) Reseller 腿：永不信任旁路，余额不足即失败 ----
+	if s.resellerId > 0 {
+		if err := s.reserveResellerLeg(ResellerCostFromCharge(quota, s.resellerMarkup)); err != nil {
+			if errors.Is(err, ErrResellerInsufficient) {
+				logger.LogInfo(c, common.LogText("reseller %d cost balance insufficient for user %d", s.resellerId, s.relayInfo.UserId))
+				return resellerInsufficientError(c)
+			}
+			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+		}
+	}
+
 	// ---- 信任额度旁路 ----
 	if s.shouldTrust(c) {
 		s.trusted = true
@@ -212,6 +319,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	// ---- 1) 预扣令牌额度 ----
 	if effectiveQuota > 0 {
 		if err := PreConsumeTokenQuota(s.relayInfo, effectiveQuota); err != nil {
+			s.releaseResellerLeg(s.resellerPreConsumed)
 			return types.NewErrorWithStatusCode(err, types.ErrorCodePreConsumeTokenQuotaFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
 		s.tokenConsumed = effectiveQuota
@@ -227,6 +335,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 			}
 			s.tokenConsumed = 0
 		}
+		s.releaseResellerLeg(s.resellerPreConsumed)
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
 		if errors.Is(err, ErrInsufficientWalletQuota) {
 			userQuota, quotaErr := model.GetUserQuota(s.relayInfo.UserId, false)
@@ -385,6 +494,19 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
 
+	resellerMarkup := 0.0
+	if relayInfo.ResellerId > 0 {
+		if relayInfo.ResellerPricingErr != nil || !model.ValidMarkup(relayInfo.ResellerMarkup) {
+			if errors.Is(relayInfo.ResellerPricingErr, model.ErrResellerDisabled) {
+				return nil, types.NewErrorWithStatusCode(model.ErrResellerDisabled, types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+			}
+			return nil, types.NewErrorWithStatusCode(fmt.Errorf("reseller pricing unavailable: %v", relayInfo.ResellerPricingErr), types.ErrorCodeModelPriceError, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+		}
+		resellerMarkup = relayInfo.ResellerMarkup
+		// v1: customers of a reseller are wallet-only (no subscription x markup).
+		pref = "wallet_only"
+	}
+
 	// 钱包路径需要先检查用户额度
 	tryWallet := func() (*BillingSession, *types.NewAPIError) {
 		userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
@@ -406,9 +528,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		relayInfo.UserQuota = userQuota
 
 		session := &BillingSession{
-			relayInfo: relayInfo,
-			funding:   &WalletFunding{userId: relayInfo.UserId},
-			lang:      i18n.StatedLang(c),
+			relayInfo:      relayInfo,
+			funding:        &WalletFunding{userId: relayInfo.UserId},
+			lang:           i18n.StatedLang(c),
+			resellerId:     relayInfo.ResellerId,
+			resellerMarkup: resellerMarkup,
 		}
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
 			return nil, apiErr

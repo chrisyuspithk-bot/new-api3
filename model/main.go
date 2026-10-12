@@ -335,6 +335,9 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	if err := migrateUserQuotaColumnsToBigint(); err != nil {
+		return err
+	}
 	if err := migrateOptionPrimaryKey(DB); err != nil {
 		common.SysError(common.LogText("failed to migrate options primary key: %s", err.Error()))
 	}
@@ -376,6 +379,12 @@ func migrateDB() error {
 		&CasbinRule{},
 		&AuthzRole{},
 		&UserAccessToken{},
+		&ResellerProfile{},
+		&ResellerGroup{},
+		&ResellerModelPrice{},
+		&ResellerModelMarkup{},
+		&CustomerModelMarkup{},
+		&ResellerLedger{},
 	)
 	if err != nil {
 		return err
@@ -415,6 +424,14 @@ func migrateClickHouseLogDB() error {
 	ttlDays := clickHouseLogTTLDays()
 	if err := LOG_DB.Exec(clickHouseLogCreateTableSQL(ttlDays)).Error; err != nil {
 		return err
+	}
+	for _, ddl := range []string{
+		"ALTER TABLE logs ADD COLUMN IF NOT EXISTS reseller_id Int32 DEFAULT 0",
+		"ALTER TABLE logs ADD COLUMN IF NOT EXISTS reseller_cost_quota Int64 DEFAULT 0",
+	} {
+		if err := LOG_DB.Exec(ddl).Error; err != nil {
+			return err
+		}
 	}
 	return syncClickHouseLogTTL(ttlDays)
 }
@@ -464,7 +481,9 @@ CREATE TABLE IF NOT EXISTS logs (
 	ip String DEFAULT '',
 	request_id String DEFAULT '',
 	upstream_request_id String DEFAULT '',
-	other String DEFAULT ''
+	other String DEFAULT '',
+	reseller_id Int32 DEFAULT 0,
+	reseller_cost_quota Int64 DEFAULT 0
 )
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(toDateTime(created_at))
@@ -580,6 +599,42 @@ PRIMARY KEY (` + "`id`" + `)
 		if err := DB.Exec("ALTER TABLE `" + tableName + "` ADD COLUMN " + col.DDL).Error; err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// migrateUserQuotaColumnsToBigint widens users.quota/used_quota from int32 so
+// reseller cost balances can exceed ~USD 4,294. SQLite integers are already
+// 64-bit, so only MySQL and PostgreSQL are altered. Idempotent.
+func migrateUserQuotaColumnsToBigint() error {
+	if common.UsingMainDatabase(common.DatabaseTypeSQLite) || !DB.Migrator().HasTable("users") {
+		return nil
+	}
+	for _, column := range []string{"quota", "used_quota"} {
+		var dataType string
+		var alterSQL string
+		if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
+			if err := DB.Raw(`SELECT data_type FROM information_schema.columns
+				WHERE table_schema = current_schema() AND table_name = 'users' AND column_name = ?`, column).Scan(&dataType).Error; err != nil {
+				return err
+			}
+			alterSQL = fmt.Sprintf(`ALTER TABLE users ALTER COLUMN %s TYPE bigint`, column)
+		} else if common.UsingMainDatabase(common.DatabaseTypeMySQL) {
+			if err := DB.Raw(`SELECT DATA_TYPE FROM information_schema.columns
+				WHERE table_schema = DATABASE() AND table_name = 'users' AND column_name = ?`, column).Scan(&dataType).Error; err != nil {
+				return err
+			}
+			alterSQL = fmt.Sprintf("ALTER TABLE users MODIFY COLUMN %s bigint DEFAULT 0", column)
+		} else {
+			return nil
+		}
+		if dataType == "" || strings.EqualFold(dataType, "bigint") {
+			continue
+		}
+		if err := DB.Exec(alterSQL).Error; err != nil {
+			return fmt.Errorf("failed to migrate users.%s to bigint: %w", column, err)
+		}
+		common.SysLog(common.LogText("Successfully migrated users.%s to bigint", column))
 	}
 	return nil
 }

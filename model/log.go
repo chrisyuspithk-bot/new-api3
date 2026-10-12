@@ -57,7 +57,7 @@ func sanitizeClickHouseLikePattern(input string) (string, error) {
 type Log struct {
 	Id                int    `json:"id" gorm:"index:idx_created_at_id,priority:2;index:idx_user_id_id,priority:2"`
 	UserId            int    `json:"user_id" gorm:"index;index:idx_user_id_id,priority:1"`
-	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type"`
+	CreatedAt         int64  `json:"created_at" gorm:"bigint;index:idx_created_at_id,priority:1;index:idx_created_at_type;index:idx_logs_reseller_created,priority:2"`
 	Type              int    `json:"type" gorm:"index:idx_created_at_type"`
 	Content           string `json:"content"`
 	Username          string `json:"username" gorm:"index;index:index_username_model_name,priority:2;default:''"`
@@ -76,6 +76,10 @@ type Log struct {
 	RequestId         string `json:"request_id,omitempty" gorm:"type:varchar(64);index:idx_logs_request_id;default:''"`
 	UpstreamRequestId string `json:"upstream_request_id,omitempty" gorm:"type:varchar(128);index:idx_logs_upstream_request_id;default:''"`
 	Other             string `json:"other"`
+	// ResellerId / ResellerCostQuota record the reseller leg of a B2B2C charge:
+	// Quota is what the customer paid, ResellerCostQuota what the reseller paid.
+	ResellerId        int `json:"reseller_id" gorm:"default:0;index:idx_logs_reseller_created,priority:1"`
+	ResellerCostQuota int `json:"reseller_cost_quota" gorm:"type:bigint;default:0"`
 }
 
 // don't use iota, avoid change log type value
@@ -88,6 +92,10 @@ const (
 	LogTypeError   = 5
 	LogTypeRefund  = 6
 	LogTypeLogin   = 7
+	// LogTypeResellerCredit records a reseller adding/removing customer quota.
+	LogTypeResellerCredit = 8
+	// LogTypeResellerAdminCredit records an admin adding/removing reseller cost balance.
+	LogTypeResellerAdminCredit = 9
 )
 
 func ensureLogRequestId(log *Log) {
@@ -314,6 +322,8 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
+		ResellerId:        c.GetInt(ContextKeyLogResellerId),
+		ResellerCostQuota: c.GetInt(ContextKeyLogResellerCostQuota),
 	}
 	err := createLog(log)
 	if err != nil {
@@ -335,6 +345,12 @@ type RecordConsumeLogParams struct {
 	Group            string            `json:"group"`
 	Other            *LogOther         `json:"other"`
 }
+
+// Context keys set by billing settlement so consume logs carry the reseller leg.
+const (
+	ContextKeyLogResellerId        = "b2b2c_log_reseller_id"
+	ContextKeyLogResellerCostQuota = "b2b2c_log_reseller_cost_quota"
+)
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
 	if !common.LogConsumeEnabled {

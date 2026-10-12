@@ -23,6 +23,9 @@ type Redemption struct {
 	UsedUserId   int            `json:"used_user_id"`
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
 	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
+	// ResellerId 0 = issued by admin (direct users only); >0 = issued by that
+	// reseller and redeemable only by its customers.
+	ResellerId int `json:"reseller_id" gorm:"not null;default:0;index"`
 }
 
 func GetAllRedemptions(startIdx int, num int) (redemptions []*Redemption, total int64, err error) {
@@ -157,6 +160,13 @@ func Redeem(key string, userId int) (quota int, err error) {
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("redemption code expired")
+		}
+		var redeemerResellerId int
+		if err := tx.Model(&User{}).Where("id = ?", userId).Select("reseller_id").Scan(&redeemerResellerId).Error; err != nil {
+			return err
+		}
+		if redeemerResellerId != redemption.ResellerId {
+			return errors.New("invalid redemption code")
 		}
 		// Compare-and-swap on status: only the transaction that flips
 		// enabled -> used may credit quota, so a concurrent redeem of the

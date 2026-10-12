@@ -122,16 +122,16 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
-				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
-				selfRoute.POST("/amount", controller.RequestAmount)
-				selfRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.RequestStripePay)
-				selfRoute.POST("/stripe/amount", controller.RequestStripeAmount)
-				selfRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.RequestCreemPay)
-				selfRoute.POST("/waffo/amount", controller.RequestWaffoAmount)
-				selfRoute.POST("/waffo/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPay)
-				selfRoute.POST("/waffo-pancake/amount", controller.RequestWaffoPancakeAmount)
-				selfRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
-				selfRoute.POST("/aff_transfer", middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
+				selfRoute.POST("/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.RequestEpay)
+				selfRoute.POST("/amount", controller.BlockResellerCustomer(), controller.RequestAmount)
+				selfRoute.POST("/stripe/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.RequestStripePay)
+				selfRoute.POST("/stripe/amount", controller.BlockResellerCustomer(), controller.RequestStripeAmount)
+				selfRoute.POST("/creem/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.RequestCreemPay)
+				selfRoute.POST("/waffo/amount", controller.BlockResellerCustomer(), controller.RequestWaffoAmount)
+				selfRoute.POST("/waffo/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.RequestWaffoPay)
+				selfRoute.POST("/waffo-pancake/amount", controller.BlockResellerCustomer(), controller.RequestWaffoPancakeAmount)
+				selfRoute.POST("/waffo-pancake/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.RequestWaffoPancakePay)
+				selfRoute.POST("/aff_transfer", controller.BlockResellerCustomer(), middleware.UserCriticalRateLimit("aff-transfer"), controller.TransferAffQuota)
 				selfRoute.PUT("/setting", controller.UpdateUserSetting)
 
 				// 2FA routes
@@ -143,7 +143,7 @@ func SetApiRouter(router *gin.Engine) {
 
 				// Check-in routes
 				selfRoute.GET("/checkin", controller.GetCheckinStatus)
-				selfRoute.POST("/checkin", middleware.TurnstileCheck(), controller.DoCheckin)
+				selfRoute.POST("/checkin", controller.BlockResellerCustomer(), middleware.TurnstileCheck(), controller.DoCheckin)
 
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
@@ -174,17 +174,67 @@ func SetApiRouter(router *gin.Engine) {
 		}
 
 		// Subscription billing (plans, purchase, admin management)
+		// B2B2C admin APIs
+		resellerAdminRoute := apiRouter.Group("/admin")
+		resellerAdminRoute.Use(middleware.AdminAuth())
+		{
+			resellerAdminRoute.GET("/resellers", controller.AdminListResellers)
+			resellerAdminRoute.POST("/resellers", controller.AdminCreateReseller)
+			resellerAdminRoute.GET("/resellers/:id", controller.AdminGetReseller)
+			resellerAdminRoute.PUT("/resellers/:id", controller.AdminUpdateReseller)
+			resellerAdminRoute.DELETE("/resellers/:id", controller.AdminDeleteReseller)
+			resellerAdminRoute.POST("/resellers/:id/credit", controller.AdminCreditReseller)
+			resellerAdminRoute.POST("/resellers/:id/debit", controller.AdminDebitReseller)
+			resellerAdminRoute.GET("/resellers/:id/groups", controller.AdminGetResellerGroups)
+			resellerAdminRoute.PUT("/resellers/:id/groups", controller.AdminSetResellerGroups)
+			resellerAdminRoute.GET("/resellers/:id/model_prices", controller.AdminListResellerModelPrices)
+			resellerAdminRoute.PUT("/resellers/:id/model_prices", controller.AdminUpsertResellerModelPrice)
+			resellerAdminRoute.PUT("/resellers/:id/model_prices/:model", controller.AdminUpsertResellerModelPrice)
+			resellerAdminRoute.DELETE("/resellers/:id/model_prices/:model", controller.AdminDeleteResellerModelPrice)
+			resellerAdminRoute.GET("/resellers/:id/ledger", controller.AdminGetResellerLedger)
+			resellerAdminRoute.GET("/reports/gross_profit", controller.AdminGrossProfitReport)
+		}
+
+		// B2B2C reseller APIs; every handler scopes queries to reseller_id = me.
+		resellerRoute := apiRouter.Group("/reseller")
+		resellerRoute.Use(middleware.DisableCache(), middleware.ResellerAuth())
+		{
+			resellerRoute.GET("/self", controller.ResellerGetSelf)
+			resellerRoute.PUT("/self/markup", controller.ResellerUpdateMarkup)
+			resellerRoute.GET("/ledger", controller.ResellerGetLedger)
+			resellerRoute.GET("/customers", controller.ResellerListCustomers)
+			resellerRoute.POST("/customers", controller.ResellerCreateCustomer)
+			resellerRoute.GET("/customers/:id", controller.ResellerGetCustomer)
+			resellerRoute.PUT("/customers/:id", controller.ResellerUpdateCustomer)
+			resellerRoute.POST("/customers/:id/status", controller.ResellerSetCustomerStatus)
+			resellerRoute.POST("/customers/:id/credit", controller.ResellerCreditCustomer)
+			resellerRoute.POST("/customers/:id/debit", controller.ResellerDebitCustomer)
+			resellerRoute.GET("/customers/:id/model_markups", controller.ResellerListCustomerModelMarkups)
+			resellerRoute.PUT("/customers/:id/model_markups", controller.ResellerUpsertCustomerModelMarkup)
+			resellerRoute.PUT("/customers/:id/model_markups/:model", controller.ResellerUpsertCustomerModelMarkup)
+			resellerRoute.DELETE("/customers/:id/model_markups/:model", controller.ResellerDeleteCustomerModelMarkup)
+			resellerRoute.GET("/model_markups", controller.ResellerListModelMarkups)
+			resellerRoute.PUT("/model_markups", controller.ResellerUpsertModelMarkup)
+			resellerRoute.PUT("/model_markups/:model", controller.ResellerUpsertModelMarkup)
+			resellerRoute.DELETE("/model_markups/:model", controller.ResellerDeleteModelMarkup)
+			resellerRoute.GET("/redemptions", controller.ResellerListRedemptions)
+			resellerRoute.POST("/redemptions", controller.ResellerCreateRedemptions)
+			resellerRoute.DELETE("/redemptions/:id", controller.ResellerDeleteRedemption)
+			resellerRoute.GET("/logs", controller.ResellerGetLogs)
+			resellerRoute.GET("/reports/gross_profit", controller.ResellerGrossProfitReport)
+		}
+
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
 		{
 			subscriptionRoute.GET("/plans", controller.GetSubscriptionPlans)
 			subscriptionRoute.GET("/self", controller.GetSubscriptionSelf)
 			subscriptionRoute.PUT("/self/preference", controller.UpdateSubscriptionPreference)
-			subscriptionRoute.POST("/balance/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
-			subscriptionRoute.POST("/epay/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
-			subscriptionRoute.POST("/stripe/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
-			subscriptionRoute.POST("/creem/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
-			subscriptionRoute.POST("/waffo-pancake/pay", middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
+			subscriptionRoute.POST("/balance/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.SubscriptionRequestBalancePay)
+			subscriptionRoute.POST("/epay/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.SubscriptionRequestEpay)
+			subscriptionRoute.POST("/stripe/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.SubscriptionRequestStripePay)
+			subscriptionRoute.POST("/creem/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.SubscriptionRequestCreemPay)
+			subscriptionRoute.POST("/waffo-pancake/pay", controller.BlockResellerCustomer(), middleware.CriticalRateLimit(), controller.SubscriptionRequestWaffoPancakePay)
 		}
 		subscriptionAdminRoute := apiRouter.Group("/subscription/admin")
 		subscriptionAdminRoute.Use(middleware.AdminAuth())

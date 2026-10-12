@@ -6,6 +6,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
@@ -72,7 +73,12 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 			))
 		}
 
-		if err := relayInfo.Billing.Settle(actualQuota); err != nil {
+		err := relayInfo.Billing.Settle(actualQuota)
+		if relayInfo.ResellerId > 0 {
+			ctx.Set(model.ContextKeyLogResellerId, relayInfo.ResellerId)
+			ctx.Set(model.ContextKeyLogResellerCostQuota, relayInfo.ResellerCostQuota)
+		}
+		if err != nil {
 			return err
 		}
 

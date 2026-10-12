@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"strconv"
@@ -50,6 +51,10 @@ func validUserInfo(username string, role int) bool {
 }
 
 func authHelper(c *gin.Context, minRole int) {
+	authHelperWithRoleRange(c, minRole, math.MaxInt)
+}
+
+func authHelperWithRoleRange(c *gin.Context, minRole int, maxRole int) {
 	if _, started := c.Get(accessTokenAuditContextKey); !started {
 		defer finishAccessTokenAudit(c)
 	}
@@ -62,7 +67,7 @@ func authHelper(c *gin.Context, minRole int) {
 		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_USER_DISABLED", common.NewMessage("User has been banned"))
 		return
 	}
-	if user.Role < minRole {
+	if user.Role < minRole || user.Role > maxRole {
 		abortWithWebMessage(c, http.StatusForbidden, "AUTH_INSUFFICIENT_PRIVILEGE", common.NewMessage("Unauthorized, insufficient privileges"))
 		return
 	}
@@ -132,6 +137,13 @@ func TryUserAuth() func(c *gin.Context) {
 func UserAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleCommonUser)
+	}
+}
+
+// ResellerAuth admits only enabled reseller accounts (role == RoleResellerUser).
+func ResellerAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		authHelperWithRoleRange(c, common.RoleResellerUser, common.RoleResellerUser)
 	}
 }
 
@@ -621,6 +633,17 @@ func TokenAuth() func(c *gin.Context) {
 				}
 			}
 			userGroup = tokenGroup
+		}
+		if userCache.ResellerId > 0 {
+			resellerCfg, cfgErr := model.GetResellerPricingConfig(userCache.ResellerId)
+			if cfgErr != nil || resellerCfg.Role != common.RoleResellerUser || resellerCfg.Status != common.UserStatusEnabled {
+				abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+				return
+			}
+			if userGroup != "auto" && !resellerCfg.AllowsGroup(userGroup) {
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenGroupForbidden, map[string]any{"Group": userGroup}))
+				return
+			}
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
 

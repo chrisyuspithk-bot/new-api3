@@ -87,6 +87,35 @@ func getTokenRequestUserGroup(c *gin.Context) (string, error) {
 	return model.GetUserGroup(c.GetInt("id"), false)
 }
 
+// ensureResellerCustomerGroups rejects token groups outside the owning
+// reseller's whitelist for B2B2C customers. Direct users are unaffected.
+func ensureResellerCustomerGroups(c *gin.Context, group string, autoGroups []string) bool {
+	user, err := model.GetUserCache(c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if user.ResellerId <= 0 {
+		return true
+	}
+	cfg, err := model.GetResellerPricingConfig(user.ResellerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	candidates := append([]string{}, autoGroups...)
+	if group != "" && group != "auto" {
+		candidates = append(candidates, group)
+	}
+	for _, g := range candidates {
+		if !cfg.AllowsGroup(g) {
+			common.ApiErrorT(c, "Auto group {{group}} is unavailable or unauthorized", map[string]any{"group": g})
+			return false
+		}
+	}
+	return true
+}
+
 func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) bool {
 	if len(groups) == 0 {
 		if err := token.SetAutoGroups(nil); err != nil {
@@ -312,6 +341,9 @@ func AddToken(c *gin.Context) {
 		common.ApiErrorT(c, "Maximum number of tokens reached ({{max}})", map[string]any{"max": maxTokens})
 		return
 	}
+	if !ensureResellerCustomerGroups(c, token.Group, request.AutoGroups.Groups) {
+		return
+	}
 	if token.Group == "auto" {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
 			return
@@ -434,6 +466,9 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
 		cleanToken.ModelLimits = token.ModelLimits
 		cleanToken.AllowIps = token.AllowIps
+		if !ensureResellerCustomerGroups(c, token.Group, request.AutoGroups.Groups) {
+			return
+		}
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 		if token.Group != "auto" {

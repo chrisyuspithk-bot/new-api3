@@ -83,8 +83,8 @@ type User struct {
 	HasPassword          bool                       `json:"-" gorm:"-:all"`
 	OriginalPassword     string                     `json:"original_password" gorm:"-:all"` // this field is only for Password change verification, don't save it to database!
 	DisplayName          string                     `json:"display_name" gorm:"index" validate:"max=20"`
-	Role                 int                        `json:"role" gorm:"type:int;default:1"`   // admin, common
-	Status               int                        `json:"status" gorm:"type:int;default:1"` // enabled, disabled
+	Role                 int                        `json:"role" gorm:"type:int;default:1"`                                              // admin, common
+	Status               int                        `json:"status" gorm:"type:int;default:1;index:idx_users_reseller_status,priority:2"` // enabled, disabled
 	Email                string                     `json:"email" gorm:"index" validate:"max=50"`
 	GitHubId             string                     `json:"github_id" gorm:"column:github_id;index"`
 	DiscordId            string                     `json:"discord_id" gorm:"column:discord_id;index"`
@@ -94,9 +94,9 @@ type User struct {
 	VerificationCode     string                     `json:"verification_code" gorm:"-:all"`                         // this field is only for Email verification, don't save it to database!
 	AccessToken          *string                    `json:"-" gorm:"type:char(32);column:access_token;uniqueIndex"` // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
 	AccessTokenCreatedAt *int64                     `json:"-" gorm:"type:bigint;column:access_token_created_at"`    // Deprecated: 旧版面板访问令牌，仅在升级后的过渡期内使用；删除 users.access_token 列时一并移除。
-	Quota                int                        `json:"quota" gorm:"type:int;default:0"`
-	UsedQuota            int                        `json:"used_quota" gorm:"type:int;default:0;column:used_quota"` // used quota
-	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`               // request number
+	Quota                int                        `json:"quota" gorm:"type:bigint;default:0"`
+	UsedQuota            int                        `json:"used_quota" gorm:"type:bigint;default:0;column:used_quota"` // used quota
+	RequestCount         int                        `json:"request_count" gorm:"type:int;default:0;"`                  // request number
 	Group                string                     `json:"group" gorm:"type:varchar(64);default:'default'"`
 	AffCode              string                     `json:"aff_code" gorm:"type:varchar(32);column:aff_code;uniqueIndex"`
 	AffCount             int                        `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
@@ -112,12 +112,18 @@ type User struct {
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	// ResellerId is 0 for users owned directly by the admin; >0 is the users.id
+	// of the reseller that owns this customer.
+	ResellerId int `json:"reseller_id" gorm:"type:int;not null;default:0;index:idx_users_reseller_id;index:idx_users_reseller_status,priority:1"`
+	// Markup overrides the reseller default markup for this customer (nil = inherit).
+	Markup *float64 `json:"markup,omitempty" gorm:"type:decimal(18,6)"`
 }
 
 func (user *User) ToBaseUser() *UserBase {
 	cache := &UserBase{
 		Id:          user.Id,
 		Group:       user.Group,
+		ResellerId:  user.ResellerId,
 		Quota:       user.Quota,
 		Status:      user.Status,
 		Role:        user.Role,
@@ -533,7 +539,7 @@ func GetSelfUserById(id int) (*User, error) {
 		"github_id", "discord_id", "oidc_id", "wechat_id", "telegram_id",
 		"group", "quota", "used_quota", "request_count", "aff_code", "aff_count",
 		"aff_quota", "aff_history", "inviter_id", "linux_do_id", "setting",
-		"stripe_customer", "auth_version",
+		"stripe_customer", "auth_version", "reseller_id",
 		"CASE WHEN password <> '' THEN 1 ELSE 0 END AS has_password",
 	}).First(&profile, "id = ?", id).Error
 	profile.User.HasPassword = profile.HasPassword
