@@ -85,6 +85,22 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** B2B2C: owning reseller id (0 = direct) */
+  reseller_id?: number
+  is_reseller?: boolean
+  reseller?: {
+    role?: string
+    reseller_id?: number
+    reseller_display_name?: string
+    online_topup_enabled?: boolean
+    profile?: {
+      display_name?: string
+      default_markup?: number
+      max_customers?: number
+      allow_redemption?: boolean
+    }
+    groups?: string[]
+  }
 }
 
 /**

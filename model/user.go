@@ -264,6 +264,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"models":     true,
 			"redemption": true,
 			"user":       true,
+			"reseller":   true,
 			"setting":    false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
@@ -274,7 +275,18 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"models":     true,
 			"redemption": true,
 			"user":       true,
+			"reseller":   true,
 			"setting":    true,
+		}
+	} else if userRole == common.RoleResellerUser {
+		defaultConfig["reseller"] = map[string]any{
+			"enabled":     true,
+			"overview":    true,
+			"customers":   true,
+			"markups":     true,
+			"redemptions": true,
+			"logs":        true,
+			"reports":     true,
 		}
 	}
 	// 普通用户不包含admin区域

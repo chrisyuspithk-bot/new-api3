@@ -480,6 +480,10 @@ export function OverviewDashboard() {
   const remainQuota = Number(user?.quota ?? 0)
   const usedQuota = Number(user?.used_quota ?? 0)
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const resellerName =
+    user?.reseller?.role === 'customer'
+      ? user.reseller.reseller_display_name
+      : undefined
 
   const apiKeysQuery = useQuery({
     queryKey: ['dashboard', 'overview', 'api-keys'],
@@ -647,6 +651,13 @@ export function OverviewDashboard() {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-4'>
+          {resellerName ? (
+            <div className='bg-muted rounded-2xl border px-4 py-3 text-sm'>
+              {t('Served by reseller')}:{' '}
+              <span className='font-medium'>{resellerName}</span>
+              . {t('Contact them for top-ups and support.')}
+            </div>
+          ) : null}
           <div id={setupGuideId} hidden={!setupGuideExpanded}>
             {setupGuideExpanded && (
               <CardStaggerContainer className='grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]'>

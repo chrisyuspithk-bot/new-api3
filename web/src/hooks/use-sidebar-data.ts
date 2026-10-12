@@ -32,6 +32,7 @@ import {
   ServerCog,
   Settings,
   ShieldCheck,
+  Store,
   Ticket,
   User,
   Users,
@@ -129,6 +130,48 @@ export function useSidebarData(): SidebarData {
         ],
       },
       {
+        id: 'reseller',
+        title: t('Reseller'),
+        items: [
+          {
+            title: t('Reseller Overview'),
+            url: '/reseller',
+            icon: Store,
+            requiredRole: ROLE.RESELLER,
+          },
+          {
+            title: t('Customers'),
+            url: '/reseller/customers',
+            icon: Users,
+            requiredRole: ROLE.RESELLER,
+          },
+          {
+            title: t('Model Markups'),
+            url: '/reseller/markups',
+            icon: Box,
+            requiredRole: ROLE.RESELLER,
+          },
+          {
+            title: t('Redemption Codes'),
+            url: '/reseller/redemptions',
+            icon: Ticket,
+            requiredRole: ROLE.RESELLER,
+          },
+          {
+            title: t('Usage Logs'),
+            url: '/reseller/logs',
+            icon: FileText,
+            requiredRole: ROLE.RESELLER,
+          },
+          {
+            title: t('Gross Profit'),
+            url: '/reseller/reports',
+            icon: Activity,
+            requiredRole: ROLE.RESELLER,
+          },
+        ],
+      },
+      {
         id: 'admin',
         title: t('Admin'),
         items: [
@@ -146,6 +189,11 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Resellers'),
+            url: '/resellers',
+            icon: Store,
           },
           {
             title: t('Redemption Codes'),

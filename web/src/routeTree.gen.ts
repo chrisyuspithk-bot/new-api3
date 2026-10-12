@@ -45,6 +45,13 @@ import { Route as AuthenticatedModelsSectionRouteImport } from './routes/_authen
 import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_authenticated/playground/index'
 import { Route as AuthenticatedProfileIndexRouteImport } from './routes/_authenticated/profile/index'
 import { Route as AuthenticatedRedemptionCodesIndexRouteImport } from './routes/_authenticated/redemption-codes/index'
+import { Route as AuthenticatedResellerIndexRouteImport } from './routes/_authenticated/reseller/index'
+import { Route as AuthenticatedResellerLogsRouteImport } from './routes/_authenticated/reseller/logs'
+import { Route as AuthenticatedResellerMarkupsRouteImport } from './routes/_authenticated/reseller/markups'
+import { Route as AuthenticatedResellerRedemptionsRouteImport } from './routes/_authenticated/reseller/redemptions'
+import { Route as AuthenticatedResellerReportsRouteImport } from './routes/_authenticated/reseller/reports'
+import { Route as AuthenticatedResellersIndexRouteImport } from './routes/_authenticated/resellers/index'
+import { Route as AuthenticatedResellersIdRouteImport } from './routes/_authenticated/resellers/$id'
 import { Route as AuthenticatedSecurityIndexRouteImport } from './routes/_authenticated/security/index'
 import { Route as AuthenticatedSubscriptionsIndexRouteImport } from './routes/_authenticated/subscriptions/index'
 import { Route as AuthenticatedSystemInfoIndexRouteImport } from './routes/_authenticated/system-info/index'
@@ -56,6 +63,8 @@ import { Route as AuthenticatedUsageLogsAuditRouteImport } from './routes/_authe
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as AuthenticatedResellerCustomersIndexRouteImport } from './routes/_authenticated/reseller/customers/index'
+import { Route as AuthenticatedResellerCustomersIdRouteImport } from './routes/_authenticated/reseller/customers/$id'
 import { Route as AuthenticatedSystemSettingsAuthIndexRouteImport } from './routes/_authenticated/system-settings/auth/index'
 import { Route as AuthenticatedSystemSettingsAuthSectionRouteImport } from './routes/_authenticated/system-settings/auth/$section'
 import { Route as AuthenticatedSystemSettingsBillingIndexRouteImport } from './routes/_authenticated/system-settings/billing/index'
@@ -261,6 +270,48 @@ const AuthenticatedRedemptionCodesIndexRoute =
     path: '/redemption-codes/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedResellerIndexRoute =
+  AuthenticatedResellerIndexRouteImport.update({
+    id: '/reseller/',
+    path: '/reseller/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellerLogsRoute =
+  AuthenticatedResellerLogsRouteImport.update({
+    id: '/reseller/logs',
+    path: '/reseller/logs',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellerMarkupsRoute =
+  AuthenticatedResellerMarkupsRouteImport.update({
+    id: '/reseller/markups',
+    path: '/reseller/markups',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellerRedemptionsRoute =
+  AuthenticatedResellerRedemptionsRouteImport.update({
+    id: '/reseller/redemptions',
+    path: '/reseller/redemptions',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellerReportsRoute =
+  AuthenticatedResellerReportsRouteImport.update({
+    id: '/reseller/reports',
+    path: '/reseller/reports',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellersIndexRoute =
+  AuthenticatedResellersIndexRouteImport.update({
+    id: '/resellers/',
+    path: '/resellers/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellersIdRoute =
+  AuthenticatedResellersIdRouteImport.update({
+    id: '/resellers/$id',
+    path: '/resellers/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSecurityIndexRoute =
   AuthenticatedSecurityIndexRouteImport.update({
     id: '/security/',
@@ -325,6 +376,18 @@ const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   path: '/pricing/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedResellerCustomersIndexRoute =
+  AuthenticatedResellerCustomersIndexRouteImport.update({
+    id: '/reseller/customers/',
+    path: '/reseller/customers/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedResellerCustomersIdRoute =
+  AuthenticatedResellerCustomersIdRouteImport.update({
+    id: '/reseller/customers/$id',
+    path: '/reseller/customers/$id',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedSystemSettingsAuthIndexRoute =
   AuthenticatedSystemSettingsAuthIndexRouteImport.update({
     id: '/auth/',
@@ -450,6 +513,11 @@ export interface FileRoutesByFullPath {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/reseller/logs': typeof AuthenticatedResellerLogsRoute
+  '/reseller/markups': typeof AuthenticatedResellerMarkupsRoute
+  '/reseller/redemptions': typeof AuthenticatedResellerRedemptionsRoute
+  '/reseller/reports': typeof AuthenticatedResellerReportsRoute
+  '/resellers/$id': typeof AuthenticatedResellersIdRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -459,6 +527,8 @@ export interface FileRoutesByFullPath {
   '/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/profile/': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/reseller/': typeof AuthenticatedResellerIndexRoute
+  '/resellers/': typeof AuthenticatedResellersIndexRoute
   '/security/': typeof AuthenticatedSecurityIndexRoute
   '/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info/': typeof AuthenticatedSystemInfoIndexRoute
@@ -468,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
+  '/reseller/customers/$id': typeof AuthenticatedResellerCustomersIdRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -476,6 +547,7 @@ export interface FileRoutesByFullPath {
   '/system-settings/request-policies/$section': typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/reseller/customers/': typeof AuthenticatedResellerCustomersIndexRoute
   '/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -512,6 +584,11 @@ export interface FileRoutesByTo {
   '/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/reseller/logs': typeof AuthenticatedResellerLogsRoute
+  '/reseller/markups': typeof AuthenticatedResellerMarkupsRoute
+  '/reseller/redemptions': typeof AuthenticatedResellerRedemptionsRoute
+  '/reseller/reports': typeof AuthenticatedResellerReportsRoute
+  '/resellers/$id': typeof AuthenticatedResellersIdRoute
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
@@ -521,6 +598,8 @@ export interface FileRoutesByTo {
   '/playground': typeof AuthenticatedPlaygroundIndexRoute
   '/profile': typeof AuthenticatedProfileIndexRoute
   '/redemption-codes': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/reseller': typeof AuthenticatedResellerIndexRoute
+  '/resellers': typeof AuthenticatedResellersIndexRoute
   '/security': typeof AuthenticatedSecurityIndexRoute
   '/subscriptions': typeof AuthenticatedSubscriptionsIndexRoute
   '/system-info': typeof AuthenticatedSystemInfoIndexRoute
@@ -530,6 +609,7 @@ export interface FileRoutesByTo {
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
+  '/reseller/customers/$id': typeof AuthenticatedResellerCustomersIdRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -538,6 +618,7 @@ export interface FileRoutesByTo {
   '/system-settings/request-policies/$section': typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   '/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/reseller/customers': typeof AuthenticatedResellerCustomersIndexRoute
   '/system-settings/auth': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/system-settings/billing': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/system-settings/content': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -578,6 +659,11 @@ export interface FileRoutesById {
   '/_authenticated/dashboard/$section': typeof AuthenticatedDashboardSectionRoute
   '/_authenticated/errors/$error': typeof AuthenticatedErrorsErrorRoute
   '/_authenticated/models/$section': typeof AuthenticatedModelsSectionRoute
+  '/_authenticated/reseller/logs': typeof AuthenticatedResellerLogsRoute
+  '/_authenticated/reseller/markups': typeof AuthenticatedResellerMarkupsRoute
+  '/_authenticated/reseller/redemptions': typeof AuthenticatedResellerRedemptionsRoute
+  '/_authenticated/reseller/reports': typeof AuthenticatedResellerReportsRoute
+  '/_authenticated/resellers/$id': typeof AuthenticatedResellersIdRoute
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/usage-logs/audit': typeof AuthenticatedUsageLogsAuditRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
@@ -587,6 +673,8 @@ export interface FileRoutesById {
   '/_authenticated/playground/': typeof AuthenticatedPlaygroundIndexRoute
   '/_authenticated/profile/': typeof AuthenticatedProfileIndexRoute
   '/_authenticated/redemption-codes/': typeof AuthenticatedRedemptionCodesIndexRoute
+  '/_authenticated/reseller/': typeof AuthenticatedResellerIndexRoute
+  '/_authenticated/resellers/': typeof AuthenticatedResellersIndexRoute
   '/_authenticated/security/': typeof AuthenticatedSecurityIndexRoute
   '/_authenticated/subscriptions/': typeof AuthenticatedSubscriptionsIndexRoute
   '/_authenticated/system-info/': typeof AuthenticatedSystemInfoIndexRoute
@@ -596,6 +684,7 @@ export interface FileRoutesById {
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
+  '/_authenticated/reseller/customers/$id': typeof AuthenticatedResellerCustomersIdRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
   '/_authenticated/system-settings/content/$section': typeof AuthenticatedSystemSettingsContentSectionRoute
@@ -604,6 +693,7 @@ export interface FileRoutesById {
   '/_authenticated/system-settings/request-policies/$section': typeof AuthenticatedSystemSettingsRequestPoliciesSectionRoute
   '/_authenticated/system-settings/security/$section': typeof AuthenticatedSystemSettingsSecuritySectionRoute
   '/_authenticated/system-settings/site/$section': typeof AuthenticatedSystemSettingsSiteSectionRoute
+  '/_authenticated/reseller/customers/': typeof AuthenticatedResellerCustomersIndexRoute
   '/_authenticated/system-settings/auth/': typeof AuthenticatedSystemSettingsAuthIndexRoute
   '/_authenticated/system-settings/billing/': typeof AuthenticatedSystemSettingsBillingIndexRoute
   '/_authenticated/system-settings/content/': typeof AuthenticatedSystemSettingsContentIndexRoute
@@ -643,6 +733,11 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/models/$section'
+    | '/reseller/logs'
+    | '/reseller/markups'
+    | '/reseller/redemptions'
+    | '/reseller/reports'
+    | '/resellers/$id'
     | '/usage-logs/$section'
     | '/usage-logs/audit'
     | '/channels/'
@@ -652,6 +747,8 @@ export interface FileRouteTypes {
     | '/playground/'
     | '/profile/'
     | '/redemption-codes/'
+    | '/reseller/'
+    | '/resellers/'
     | '/security/'
     | '/subscriptions/'
     | '/system-info/'
@@ -661,6 +758,7 @@ export interface FileRouteTypes {
     | '/users/'
     | '/wallet/'
     | '/pricing/$modelId/'
+    | '/reseller/customers/$id'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -669,6 +767,7 @@ export interface FileRouteTypes {
     | '/system-settings/request-policies/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/reseller/customers/'
     | '/system-settings/auth/'
     | '/system-settings/billing/'
     | '/system-settings/content/'
@@ -705,6 +804,11 @@ export interface FileRouteTypes {
     | '/dashboard/$section'
     | '/errors/$error'
     | '/models/$section'
+    | '/reseller/logs'
+    | '/reseller/markups'
+    | '/reseller/redemptions'
+    | '/reseller/reports'
+    | '/resellers/$id'
     | '/usage-logs/$section'
     | '/usage-logs/audit'
     | '/channels'
@@ -714,6 +818,8 @@ export interface FileRouteTypes {
     | '/playground'
     | '/profile'
     | '/redemption-codes'
+    | '/reseller'
+    | '/resellers'
     | '/security'
     | '/subscriptions'
     | '/system-info'
@@ -723,6 +829,7 @@ export interface FileRouteTypes {
     | '/users'
     | '/wallet'
     | '/pricing/$modelId'
+    | '/reseller/customers/$id'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
     | '/system-settings/content/$section'
@@ -731,6 +838,7 @@ export interface FileRouteTypes {
     | '/system-settings/request-policies/$section'
     | '/system-settings/security/$section'
     | '/system-settings/site/$section'
+    | '/reseller/customers'
     | '/system-settings/auth'
     | '/system-settings/billing'
     | '/system-settings/content'
@@ -770,6 +878,11 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard/$section'
     | '/_authenticated/errors/$error'
     | '/_authenticated/models/$section'
+    | '/_authenticated/reseller/logs'
+    | '/_authenticated/reseller/markups'
+    | '/_authenticated/reseller/redemptions'
+    | '/_authenticated/reseller/reports'
+    | '/_authenticated/resellers/$id'
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/usage-logs/audit'
     | '/_authenticated/channels/'
@@ -779,6 +892,8 @@ export interface FileRouteTypes {
     | '/_authenticated/playground/'
     | '/_authenticated/profile/'
     | '/_authenticated/redemption-codes/'
+    | '/_authenticated/reseller/'
+    | '/_authenticated/resellers/'
     | '/_authenticated/security/'
     | '/_authenticated/subscriptions/'
     | '/_authenticated/system-info/'
@@ -788,6 +903,7 @@ export interface FileRouteTypes {
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
     | '/pricing/$modelId/'
+    | '/_authenticated/reseller/customers/$id'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
     | '/_authenticated/system-settings/content/$section'
@@ -796,6 +912,7 @@ export interface FileRouteTypes {
     | '/_authenticated/system-settings/request-policies/$section'
     | '/_authenticated/system-settings/security/$section'
     | '/_authenticated/system-settings/site/$section'
+    | '/_authenticated/reseller/customers/'
     | '/_authenticated/system-settings/auth/'
     | '/_authenticated/system-settings/billing/'
     | '/_authenticated/system-settings/content/'
@@ -1079,6 +1196,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRedemptionCodesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/reseller/': {
+      id: '/_authenticated/reseller/'
+      path: '/reseller'
+      fullPath: '/reseller/'
+      preLoaderRoute: typeof AuthenticatedResellerIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reseller/logs': {
+      id: '/_authenticated/reseller/logs'
+      path: '/reseller/logs'
+      fullPath: '/reseller/logs'
+      preLoaderRoute: typeof AuthenticatedResellerLogsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reseller/markups': {
+      id: '/_authenticated/reseller/markups'
+      path: '/reseller/markups'
+      fullPath: '/reseller/markups'
+      preLoaderRoute: typeof AuthenticatedResellerMarkupsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reseller/redemptions': {
+      id: '/_authenticated/reseller/redemptions'
+      path: '/reseller/redemptions'
+      fullPath: '/reseller/redemptions'
+      preLoaderRoute: typeof AuthenticatedResellerRedemptionsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reseller/reports': {
+      id: '/_authenticated/reseller/reports'
+      path: '/reseller/reports'
+      fullPath: '/reseller/reports'
+      preLoaderRoute: typeof AuthenticatedResellerReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/resellers/': {
+      id: '/_authenticated/resellers/'
+      path: '/resellers'
+      fullPath: '/resellers/'
+      preLoaderRoute: typeof AuthenticatedResellersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/resellers/$id': {
+      id: '/_authenticated/resellers/$id'
+      path: '/resellers/$id'
+      fullPath: '/resellers/$id'
+      preLoaderRoute: typeof AuthenticatedResellersIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/security/': {
       id: '/_authenticated/security/'
       path: '/security'
@@ -1155,6 +1321,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/pricing/$modelId/'
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/reseller/customers/': {
+      id: '/_authenticated/reseller/customers/'
+      path: '/reseller/customers'
+      fullPath: '/reseller/customers/'
+      preLoaderRoute: typeof AuthenticatedResellerCustomersIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/reseller/customers/$id': {
+      id: '/_authenticated/reseller/customers/$id'
+      path: '/reseller/customers/$id'
+      fullPath: '/reseller/customers/$id'
+      preLoaderRoute: typeof AuthenticatedResellerCustomersIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/system-settings/auth/': {
       id: '/_authenticated/system-settings/auth/'
@@ -1367,6 +1547,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardSectionRoute: typeof AuthenticatedDashboardSectionRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedModelsSectionRoute: typeof AuthenticatedModelsSectionRoute
+  AuthenticatedResellerLogsRoute: typeof AuthenticatedResellerLogsRoute
+  AuthenticatedResellerMarkupsRoute: typeof AuthenticatedResellerMarkupsRoute
+  AuthenticatedResellerRedemptionsRoute: typeof AuthenticatedResellerRedemptionsRoute
+  AuthenticatedResellerReportsRoute: typeof AuthenticatedResellerReportsRoute
+  AuthenticatedResellersIdRoute: typeof AuthenticatedResellersIdRoute
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedUsageLogsAuditRoute: typeof AuthenticatedUsageLogsAuditRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
@@ -1376,6 +1561,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPlaygroundIndexRoute: typeof AuthenticatedPlaygroundIndexRoute
   AuthenticatedProfileIndexRoute: typeof AuthenticatedProfileIndexRoute
   AuthenticatedRedemptionCodesIndexRoute: typeof AuthenticatedRedemptionCodesIndexRoute
+  AuthenticatedResellerIndexRoute: typeof AuthenticatedResellerIndexRoute
+  AuthenticatedResellersIndexRoute: typeof AuthenticatedResellersIndexRoute
   AuthenticatedSecurityIndexRoute: typeof AuthenticatedSecurityIndexRoute
   AuthenticatedSubscriptionsIndexRoute: typeof AuthenticatedSubscriptionsIndexRoute
   AuthenticatedSystemInfoIndexRoute: typeof AuthenticatedSystemInfoIndexRoute
@@ -1383,6 +1570,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsIndexRoute: typeof AuthenticatedUsageLogsIndexRoute
   AuthenticatedUsersIndexRoute: typeof AuthenticatedUsersIndexRoute
   AuthenticatedWalletIndexRoute: typeof AuthenticatedWalletIndexRoute
+  AuthenticatedResellerCustomersIdRoute: typeof AuthenticatedResellerCustomersIdRoute
+  AuthenticatedResellerCustomersIndexRoute: typeof AuthenticatedResellerCustomersIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -1393,6 +1582,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardSectionRoute: AuthenticatedDashboardSectionRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedModelsSectionRoute: AuthenticatedModelsSectionRoute,
+  AuthenticatedResellerLogsRoute: AuthenticatedResellerLogsRoute,
+  AuthenticatedResellerMarkupsRoute: AuthenticatedResellerMarkupsRoute,
+  AuthenticatedResellerRedemptionsRoute: AuthenticatedResellerRedemptionsRoute,
+  AuthenticatedResellerReportsRoute: AuthenticatedResellerReportsRoute,
+  AuthenticatedResellersIdRoute: AuthenticatedResellersIdRoute,
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedUsageLogsAuditRoute: AuthenticatedUsageLogsAuditRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
@@ -1403,6 +1597,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProfileIndexRoute: AuthenticatedProfileIndexRoute,
   AuthenticatedRedemptionCodesIndexRoute:
     AuthenticatedRedemptionCodesIndexRoute,
+  AuthenticatedResellerIndexRoute: AuthenticatedResellerIndexRoute,
+  AuthenticatedResellersIndexRoute: AuthenticatedResellersIndexRoute,
   AuthenticatedSecurityIndexRoute: AuthenticatedSecurityIndexRoute,
   AuthenticatedSubscriptionsIndexRoute: AuthenticatedSubscriptionsIndexRoute,
   AuthenticatedSystemInfoIndexRoute: AuthenticatedSystemInfoIndexRoute,
@@ -1410,6 +1606,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsIndexRoute: AuthenticatedUsageLogsIndexRoute,
   AuthenticatedUsersIndexRoute: AuthenticatedUsersIndexRoute,
   AuthenticatedWalletIndexRoute: AuthenticatedWalletIndexRoute,
+  AuthenticatedResellerCustomersIdRoute: AuthenticatedResellerCustomersIdRoute,
+  AuthenticatedResellerCustomersIndexRoute:
+    AuthenticatedResellerCustomersIndexRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

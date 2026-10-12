@@ -62,6 +62,7 @@ interface WalletProps {
 export function Wallet(props: WalletProps) {
   const { t } = useTranslation()
   const [user, setUser] = useState<UserWalletData | null>(null)
+  const [isResellerCustomer, setIsResellerCustomer] = useState(false)
   const [userLoading, setUserLoading] = useState(true)
   const [topupAmount, setTopupAmount] = useState(0)
   const [selectedPreset, setSelectedPreset] = useState<number | null>(null)
@@ -83,6 +84,18 @@ export function Wallet(props: WalletProps) {
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
+  const gatedTopupInfo = useMemo(() => {
+    if (!topupInfo) return topupInfo
+    if (!isResellerCustomer) return topupInfo
+    return {
+      ...topupInfo,
+      enable_online_topup: false,
+      enable_stripe_topup: false,
+      enable_creem_topup: false,
+      enable_waffo_topup: false,
+      enable_waffo_pancake_topup: false,
+    }
+  }, [topupInfo, isResellerCustomer])
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -116,6 +129,9 @@ export function Wallet(props: WalletProps) {
       const response = await getSelf()
       if (response.success && response.data) {
         setUser(response.data as UserWalletData)
+        const reseller = (response.data as { reseller?: { role?: string } })
+          .reseller
+        setIsResellerCustomer(reseller?.role === 'customer')
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -290,6 +306,14 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
+            {isResellerCustomer && (
+              <div className='bg-muted rounded-lg border px-4 py-3 text-sm'>
+                {t(
+                  'Online top-up and subscriptions are managed by your reseller. You can still redeem codes they issued.'
+                )}
+              </div>
+            )}
+
             <div
               className={
                 showSubscriptionPanel
@@ -299,7 +323,7 @@ export function Wallet(props: WalletProps) {
             >
               <div id='wallet-add-funds' className='scroll-mt-4'>
                 <RechargeFormCard
-                  topupInfo={topupInfo}
+                  topupInfo={gatedTopupInfo}
                   presetAmounts={presetAmounts}
                   selectedPreset={selectedPreset}
                   onSelectPreset={handleSelectPreset}
@@ -319,35 +343,44 @@ export function Wallet(props: WalletProps) {
                   usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
-                  enableCreemTopup={topupInfo?.enable_creem_topup}
+                  enableCreemTopup={
+                    !isResellerCustomer && !!topupInfo?.enable_creem_topup
+                  }
                   onCreemProductSelect={handleCreemProductSelect}
-                  enableWaffoTopup={topupInfo?.enable_waffo_topup}
+                  enableWaffoTopup={
+                    !isResellerCustomer && !!topupInfo?.enable_waffo_topup
+                  }
                   waffoPayMethods={topupInfo?.waffo_pay_methods}
                   waffoMinTopup={topupInfo?.waffo_min_topup}
                   onWaffoMethodSelect={handleWaffoMethodSelect}
                   enableWaffoPancakeTopup={
-                    topupInfo?.enable_waffo_pancake_topup
+                    !isResellerCustomer &&
+                    !!topupInfo?.enable_waffo_pancake_topup
                   }
                 />
               </div>
 
-              <SubscriptionPlansCard
-                topupInfo={topupInfo}
-                onAvailabilityChange={handleSubscriptionAvailabilityChange}
-                userQuota={user?.quota}
-                onPurchaseSuccess={fetchUser}
-              />
+              {!isResellerCustomer && (
+                <SubscriptionPlansCard
+                  topupInfo={gatedTopupInfo}
+                  onAvailabilityChange={handleSubscriptionAvailabilityChange}
+                  userQuota={user?.quota}
+                  onPurchaseSuccess={fetchUser}
+                />
+              )}
             </div>
 
-            <AffiliateRewardsCard
-              user={user}
-              affiliateLink={affiliateLink}
-              onTransfer={() => setTransferDialogOpen(true)}
-              complianceConfirmed={
-                topupInfo?.payment_compliance_confirmed !== false
-              }
-              loading={affiliateLoading}
-            />
+            {!isResellerCustomer && (
+              <AffiliateRewardsCard
+                user={user}
+                affiliateLink={affiliateLink}
+                onTransfer={() => setTransferDialogOpen(true)}
+                complianceConfirmed={
+                  topupInfo?.payment_compliance_confirmed !== false
+                }
+                loading={affiliateLoading}
+              />
+            )}
           </div>
         </SectionPageLayout.Content>
       </SectionPageLayout>

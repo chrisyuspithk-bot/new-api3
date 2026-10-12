@@ -497,7 +497,7 @@ func buildSelfUserData(user *model.User) map[string]any {
 	userSetting := user.GetSetting()
 	permissions := calculateUserPermissions(user.Role)
 	permissions["admin_permissions"] = authz.Capabilities(user.Id, user.Role)
-	return map[string]any{
+	data := map[string]any{
 		"id":                user.Id,
 		"username":          user.Username,
 		"display_name":      user.DisplayName,
@@ -527,6 +527,10 @@ func buildSelfUserData(user *model.User) map[string]any {
 		"sidebar_modules":   userSetting.SidebarModules, // 正确提取sidebar_modules字段
 		"permissions":       permissions,
 	}
+	if resellerInfo := buildSelfResellerInfo(user); resellerInfo != nil {
+		data["reseller"] = resellerInfo
+	}
+	return data
 }
 
 // 计算用户权限的辅助函数
@@ -546,11 +550,26 @@ func calculateUserPermissions(userRole int) map[string]any {
 				"setting": false, // 管理员不能访问系统设置
 			},
 		}
+	} else if userRole == common.RoleResellerUser {
+		permissions["sidebar_settings"] = true
+		permissions["sidebar_modules"] = map[string]any{
+			"admin": false,
+			"reseller": map[string]any{
+				"enabled":     true,
+				"overview":    true,
+				"customers":   true,
+				"markups":     true,
+				"redemptions": true,
+				"logs":        true,
+				"reports":     true,
+			},
+		}
 	} else {
 		// 普通用户只能设置个人功能，不包含管理员区域
 		permissions["sidebar_settings"] = true
 		permissions["sidebar_modules"] = map[string]any{
-			"admin": false, // 普通用户不能访问管理员区域
+			"admin":    false, // 普通用户不能访问管理员区域
+			"reseller": false,
 		}
 	}
 
@@ -594,6 +613,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"models":     true,
 			"redemption": true,
 			"user":       true,
+			"reseller":   true,
 			"setting":    false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
@@ -604,7 +624,18 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"models":     true,
 			"redemption": true,
 			"user":       true,
+			"reseller":   true,
 			"setting":    true,
+		}
+	} else if userRole == common.RoleResellerUser {
+		defaultConfig["reseller"] = map[string]any{
+			"enabled":     true,
+			"overview":    true,
+			"customers":   true,
+			"markups":     true,
+			"redemptions": true,
+			"logs":        true,
+			"reports":     true,
 		}
 	}
 	// 普通用户不包含admin区域
@@ -1134,6 +1165,10 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorT(c, "Cannot delete super administrator account")
 			return
 		}
+		if user.Role == common.RoleResellerUser {
+			common.ApiErrorT(c, "Cannot delete a reseller via generic user manage; use /api/admin/resellers")
+			return
+		}
 		authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserDelete, service.AdminUserContext{UserID: user.Id})
 		if authorization == nil {
 			return
@@ -1169,10 +1204,24 @@ func ManageUser(c *gin.Context) {
 			common.ApiErrorT(c, "This user is already an administrator")
 			return
 		}
+		// Resellers and their customers must go through the reseller APIs so
+		// profiles / reseller_id stay consistent.
+		if user.Role == common.RoleResellerUser {
+			common.ApiErrorT(c, "Cannot promote a reseller via generic user manage; use /api/admin/resellers")
+			return
+		}
+		if user.ResellerId > 0 {
+			common.ApiErrorT(c, "Cannot promote a reseller customer; remove them from the reseller first")
+			return
+		}
 		user.Role = common.RoleAdminUser
 	case "demote":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorT(c, "Cannot demote super administrator user")
+			return
+		}
+		if user.Role == common.RoleResellerUser {
+			common.ApiErrorT(c, "Cannot demote a reseller via generic user manage; use /api/admin/resellers")
 			return
 		}
 		if user.Role == common.RoleCommonUser {

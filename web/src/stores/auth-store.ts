@@ -44,6 +44,21 @@ export interface AuthUser {
   aff_quota?: number
   aff_history_quota?: number
   inviter_id?: number
+  reseller_id?: number
+  is_reseller?: boolean
+  reseller?: {
+    role?: 'reseller' | 'customer' | string
+    reseller_id?: number
+    reseller_display_name?: string
+    online_topup_enabled?: boolean
+    profile?: {
+      display_name?: string
+      default_markup?: number
+      max_customers?: number
+      allow_redemption?: boolean
+    }
+    groups?: string[]
+  }
   github_id?: string
   discord_id?: string
   oidc_id?: string

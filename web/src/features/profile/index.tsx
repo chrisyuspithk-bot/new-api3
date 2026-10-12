@@ -28,6 +28,7 @@ import { CheckinCalendarCard } from './components/checkin-calendar-card'
 import { LanguagePreferencesCard } from './components/language-preferences-card'
 import { ProfileHeader } from './components/profile-header'
 import { ProfileSettingsCard } from './components/profile-settings-card'
+import { ResellerContactCard } from './components/reseller-contact-card'
 import { SidebarModulesCard } from './components/sidebar-modules-card'
 import { useProfile } from './hooks'
 
@@ -59,6 +60,7 @@ export function Profile() {
                   loading={loading}
                   onProfileUpdate={refreshProfile}
                 />
+                <ResellerContactCard profile={profile} />
                 <LanguagePreferencesCard
                   profile={profile}
                   onProfileUpdate={refreshProfile}
