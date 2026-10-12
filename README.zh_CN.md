@@ -160,40 +160,77 @@ New API 是面向应用、Agent 和团队的自托管 AI 网关。将不同厂�
 
 <a id="quick-start"></a>
 
-## 快速开始
+## 快速开始（本仓库 B2B2C 镜像）
 
-### 使用 Docker 本地体验
+> **本分支请勿使用 `calciumion/new-api:latest`。** 该 Hub 镜像不含 B2B2C。请从仓库 [Dockerfile](./Dockerfile) 本地构建，使镜像与当前源码一致。
 
-以下命令使用 SQLite 启动单实例，仅监听本机端口：
+### 1. 构建镜像
+
+```bash
+git clone https://github.com/chrisyuspithk-bot/new-api3.git
+cd new-api3
+# 可选：git checkout feat/b2b2c-phase1   # 合并后与 main 上的 B2B2C 代码相同
+
+docker build -t new-api-b2b2c:local .
+```
+
+Dockerfile 会先构建 React 控制台（Bun），再编译 Go 二进制，并暴露 **3000** 端口。容器内工作目录为 `/data`。
+
+### 2. 使用 SQLite 运行（最简单）
+
+未设置 `SQL_DSN` 时，服务端在 `/data` 下使用 SQLite（可用 `SQLITE_PATH` 覆盖路径）。用 volume 持久化 `/data`：
 
 ```bash
 mkdir -p data
-docker run --name new-api -d --restart unless-stopped \
+docker run --name new-api-b2b2c -d --restart unless-stopped \
   -p 127.0.0.1:3000:3000 \
   -e TZ=Asia/Shanghai \
+  -e SESSION_SECRET="$(openssl rand -hex 32)" \
   -v "$(pwd)/data:/data" \
-  calciumion/new-api:latest
+  new-api-b2b2c:local
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)，按初始化向导创建管理员账号。SQLite 数据库存放在挂载的 `data` 目录中，更换容器后仍会保留。
+- **主机端口**：任意主机端口映射到容器 `3000`（应用默认监听端口；容器内可用环境变量 `PORT` 或参数 `--port` 覆盖）。
+- 打开 [http://localhost:3000](http://localhost:3000)。首次启动会进入初始化向导（或使用下方 API）。
 
-### 发起第一次请求
+### 3. 首次初始化 — `POST /api/setup`
+
+创建根管理员（若不存在）并标记系统已初始化。在本 B2B2C 分支上还会持久化 **`RegisterEnabled=false`** 与 **`PasswordRegisterEnabled=false`**（客户由代理商创建）。
+
+查看状态：
+
+```bash
+curl -s http://localhost:3000/api/setup
+```
+
+初始化（仅在尚未完成 setup 时可用）：
+
+```bash
+curl -s -X POST http://localhost:3000/api/setup \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "root",
+    "password": "YourStrongPassword!",
+    "confirmPassword": "YourStrongPassword!",
+    "SelfUseModeEnabled": false,
+    "DemoSiteEnabled": false
+  }'
+```
+
+随后在 `/sign-in` 登录，添加渠道，在 **代理商（Resellers）** 下创建代理商，由代理商再开通客户。
+
+### 4. 发起第一次请求
 
 1. 新建渠道，填写上游 API Key、可用模型和所属分组，执行渠道测试。
-2. 配置模型价格，确保调用用户有可用额度或有效订阅。
+2. 配置模型价格，确保调用用户有可用额度。
 3. 在控制台创建 API Key，确保它能访问对应分组和模型。
 4. 对于 OpenAI 兼容客户端，将 Base URL 设为 `http://localhost:3000/v1`，密钥使用 **New API 签发的 Key**。
 
-在终端中将 `NEW_API_KEY` 环境变量设为该密钥，查询它可以访问的模型：
-
 ```bash
+export NEW_API_KEY=sk-...
 curl --fail-with-body http://localhost:3000/v1/models \
   -H "Authorization: Bearer ${NEW_API_KEY}"
-```
 
-然后调用 Responses，将 `your-enabled-model` 替换为已启用且支持该接口的模型名称：
-
-```bash
 curl --fail-with-body http://localhost:3000/v1/responses \
   -H "Authorization: Bearer ${NEW_API_KEY}" \
   -H "Content-Type: application/json" \
@@ -204,21 +241,56 @@ curl --fail-with-body http://localhost:3000/v1/responses \
 
 ## 部署与运维
 
+### SQLite 与 `SQL_DSN`
+
+| 模式 | 方式 | 说明 |
+| --- | --- | --- |
+| **SQLite**（默认） | 不设置 `SQL_DSN` | 数据库文件在 `/data`（或 `SQLITE_PATH`）。适合单机 / 演示。挂载 `/data` 以持久化。 |
+| **MySQL / MariaDB** | 设置 `SQL_DSN`，例如 `user:pass@tcp(host:3306)/dbname?parseTime=true` | MySQL ≥ 5.7.8 / MariaDB。B2B2C AutoMigrate 首次启动会将额度列扩宽为 bigint。 |
+| **PostgreSQL** | 设置 `SQL_DSN`，例如 `postgresql://user:pass@host:5432/dbname` | PostgreSQL ≥ 9.6。同样走 AutoMigrate。 |
+
+可选独立日志库：`LOG_SQL_DSN`（亦支持 ClickHouse）。Schema 校验说明见 [docs/b2b2c-phase1-STATUS.md](./docs/b2b2c-phase1-STATUS.md)。
+
+### 使用 MySQL / PostgreSQL 运行
+
+```bash
+docker run --name new-api-b2b2c -d --restart unless-stopped \
+  -p 3000:3000 \
+  -e TZ=Asia/Shanghai \
+  -e SESSION_SECRET="$(openssl rand -hex 32)" \
+  -e SQL_DSN='postgresql://user:pass@db-host:5432/new-api' \
+  -e REDIS_CONN_STRING='redis://:pass@redis-host:6379/0' \
+  -v "$(pwd)/data:/data" \
+  new-api-b2b2c:local
+```
+
 ### Docker Compose
 
-仓库的 [Compose 配置](./docker-compose.yml) 默认启动 **New API + PostgreSQL + Redis**，并提供 MySQL 和独立 ClickHouse 日志库的配置示例。
+仓库自带的 [docker-compose.yml](./docker-compose.yml) 仍引用 `calciumion/new-api:latest`。对本 **B2B2C 分支**，请本地构建并将 Compose 指向该镜像（或使用 `build: .`）：
 
-```bash
-git clone https://github.com/QuantumNous/new-api.git
-cd new-api
+```yaml
+services:
+  new-api:
+    build: .
+    image: new-api-b2b2c:local
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - SESSION_SECRET=replace-with-openssl-rand-hex-32
+      # 省略 SQL_DSN 即用 SQLite；Postgres/MySQL 时再设置：
+      # - SQL_DSN=postgresql://root:CHANGE_ME@postgres:5432/new-api
+      # - REDIS_CONN_STRING=redis://:CHANGE_ME@redis:6379
 ```
 
-启动前编辑 `docker-compose.yml`：同时替换数据库、Redis 服务及对应连接串中的示例密码，并设置固定的随机 `SESSION_SECRET`（可用 `openssl rand -hex 32` 生成）。通过 HTTPS 访问控制台时，设置 `SESSION_COOKIE_SECURE=true`，并在 `SESSION_COOKIE_TRUSTED_URL` 中填写控制台对外的精确 HTTPS Origin。
-
 ```bash
-docker compose up -d
+docker compose up -d --build
 docker compose logs -f new-api
 ```
+
+请同时替换服务与连接串中的示例数据库 / Redis 密码。通过 HTTPS 访问控制台时，设置 `SESSION_COOKIE_SECURE=true`，并在 `SESSION_COOKIE_TRUSTED_URL` 中填写精确的对外 HTTPS Origin。
 
 ### 存储与配置
 
