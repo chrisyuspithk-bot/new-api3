@@ -754,7 +754,6 @@ func resellerAdjustCustomer(c *gin.Context, sign int) {
 		common.ApiErrorMsg(c, "invalid parameters")
 		return
 	}
-	req.MoneyUsd = nil // customer sale quota is given in quota units only
 	amount, err := req.quotaAmount()
 	if err != nil {
 		common.ApiError(c, err)
