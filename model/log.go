@@ -396,6 +396,8 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		RequestId:         requestId,
 		UpstreamRequestId: upstreamRequestId,
 		Other:             otherStr,
+		ResellerId:        c.GetInt(ContextKeyLogResellerId),
+		ResellerCostQuota: c.GetInt(ContextKeyLogResellerCostQuota),
 	}
 	err := createLog(log)
 	if err != nil {
