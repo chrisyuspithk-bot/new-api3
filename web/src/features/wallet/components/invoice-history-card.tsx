@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { toast } from 'sonner'
+import {
+  downloadInvoiceCsv,
+  invoiceCsvFilename,
+} from '@/features/invoices/download'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
@@ -89,8 +94,13 @@ export function InvoiceHistoryCard() {
                   <a
                     className='text-primary text-sm underline'
                     href={customerInvoiceCsvUrl(row.id)}
-                    target='_blank'
-                    rel='noreferrer'
+                    onClick={(e) => {
+                      e.preventDefault()
+                      downloadInvoiceCsv(
+                        customerInvoiceCsvUrl(row.id),
+                        invoiceCsvFilename(row.id, row.period)
+                      ).catch(() => toast.error(t('Download failed')))
+                    }}
                   >
                     {t('Download')}
                   </a>

@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { toast } from 'sonner'
+import {
+  downloadInvoiceCsv,
+  invoiceCsvFilename,
+} from '@/features/invoices/download'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -161,8 +166,15 @@ export function ResellerInvoicesPage() {
                   <a
                     className='text-primary text-sm underline'
                     href={resellerInvoiceCsvUrl(detail.data.invoice.id)}
-                    target='_blank'
-                    rel='noreferrer'
+                    onClick={(e) => {
+                      e.preventDefault()
+                      const inv = detail.data?.invoice
+                      if (!inv) return
+                      downloadInvoiceCsv(
+                        resellerInvoiceCsvUrl(inv.id),
+                        invoiceCsvFilename(inv.id, inv.period)
+                      ).catch(() => toast.error(t('Download failed')))
+                    }}
                   >
                     {t('Download CSV')}
                   </a>

@@ -16,6 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import {
+  downloadInvoiceCsv,
+  invoiceCsvFilename,
+} from '@/features/invoices/download'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -203,8 +207,15 @@ export function AdminInvoicesPage() {
                   <a
                     className='text-primary text-sm underline'
                     href={adminInvoiceCsvUrl(detail.data.invoice.id)}
-                    target='_blank'
-                    rel='noreferrer'
+                    onClick={(e) => {
+                      e.preventDefault()
+                      const inv = detail.data?.invoice
+                      if (!inv) return
+                      downloadInvoiceCsv(
+                        adminInvoiceCsvUrl(inv.id),
+                        invoiceCsvFilename(inv.id, inv.period)
+                      ).catch(() => toast.error(t('Download failed')))
+                    }}
                   >
                     {t('Download CSV')}
                   </a>
