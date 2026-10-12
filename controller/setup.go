@@ -120,9 +120,10 @@ func PostSetup(c *gin.Context) {
 		return
 	}
 
-	// B2B2C: fresh installs start with public registration closed; customers
-	// are created by resellers. Existing deploys are untouched (this only runs
-	// in the first-time setup wizard). Admins may re-enable it in settings.
+	// B2B2C: persist registration closed (matches code defaults in
+	// common/constants.go). Customers are created by resellers. Existing
+	// deploys are untouched (this only runs in the first-time setup wizard).
+	// Admins may re-enable it in settings.
 	for _, key := range []string{"RegisterEnabled", "PasswordRegisterEnabled"} {
 		if err := model.UpdateOption(key, "false"); err != nil {
 			common.SysError(common.LogText("failed to close registration on setup (%s): %s", key, err.Error()))

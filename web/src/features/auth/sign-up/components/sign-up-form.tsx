@@ -106,7 +106,9 @@ export function SignUpForm({
   const oauthRegisterEnabled =
     status?.oauth_register_enabled ??
     status?.data?.oauth_register_enabled ??
-    true
+    status?.register_enabled ??
+    status?.data?.register_enabled ??
+    false
   const hasWeChatLogin = Boolean(status?.wechat_login)
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 

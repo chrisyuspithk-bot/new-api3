@@ -474,7 +474,8 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 		}
 	}
 
-	// User doesn't exist, create new user if registration is enabled
+	// User doesn't exist: refuse OAuth/OIDC/social *signup* when registration
+	// is disabled. Existing users can still login/bind above this branch.
 	if !common.RegisterEnabled {
 		return nil, nil, &OAuthRegistrationDisabledError{}
 	}

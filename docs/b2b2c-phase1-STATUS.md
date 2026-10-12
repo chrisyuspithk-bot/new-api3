@@ -18,7 +18,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 
 ## How to migrate
 1. Deploy; startup AutoMigrate adds columns/tables (MySQL/PG also widen users.quota/used_quota to bigint — table rewrite on big tables, run in a window). Existing users get `reseller_id=0` (direct).
-2. Admin settings: turn off `RegisterEnabled` / `PasswordRegisterEnabled` and invitation quotas (registration was NOT hard-disabled in code).
+2. Admin settings: for upgrades that still have option rows with registration on, turn off `RegisterEnabled` / `PasswordRegisterEnabled` and invitation quotas (new installs default both off in code + setup wizard).
 3. Create reseller: `POST /api/admin/resellers {username,password,groups:[…],group,default_markup}` or `{user_id}` to upgrade a direct user; fund via `/credit {money_usd}`.
 4. Rollback: deploy previous binary; new columns/tables are ignored.
 
@@ -44,7 +44,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 4. **/api/pricing**: for reseller customers, `model_ratio`/`model_price` are multiplied by `costFactor × markup` (their actual price), completion ratio override shown, `billing_expr` / plugin variants / usage schema removed, groups limited to reseller whitelist. Resellers see their own cost (`costFactor` only). Direct/anonymous users unchanged. **Admin action**: set the pricing nav module to "require login" and keep `ExposeRatioEnabled` off (`/api/ratio_config`), otherwise a logged-out customer can still see base prices.
 5. **Reseller customer delete + token CRUD**: `DELETE /api/reseller/customers/:id` = disable user + revoke sessions + disable all its tokens (rows kept for logs/ledger). `GET/POST /api/reseller/customers/:id/tokens`, `PUT/DELETE /api/reseller/customers/:id/tokens/:token_id` — scoped to own customers (404 otherwise), group must be in reseller whitelist (`auto` rejected), max-user-tokens enforced; full key returned once on create.
 6. **Transactions**: `AdjustQuotaWithLedger` = conditional `UPDATE users SET quota = quota + ?` (debit guarded by `quota >= ?`) + ledger insert in one DB transaction; Redis user cache dropped after commit. `CreateResellerCustomer` does profile row lock (`FOR UPDATE` on MySQL/PG) + count + insert + zero quota in one transaction. Tests: `model/reseller_tx_test.go`.
-7. **Registration**: first-time setup wizard (`POST /api/setup`) now persists `RegisterEnabled=false` and `PasswordRegisterEnabled=false`. Code defaults in `common/constants.go` were NOT changed (an existing deploy with no option row would silently close registration). **Existing deploys must toggle both off in admin settings.** Reseller customer creation does not depend on these flags.
+7. **Registration**: first-time setup wizard (`POST /api/setup`) persists `RegisterEnabled=false` and `PasswordRegisterEnabled=false`. Code defaults in `common/constants.go` are now also `false` (new installs / no option row start closed). OAuth/OIDC/social signup is gated by `RegisterEnabled` in `controller/oauth.go` (and WeChat). Existing users can still login/bind. **Existing deploys with option rows still set to true must toggle both off in admin settings.** Reseller customer creation does not depend on these flags.
 8. **Reconciliation**: `GET /api/admin/reports/reseller_reconcile?from=<unix>` (AdminAuth, read-only) flags resellers with negative balance, consume logs with charge but no reseller cost, and logs where cost > charge.
 9. **Cache**: reseller/customer pricing cache TTL 30s → 10s (writes still invalidate locally). No Redis pub/sub cross-node invalidation.
 10. New reseller/admin-reseller routes declared as session-only in `middleware/access_token_routes.go` (access tokens rejected) — fixes `TestAccessTokenRouteRulesCoverEveryDashboardRoute`, which was failing since phase 1.
@@ -215,6 +215,20 @@ Chris product decision: re-enable customer online self top-up; allow reseller se
    - Dashboard overview: "You can top up online; contact them for support."
    - Reseller overview: top-up entry button.
 5. **Tests**: `controller/reseller_topup_policy_test.go` — `online_topup_enabled` for customer+reseller; `BlockResellerCustomer` still blocks non-topup; pay routes no longer mount the middleware.
+
+## Product change — public registration default-off (2026-10-12 ~19:20 HKT)
+
+Chris product decision: hard-disable / default-off public registration and OAuth/OIDC/social signup; existing users may still login/bind.
+
+### Done
+1. **Code defaults** — `common.RegisterEnabled=false`, `common.PasswordRegisterEnabled=false` in `common/constants.go` (OptionMap + new installs inherit).
+2. **OAuth/OIDC/social signup** — `findOrCreateOAuthUser` already refuses create when `!RegisterEnabled` (`OAuthRegistrationDisabledError`); WeChat signup path same gate. Login/bind for existing users unchanged. No separate per-provider register flags (provider Enabled only controls login availability).
+3. **Status API** — `/api/status` exposes `oauth_register_enabled` (= `RegisterEnabled`) so the sign-up UI does not fall back to showing OAuth signup.
+4. **Frontend** — admin auth settings defaults and sign-up OAuth block fall back to off / `register_enabled`.
+5. **Setup wizard** — still persists both options false (idempotent with code defaults).
+
+### Note for existing deploys
+If `options` already has `RegisterEnabled=true` / `PasswordRegisterEnabled=true`, those rows win over code defaults until an admin turns them off.
 
 ## Still open / blocked
 - MySQL(MariaDB)/PostgreSQL/ClickHouse schema migrate verified 2026-10-12 — see DB verification section. No remaining DB-dialect blockers for Phase 1 schema.
