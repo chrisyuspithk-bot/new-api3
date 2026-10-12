@@ -9,3 +9,4 @@ Canonical B2B2C Phase 1 status lives in [`docs/b2b2c-phase1-STATUS.md`](docs/b2b
 **Public registration default-off (2026-10-12 ~19:20 HKT): DONE** — `RegisterEnabled`/`PasswordRegisterEnabled` code defaults false; OAuth signup refuses when registration disabled; existing users login/bind OK. See Product change section in the canonical STATUS.
 
 **Monthly invoices (2026-10-12 ~20:23 HKT): DONE** — customer / reseller / admin_rollup from logs; Admin generate+list+CSV; Reseller/Customer list+get; UI `/invoices`, `/reseller/invoices`, wallet history.
+**Invoice QA report (2026-10-12 ~20:26 HKT): DONE** — Traditional Chinese `docs/b2b2c-pro-qa/REPORT-invoices.md` + `.pdf`; Admin/Reseller/Customer API+UI smoke Pass.

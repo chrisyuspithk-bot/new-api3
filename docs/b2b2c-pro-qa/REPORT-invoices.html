@@ -1,0 +1,163 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">
+<title>B2B2C 月結發票 QA 報告</title>
+<style>
+@page { size: A4; margin: 18mm; }
+body { font-family: "Noto Sans CJK TC", "Noto Sans CJK", "Noto Sans", sans-serif; font-size: 11pt; line-height: 1.45; color: #111; }
+h1 { font-size: 18pt; border-bottom: 2px solid #2563eb; padding-bottom: 6px; }
+h2 { font-size: 14pt; margin-top: 1.4em; color: #1e3a8a; }
+h3 { font-size: 12pt; margin-top: 1em; }
+table { border-collapse: collapse; width: 100%; margin: 0.6em 0 1em; font-size: 9.5pt; }
+th, td { border: 1px solid #cbd5e1; padding: 4px 6px; vertical-align: top; }
+th { background: #eff6ff; text-align: left; }
+code { background: #f1f5f9; padding: 1px 4px; border-radius: 3px; font-size: 9pt; }
+hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.2em 0; }
+strong { color: #0f172a; }
+</style></head><body>
+<h1>B2B2C Phase 1 — 月結發票功能測試／QA 報告</h1>
+<p></p>
+<table>
+<tr><th>項目</th><th>內容</th></tr>
+<tr><td>產品／分支</td><td><code>new-api</code> / <code>feat/b2b2c-phase1</code></td></tr>
+<tr><td>功能</td><td>月結發票（Customer／Reseller／Admin rollup）</td></tr>
+<tr><td>測試類型</td><td>API 自動化＋Playwright UI 截圖＋既有 B2B2C 回歸摘要</td></tr>
+<tr><td>測試日期</td><td>2026-10-12（HKT）</td></tr>
+<tr><td>測試人員</td><td>Grok Bot QA（executor）</td></tr>
+<tr><td>程式碼 SHA</td><td><code>4e5a8f7e2e7127ed3b8c2e99a5bd770452acef08</code></td></tr>
+<tr><td>遠端</td><td><code>https://github.com/chrisyuspithk-bot/new-api3.git</code> <code>feat/b2b2c-phase1</code></td></tr>
+<tr><td>報告路徑</td><td><code>/workspace/b2b2c-pro-qa/REPORT-invoices.md</code>／<code>.pdf</code>（同步 <code>docs/b2b2c-pro-qa/</code>）</td></tr>
+</table>
+<p></p>
+<hr>
+<p></p>
+<h2>1. 測試範圍</h2>
+<p></p>
+<h3>1.1 本報告新增（月結發票）</h3>
+<p>1. Admin：依曆月（Asia/Hong_Kong）從 consume／refund 日誌產生發票；列表／詳情／CSV  </p>
+<p>2. Reseller：僅能看自己的 reseller 發票與所屬客戶 customer 發票  </p>
+<p>3. Customer：僅能看自己的 customer 發票；錢包頁「Invoice History」  </p>
+<p>4. 金額：USD = quota / <code>QuotaPerUnit</code>（500000）；含 charge／cost／profit  </p>
+<p>5. 作用域隔離：Reseller 不可讀 admin_rollup；Customer 不可讀 reseller／他人發票  </p>
+<p></p>
+<h3>1.2 既有 B2B2C 煙霧（摘要自先前專業 QA／retest）</h3>
+<p>公開註冊預設關閉、線上自助儲值、dual-leg 消費庫存、跨代理商隔離、停用凍結等 — 詳見 <code>REPORT.md</code>／<code>REPORT-retest.md</code>。本輪發票測試重用同一 SQLite QA 庫與帳號。</p>
+<p></p>
+<hr>
+<p></p>
+<h2>2. 測試環境</h2>
+<p></p>
+<table>
+<tr><th>項目</th><th>值</th></tr>
+<tr><td>OS</td><td>Linux（box）</td></tr>
+<tr><td>Backend</td><td><code>/tmp/new-api-b2b2c</code>（含 <code>web/dist</code> embed，commit <code>4e5a8f7e2</code>）</td></tr>
+<tr><td>DB</td><td>SQLite <code>/tmp/b2b2c-pro-qa.db</code></td></tr>
+<tr><td>URL</td><td><code>http://127.0.0.1:3310</code></td></tr>
+<tr><td>Redis</td><td>未啟用</td></tr>
+<tr><td>測試帳號</td><td><code>admin</code> / <code>reseller1</code>・<code>reseller2</code> / <code>cust1</code>・<code>cust1b</code>・<code>cust2</code></td></tr>
+<tr><td>發票期間</td><td><code>2026-10</code>（HKT 曆月；測試前寫入 seed consume／refund 日誌）</td></tr>
+</table>
+<p></p>
+<hr>
+<p></p>
+<h2>3. API／路由一覽（本功能）</h2>
+<p></p>
+<table>
+<tr><th>角色</th><th>方法</th><th>路徑</th><th>說明</th></tr>
+<tr><td>Admin</td><td><code>POST</code></td><td><code>/api/admin/invoices/generate</code></td><td><code>{period:&quot;YYYY-MM&quot;}</code> 產生／覆寫</td></tr>
+<tr><td>Admin</td><td><code>GET</code></td><td><code>/api/admin/invoices</code></td><td>列表（period／scope／reseller_id／customer_id）</td></tr>
+<tr><td>Admin</td><td><code>GET</code></td><td><code>/api/admin/invoices/:id</code></td><td>JSON 詳情；<code>?format=csv</code> 下載</td></tr>
+<tr><td>Reseller</td><td><code>GET</code></td><td><code>/api/reseller/invoices</code></td><td>自己＋客戶</td></tr>
+<tr><td>Reseller</td><td><code>GET</code></td><td><code>/api/reseller/invoices/:id</code></td><td>詳情／CSV</td></tr>
+<tr><td>Customer</td><td><code>GET</code></td><td><code>/api/user/invoices</code></td><td>自己的 customer 發票</td></tr>
+<tr><td>Customer</td><td><code>GET</code></td><td><code>/api/user/invoices/:id</code></td><td>詳情／CSV</td></tr>
+</table>
+<p></p>
+<p><strong>前端路由：</strong> Admin <code>/invoices</code>；Reseller <code>/reseller/invoices</code>；Customer <code>/wallet</code>（Invoice History 卡片）。</p>
+<p></p>
+<hr>
+<p></p>
+<h2>4. 發票用例結果</h2>
+<p></p>
+<table>
+<tr><th>編號</th><th>步驟</th><th>期望</th><th>實際</th><th>結果</th></tr>
+<tr><td>INV-01</td><td>Admin 登入</td><td>success</td><td>HTTP 200 success</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-02</td><td><code>POST …/generate</code> period=<code>2026-10</code></td><td>產生 customer／reseller／admin_rollup</td><td><code>customer_invoices=2</code>, <code>reseller_invoices=1</code>, <code>admin_rollup=true</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-02b</td><td>period=<code>2026-9</code>（非法）</td><td>拒絕</td><td><code>period must be YYYY-MM</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-03</td><td>Admin 列表 <code>period=2026-10</code></td><td>三種 scope</td><td>n=4；scopes=<code>admin_rollup,customer,reseller</code>；rollup charge≈$3.40</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-04</td><td>Admin get 詳情</td><td>invoice＋line_items</td><td>line_items 有模型明細；charge_usd 正確</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-05</td><td>Admin <code>?format=csv</code></td><td>CSV 含表頭 period</td><td>HTTP 200，表頭含 <code>period,scope,…</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-06</td><td>Reseller1 登入</td><td>success</td><td>success</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-07</td><td>Reseller 列表</td><td>無 admin_rollup</td><td>n=3；scopes=<code>customer,reseller</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-07b/c</td><td>Reseller get／CSV</td><td>success／200</td><td>皆成功</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-08</td><td>Reseller 讀 admin_rollup id</td><td>404</td><td><code>invoice not found</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-09</td><td>Cust1 登入</td><td>success</td><td>success</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-10</td><td>Customer 列表</td><td>僅自己 customer</td><td>n=1；customer_id=4；charge=$1.40</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-10b/c</td><td>Customer get／CSV</td><td>success／200</td><td>皆成功</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-11</td><td>Customer 讀 reseller 發票</td><td>404</td><td>404</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-12</td><td>Reseller2 讀 Reseller1 客戶發票</td><td>404</td><td>404</td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-UI-01</td><td>Admin UI <code>/invoices</code></td><td>列表可見三種 scope</td><td>截圖 <code>admin-invoices.png</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-UI-02</td><td>Reseller UI <code>/reseller/invoices</code></td><td>客戶＋Own</td><td>截圖 <code>reseller1-invoices.png</code></td><td><strong>Pass</strong></td></tr>
+<tr><td>INV-UI-03</td><td>Customer UI <code>/wallet</code> Invoice History</td><td>顯示 2026-10 $1.40</td><td>截圖 <code>cust1-wallet-invoices.png</code></td><td><strong>Pass</strong></td></tr>
+</table>
+<p></p>
+<p><strong>本輪發票：Pass 18／Fail 0</strong>（UI 以 API session 注入避開登入速率限制；API 帳密皆通）。</p>
+<p></p>
+<h3>金額核對（seed 日誌）</h3>
+<ul>
+<li>cust1：consume 500k＋250k − refund 50k = <strong>700k quota</strong> → <strong>$1.40</strong>；cost 200k＋100k−20k=280k → <strong>$0.56</strong>；profit <strong>$0.84</strong>  </li>
+<li>cust1b：consume 1,000k → <strong>$2.00</strong>；cost 400k → <strong>$0.80</strong>；profit <strong>$1.20</strong>  </li>
+<li>reseller／admin_rollup：charge <strong>$3.40</strong>；cost <strong>$1.36</strong>；profit <strong>$2.04</strong>  </li>
+</ul>
+<p></p>
+<p>與畫面／API 一致。</p>
+<p></p>
+<hr>
+<p></p>
+<h2>5. 既有 B2B2C 煙霧摘要（先前報告）</h2>
+<p></p>
+<p>詳見同目錄 <code>REPORT.md</code>、<code>REPORT-retest.md</code>（2026-10-12）。重點結論：</p>
+<p></p>
+<table>
+<tr><th>主題</th><th>結果</th></tr>
+<tr><td>公開／密碼註冊預設關閉；OAuth 新用戶註冊關閉</td><td>Pass</td></tr>
+<tr><td>BUG-01：<code>/sign-up</code> 在註冊關閉時導向 <code>/sign-in</code></td><td>Pass（retest）</td></tr>
+<tr><td>Admin Reseller CRUD／入帳／停用</td><td>Pass</td></tr>
+<tr><td>Reseller 客戶／加價／Token／兌換碼／日誌／毛利</td><td>Pass</td></tr>
+<tr><td>Customer 個人資料代理商卡片；錢包線上儲值 UI 未封鎖</td><td>Pass</td></tr>
+<tr><td>消費 dual-leg：無代理商庫存拒絕；有庫存可結算；日誌帶 reseller 欄位</td><td>Pass</td></tr>
+<tr><td>跨代理商隔離 404／403</td><td>Pass</td></tr>
+<tr><td>單元測試 <code>go test ./model ./middleware ./controller ./router</code>（含 <code>invoice_test.go</code>）</td><td>Pass</td></tr>
+</table>
+<p></p>
+<hr>
+<p></p>
+<h2>6. 截圖索引</h2>
+<p></p>
+<table>
+<tr><th>檔名</th><th>說明</th></tr>
+<tr><td><code>admin-invoices.png</code></td><td>Admin <code>/invoices</code>：2026-10 四筆（rollup／cust1／cust1b／Reseller One）</td></tr>
+<tr><td><code>reseller1-invoices.png</code></td><td>Reseller <code>/reseller/invoices</code>：兩客戶＋Own</td></tr>
+<tr><td><code>cust1-wallet-invoices.png</code></td><td>Customer <code>/wallet</code>：Invoice History 2026-10 $1.40</td></tr>
+</table>
+<p></p>
+<p>（既有 B2B2C 截圖仍見本目錄其他 <code>*.png</code>。）</p>
+<p></p>
+<hr>
+<p></p>
+<h2>7. 缺陷與風險</h2>
+<p></p>
+<table>
+<tr><th>ID</th><th>嚴重度</th><th>說明</th><th>狀態</th></tr>
+<tr><td>—</td><td>—</td><td>本輪發票 API／權限／金額／CSV／三端 UI 未發現阻擋缺陷</td><td>無 Open</td></tr>
+<tr><td>NOTE-1</td><td>低</td><td>前端字串多為英文 <code>t(&#x27;Invoices&#x27;)</code> 鍵（與既有 Phase 1c 相同）；側欄在 zh-HK 下部分仍顯示英文</td><td>已知／非阻擋</td></tr>
+<tr><td>NOTE-2</td><td>低</td><td>登入 API 有 IP 速率限制；UI 自動化需換 IP 或注入 session（測試方法問題，非產品缺陷）</td><td>已知</td></tr>
+<tr><td>NOTE-3</td><td>資訊</td><td>無用量月份仍會寫入零額 admin_rollup（便於 Admin 確認該月已跑過產生）</td><td>設計行為</td></tr>
+</table>
+<p></p>
+<hr>
+<p></p>
+<h2>8. 結論</h2>
+<p></p>
+<p>月結發票功能已合入 <code>feat/b2b2c-phase1</code>（SHA <code>4e5a8f7e2e7127ed3b8c2e99a5bd770452acef08</code>），Admin／Reseller／Customer 三端 API 與最小 UI 煙霧 <strong>通過</strong>；金額與 seed 日誌一致；角色隔離正確。建議後續可選：排程自動產生、PDF 發票下載、i18n 補齊。</p>
+<p></p>
+<p><strong>總評：Pass（可合併／可交付 Phase 1 發票範圍）</strong></p>
+</body></html>

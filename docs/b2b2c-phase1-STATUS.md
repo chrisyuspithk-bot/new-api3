@@ -247,6 +247,9 @@ If `options` already has `RegisterEnabled=true` / `PasswordRegisterEnabled=true`
 4. **UI** — Admin `/invoices`; Reseller `/reseller/invoices`; Customer wallet `InvoiceHistoryCard` (reseller customers).
 5. **Tests** — `model/invoice_test.go` (period parse HKT, aggregate+refund net, upsert, reseller restrict). `go test ./model ./middleware ./controller ./router` OK.
 
+### QA
+- Traditional Chinese report: `docs/b2b2c-pro-qa/REPORT-invoices.md` / `REPORT-invoices.pdf` (2026-10-12 ~20:26 HKT); Admin/Reseller/Customer API+UI smoke Pass on SQLite `:3310`.
+
 ### UI routes
 | Audience | Path | Purpose |
 |---|---|---|
