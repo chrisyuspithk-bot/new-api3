@@ -655,7 +655,7 @@ export function OverviewDashboard() {
             <div className='bg-muted rounded-2xl border px-4 py-3 text-sm'>
               {t('Served by reseller')}:{' '}
               <span className='font-medium'>{resellerName}</span>
-              . {t('Contact them for top-ups and support.')}
+              . {t('You can top up online; contact them for support.')}
             </div>
           ) : null}
           <div id={setupGuideId} hidden={!setupGuideExpanded}>

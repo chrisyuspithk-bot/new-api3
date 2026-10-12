@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -77,6 +78,9 @@ export function ResellerOverview() {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Reseller Overview')}</SectionPageLayout.Title>
+      <SectionPageLayout.Actions>
+        <Button render={<Link to='/wallet' />}>{t('Top up cost balance')}</Button>
+      </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         {!data ? (
           <div>{t('Loading...')}</div>

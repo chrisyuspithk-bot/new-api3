@@ -12,7 +12,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 - **APIs** (`controller/reseller.go`, `router/api-router.go`):
   - Admin (`AdminAuth`): `GET/POST /api/admin/resellers`, `GET/PUT/DELETE /api/admin/resellers/:id`, `POST …/:id/credit|debit` (quota or money_usd 1:1), `GET/PUT …/:id/groups`, `GET/PUT/DELETE …/:id/model_prices[/:model]`, `GET …/:id/ledger`, `GET /api/admin/reports/gross_profit?reseller_id&from&to&group_by=model|customer`.
   - Reseller (`ResellerAuth`, all scoped `reseller_id = me`, foreign ids → 404): `/api/reseller/self`, `PUT /self/markup`, `/ledger`, `/customers` CRUD + `/status` + `/credit|debit`, `/model_markups`, `/customers/:id/model_markups`, `/redemptions` (reseller-scoped codes), `/logs` (charge/cost/profit), `/reports/gross_profit`.
-- **Customer restrictions**: `BlockResellerCustomer` on online pay/amount (epay/Stripe/Creem/Waffo/Waffo-Pancake), subscription purchase, aff transfer, check-in. Redemption requires `redemption.reseller_id == user.reseller_id`. `/api/user/self` adds `reseller_id`, `is_reseller`, and `reseller` block (customers see only reseller display name, never cost/markup).
+- **Customer restrictions**: `BlockResellerCustomer` on subscription purchase, aff transfer, check-in (NOT on online wallet top-up — see Product change below). Redemption requires `redemption.reseller_id == user.reseller_id`. `/api/user/self` adds `reseller_id`, `is_reseller`, and `reseller` block (customers see only reseller display name, never cost/markup; `online_topup_enabled: true`).
 - **Cache invalidation**: in-process reseller/customer pricing caches (TTL 30s) invalidated on every write; status changes bump `auth_version` + publish user cache.
 - **UI**: Phase 1c frontend (see below).
 
@@ -67,7 +67,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 3. **Customer-facing**
    - Profile: `ResellerContactCard` (brand/display name + top-up guidance)
    - Dashboard overview banner when `user.reseller.role === 'customer'`
-   - Wallet: online top-up / Creem / Waffo / subscriptions / affiliate hidden for reseller customers; redemption still available; notice banner
+   - Wallet: online top-up / Creem / Waffo enabled for reseller customers (same gateways); subscriptions / affiliate still hidden; reseller contact kept on profile
 4. **Roles / sidebar**
    - Frontend `ROLE.RESELLER = 5`; users role filter includes 5; auth store carries `reseller_id` / `reseller`
    - Sidebar admin item "Resellers"; new `reseller` nav group gated to exact role 5
@@ -87,7 +87,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 | Reseller | `/reseller/redemptions` | Reseller-scoped codes |
 | Reseller | `/reseller/logs` | Charge / cost / profit logs |
 | Reseller | `/reseller/reports` | Gross profit |
-| Customer | `/profile`, `/dashboard/overview`, `/wallet` | Reseller name/contact + top-up restrictions |
+| Customer | `/profile`, `/dashboard/overview`, `/wallet` | Reseller name/contact + online self top-up |
 
 ### DB verification (this environment)
 - See **DB verification (2026-10-12)** section below (MariaDB + PostgreSQL + ClickHouse PASS).
@@ -199,6 +199,22 @@ SKIP_64BIT_QUOTA_SCHEMA_CHECK=true \
 - Fresh MySQL/PG: none.
 - Upgrade without skip flag: expected `ensureUserQuotaColumns` rejection (operators must set `SKIP_64BIT_QUOTA_SCHEMA_CHECK=true` once to allow the bigint widen, or pre-ALTER manually).
 - ClickHouse: none on migrate path (CREATE + ADD COLUMN + idempotent re-run). Inline `INSERT ... VALUES (..., toUnixTimestamp(now()), ...)` via native client hung once in this environment; HTTP insert and `FORMAT Values` succeeded — not an app migrate issue.
+
+
+## Product change — online self top-up (2026-10-12 ~19:10 HKT)
+
+Chris product decision: re-enable customer online self top-up; allow reseller self top-up; keep consume gated on reseller stock.
+
+### Done
+1. **Customer online top-up re-enabled** — removed `BlockResellerCustomer` from wallet pay/amount routes: epay (`/pay`, `/amount`), Stripe, Creem, Waffo, Waffo-Pancake. Subscriptions, aff transfer, and check-in remain blocked for reseller customers.
+2. **Reseller self top-up** — resellers already have sidebar `personal.topup` and `reseller_id=0`, so the same payment pipelines credit `users.quota` (cost balance) 1:1 USD via existing `Recharge*` paths. Overview UI adds **Top up cost balance** → `/wallet`.
+3. **Stock policy (prefer A)** — customer top-up credits the customer wallet only; **consume still requires reseller cost credit** via existing dual-leg `BillingSession` (no change). Documented in `/api/user/self` (`online_topup_enabled: true`) and profile reseller contact copy. Top-up is not gated on reseller stock.
+4. **UI**
+   - Wallet: removed "managed by reseller" banner and frontend gating that forced `enable_*_topup=false` for customers.
+   - Profile `ResellerContactCard`: keep contact; copy now says online top-up is available and consume needs reseller stock.
+   - Dashboard overview: "You can top up online; contact them for support."
+   - Reseller overview: top-up entry button.
+5. **Tests**: `controller/reseller_topup_policy_test.go` — `online_topup_enabled` for customer+reseller; `BlockResellerCustomer` still blocks non-topup; pay routes no longer mount the middleware.
 
 ## Still open / blocked
 - MySQL(MariaDB)/PostgreSQL/ClickHouse schema migrate verified 2026-10-12 — see DB verification section. No remaining DB-dialect blockers for Phase 1 schema.

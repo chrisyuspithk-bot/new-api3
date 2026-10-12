@@ -82,11 +82,14 @@ func resellerView(user *model.User) gin.H {
 
 // buildSelfResellerInfo adds B2B2C context to /api/user/self. Customers see only
 // their reseller's display name; resellers see their commercial profile.
+// online_topup_enabled is true for both: customers and resellers may use the
+// existing payment gateways. Customer consume still requires reseller cost stock
+// (dual-leg billing); top-up only credits the payer's users.quota wallet.
 func buildSelfResellerInfo(user *model.User) gin.H {
 	if user.Role == common.RoleResellerUser {
 		profile, _ := model.GetResellerProfile(user.Id)
 		groups, _ := model.GetResellerGroups(user.Id)
-		return gin.H{"role": "reseller", "profile": profile, "groups": groups}
+		return gin.H{"role": "reseller", "profile": profile, "groups": groups, "online_topup_enabled": true}
 	}
 	if user.ResellerId > 0 {
 		profile, _ := model.GetResellerProfile(user.ResellerId)
@@ -94,13 +97,15 @@ func buildSelfResellerInfo(user *model.User) gin.H {
 		if profile != nil {
 			name = profile.DisplayName
 		}
-		return gin.H{"role": "customer", "reseller_id": user.ResellerId, "reseller_display_name": name, "online_topup_enabled": false}
+		return gin.H{"role": "customer", "reseller_id": user.ResellerId, "reseller_display_name": name, "online_topup_enabled": true}
 	}
 	return nil
 }
 
 // BlockResellerCustomer rejects B2B2C customers (reseller_id > 0) from routes
-// such as online payment, subscriptions and aff transfer that v1 does not offer them.
+// that remain reseller-managed in phase 1: subscriptions, aff transfer, check-in.
+// Online wallet top-up (epay/Stripe/Creem/Waffo/Waffo-Pancake) is intentionally
+// allowed for customers and resellers via the same payment pipelines.
 func BlockResellerCustomer() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := model.GetUserCache(c.GetInt("id"))

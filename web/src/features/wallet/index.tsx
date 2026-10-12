@@ -84,18 +84,6 @@ export function Wallet(props: WalletProps) {
   const { status } = useStatus()
   const { currency } = useSystemConfig()
   const { topupInfo, presetAmounts, loading: topupLoading } = useTopupInfo()
-  const gatedTopupInfo = useMemo(() => {
-    if (!topupInfo) return topupInfo
-    if (!isResellerCustomer) return topupInfo
-    return {
-      ...topupInfo,
-      enable_online_topup: false,
-      enable_stripe_topup: false,
-      enable_creem_topup: false,
-      enable_waffo_topup: false,
-      enable_waffo_pancake_topup: false,
-    }
-  }, [topupInfo, isResellerCustomer])
 
   // Calculate effective exchange rate - when display type is USD, use rate of 1
   const effectiveUsdExchangeRate = useMemo(() => {
@@ -306,13 +294,6 @@ export function Wallet(props: WalletProps) {
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <WalletStatsCard user={user} loading={userLoading} />
 
-            {isResellerCustomer && (
-              <div className='bg-muted rounded-lg border px-4 py-3 text-sm'>
-                {t(
-                  'Online top-up and subscriptions are managed by your reseller. You can still redeem codes they issued.'
-                )}
-              </div>
-            )}
 
             <div
               className={
@@ -323,7 +304,7 @@ export function Wallet(props: WalletProps) {
             >
               <div id='wallet-add-funds' className='scroll-mt-4'>
                 <RechargeFormCard
-                  topupInfo={gatedTopupInfo}
+                  topupInfo={topupInfo}
                   presetAmounts={presetAmounts}
                   selectedPreset={selectedPreset}
                   onSelectPreset={handleSelectPreset}
@@ -343,18 +324,13 @@ export function Wallet(props: WalletProps) {
                   usdExchangeRate={effectiveUsdExchangeRate}
                   onOpenBilling={() => setBillingDialogOpen(true)}
                   creemProducts={topupInfo?.creem_products}
-                  enableCreemTopup={
-                    !isResellerCustomer && !!topupInfo?.enable_creem_topup
-                  }
+                  enableCreemTopup={!!topupInfo?.enable_creem_topup}
                   onCreemProductSelect={handleCreemProductSelect}
-                  enableWaffoTopup={
-                    !isResellerCustomer && !!topupInfo?.enable_waffo_topup
-                  }
+                  enableWaffoTopup={!!topupInfo?.enable_waffo_topup}
                   waffoPayMethods={topupInfo?.waffo_pay_methods}
                   waffoMinTopup={topupInfo?.waffo_min_topup}
                   onWaffoMethodSelect={handleWaffoMethodSelect}
                   enableWaffoPancakeTopup={
-                    !isResellerCustomer &&
                     !!topupInfo?.enable_waffo_pancake_topup
                   }
                 />
@@ -362,7 +338,7 @@ export function Wallet(props: WalletProps) {
 
               {!isResellerCustomer && (
                 <SubscriptionPlansCard
-                  topupInfo={gatedTopupInfo}
+                  topupInfo={topupInfo}
                   onAvailabilityChange={handleSubscriptionAvailabilityChange}
                   userQuota={user?.quota}
                   onPurchaseSuccess={fetchUser}

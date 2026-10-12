@@ -52,7 +52,7 @@ export function ResellerContactCard({
         </div>
         <p className='text-muted-foreground text-xs'>
           {t(
-            'Online top-up is disabled for reseller customers. Contact your reseller for quota or redemption codes.'
+            'You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock.'
           )}
         </p>
       </CardContent>
