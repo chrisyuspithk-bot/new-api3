@@ -90,8 +90,9 @@ var (
 	ErrResellerDisabled     = errors.New("reseller disabled")
 	ErrInvalidMarkup        = errors.New("markup must be greater than 0")
 	ErrGroupNotAllowed      = errors.New("group is not allowed for this reseller")
-	ErrInsufficientQuota    = errors.New("insufficient quota")
-	ErrCustomerLimitReached = errors.New("reseller customer limit reached")
+	ErrInsufficientQuota           = errors.New("insufficient quota")
+	ErrAmountExceedsResellerBalance = errors.New("amount exceeds available cost balance")
+	ErrCustomerLimitReached        = errors.New("reseller customer limit reached")
 )
 
 // ValidMarkup reports whether m is an acceptable markup (0, +Inf).

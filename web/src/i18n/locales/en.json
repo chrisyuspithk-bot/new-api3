@@ -7317,6 +7317,8 @@
     "Customer deleted": "Customer deleted",
     "Failed to delete customer": "Failed to delete customer",
     "Credit Customer": "Credit Customer",
+    "Available cost balance": "Available cost balance",
+    "Amount exceeds available cost balance": "Amount exceeds available cost balance",
     "Resellers": "Resellers",
     "Reseller updated": "Reseller updated",
     "Reseller created": "Reseller created",

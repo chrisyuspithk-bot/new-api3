@@ -43,6 +43,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { getCurrencyDisplay } from '@/lib/currency'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -51,6 +52,7 @@ import {
   createCustomer,
   creditCustomer,
   deleteCustomer,
+  getResellerSelf,
   listCustomers,
   setCustomerStatus,
 } from '../api'
@@ -81,8 +83,30 @@ export function ResellerCustomersPage() {
     },
   })
 
-  const refresh = () =>
+  const { data: self } = useQuery({
+    queryKey: ['reseller-self'],
+    queryFn: async () => {
+      const res = requireServerSuccess(await getResellerSelf())
+      return res.data!
+    },
+  })
+
+  const availableCostQuota = self?.quota ?? 0
+  const quotaPerUnit = (() => {
+    const { config } = getCurrencyDisplay()
+    return config.quotaPerUnit > 0 ? config.quotaPerUnit : 500000
+  })()
+  const availableCostUsd = availableCostQuota / quotaPerUnit
+  const creditAmountUsd = Number(creditUsd)
+  const creditExceedsBalance =
+    Number.isFinite(creditAmountUsd) &&
+    creditAmountUsd > 0 &&
+    creditAmountUsd > availableCostUsd + 1e-12
+
+  const refresh = () => {
     qc.invalidateQueries({ queryKey: ['reseller-customers'] })
+    qc.invalidateQueries({ queryKey: ['reseller-self'] })
+  }
 
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -111,6 +135,10 @@ export function ResellerCustomersPage() {
   const onCredit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!creditOpen) return
+    if (creditExceedsBalance) {
+      toast.error(t('Amount exceeds available cost balance'))
+      return
+    }
     try {
       requireServerSuccess(
         await creditCustomer(creditOpen, { money_usd: Number(creditUsd) })
@@ -341,13 +369,24 @@ export function ResellerCustomersPage() {
                 type='number'
                 step='0.000001'
                 min='0.000001'
+                max={availableCostUsd > 0 ? availableCostUsd : undefined}
                 value={creditUsd}
                 onChange={(e) => setCreditUsd(e.target.value)}
                 required
               />
+              <p className='text-muted-foreground text-xs'>
+                {t('Available cost balance')}: {formatQuota(availableCostQuota)}
+              </p>
+              {creditExceedsBalance ? (
+                <p className='text-destructive text-xs'>
+                  {t('Amount exceeds available cost balance')}
+                </p>
+              ) : null}
             </div>
             <DialogFooter>
-              <Button type='submit'>{t('Confirm')}</Button>
+              <Button type='submit' disabled={creditExceedsBalance}>
+                {t('Confirm')}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

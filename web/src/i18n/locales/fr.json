@@ -7252,6 +7252,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Available cost balance": "Solde de coût disponible",
+    "Amount exceeds available cost balance": "Le montant dépasse le solde de coût disponible"
   }
 }

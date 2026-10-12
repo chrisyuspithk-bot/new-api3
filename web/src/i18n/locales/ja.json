@@ -7252,6 +7252,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Available cost balance": "利用可能なコスト残高",
+    "Amount exceeds available cost balance": "金額が利用可能なコスト残高を超えています"
   }
 }

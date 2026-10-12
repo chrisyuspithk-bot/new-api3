@@ -759,6 +759,18 @@ func resellerAdjustCustomer(c *gin.Context, sign int) {
 		common.ApiError(c, err)
 		return
 	}
+	// Credit must not exceed the reseller's available cost balance (users.quota).
+	if sign > 0 {
+		available, qerr := model.GetUserQuota(user.ResellerId, true)
+		if qerr != nil {
+			common.ApiError(c, qerr)
+			return
+		}
+		if amount > available {
+			common.ApiError(c, model.ErrAmountExceedsResellerBalance)
+			return
+		}
+	}
 	kind := model.ResellerLedgerCustomerCredit
 	if sign < 0 {
 		kind = model.ResellerLedgerCustomerDebit

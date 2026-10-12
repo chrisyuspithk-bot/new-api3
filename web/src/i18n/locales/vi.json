@@ -7252,6 +7252,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Available cost balance": "Số dư chi phí khả dụng",
+    "Amount exceeds available cost balance": "Số tiền vượt quá số dư chi phí khả dụng"
   }
 }
