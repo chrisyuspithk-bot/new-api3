@@ -1,0 +1,183 @@
+{
+  "base": "http://127.0.0.1:3310",
+  "ids": {
+    "reseller1": 2,
+    "reseller2": 3,
+    "cust1": 4,
+    "cust1b": 5,
+    "cust2": 6,
+    "token": "9pguGf2U9DPPB7UZixF0aBFGQcxuAXKjCKhT5U1yxm1UZDp9"
+  },
+  "results": [
+    {
+      "id": "TC01",
+      "title": "系統初始化建立 Admin",
+      "steps": "POST /api/setup 建立 root admin",
+      "expected": "success=true，建立 role=100 管理員",
+      "actual": "HTTP200 success=True msg='System initialized successfully' data=",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC02",
+      "title": "Admin 登入",
+      "steps": "POST /api/user/login username=admin",
+      "expected": "success=true，取得 access_token",
+      "actual": "HTTP200 success=True msg='' data={\"access_expires_at\": 1791805232, \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl91c2UiOiJhY2Nlc3MiLCJz",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC03",
+      "title": "公開註冊關閉（期望被拒）",
+      "steps": "GET /api/status 確認 register_enabled/password_register_enabled=false；POST /api/user/register",
+      "expected": "註冊失敗；status 旗標均為 false",
+      "actual": "status reg=True pw_reg=True; register=HTTP200 success=False msg='New user registration has been disabled by administrator' data=",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC04",
+      "title": "Admin 建立 Reseller CRUD（建立兩個代理商）",
+      "steps": "POST /api/admin/resellers ×2 groups=[default] markup",
+      "expected": "兩個 reseller 建立成功並回傳 id",
+      "actual": "r1=HTTP200 success=True msg='' data={\"customer_count\": 0, \"display_name\": \"Reseller One\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 2, \"profile\": {\"u; r2=HTTP200 success=True msg='' data={\"customer_count\": 0, \"display_name\": \"Reseller Two\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 3, \"profile\": {\"u; ids=2,3",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC05a",
+      "title": "Reseller1 初始庫存為 0（準備無庫存消費測試）",
+      "steps": "GET /api/admin/resellers/2",
+      "expected": "quota == 0",
+      "actual": "quota=0 HTTP200 success=True msg='' data={\"customer_count\": 0, \"display_name\": \"Reseller One\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 2, \"profile\": {\"u",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC06",
+      "title": "Reseller1 登入",
+      "steps": "POST /api/user/login reseller1",
+      "expected": "success，角色為 reseller",
+      "actual": "HTTP200 success=True msg='' data={\"access_expires_at\": 1791805232, \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl91c2UiOiJhY2Nlc3MiLCJz",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC07",
+      "title": "Reseller 建立客戶",
+      "steps": "reseller1 建 cust1/cust1b；reseller2 建 cust2",
+      "expected": "三個客戶建立成功，reseller_id 正確隔離",
+      "actual": "cust1=HTTP200 success=True msg='' data={\"created_at\": 1791804332, \"display_name\": \"Customer One\", \"group\": \"default\", \"id\": 4, \"markup\": null, \"quota\": 0}; cust1b=HTTP200 success=True msg='' data={\"created_at\": 1791804332, \"display_name\": \"Customer 1B\", \"group\": \"default\", \"id\": 5, \"markup\": null, \"quota\": 0}; cust2=HTTP200 success=True msg='' data={\"created_at\": 1791804332, \"display_name\": \"Customer Two\", \"group\": \"default\", \"id\": 6, \"markup\": null, \"quota\": 0}; ids=4,5,6",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC08",
+      "title": "跨代理商隔離（403/404）",
+      "steps": "reseller1 存取 reseller2 客戶 6；reseller 存取 /api/admin/resellers",
+      "expected": "客戶資源 404/403；admin API 拒絕",
+      "actual": "get=HTTP404 success=False msg='customer not found' data=; tokens=HTTP404 success=False msg='customer not found' data=; put=HTTP404 success=False msg='customer not found' data=; admin=HTTP403 success=False msg='Unauthorized, insufficient privileges' data=",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC09",
+      "title": "Customer 個人資料代理商卡片",
+      "steps": "cust1 登入；GET /api/user/self",
+      "expected": "含 reseller 資訊（顯示名稱）；不洩漏成本/markup",
+      "actual": "login=HTTP200 success=True msg='' data={\"access_expires_at\": 1791805232, \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl91c2UiOiJhY2Nlc3MiLCJz; self reseller={\"online_topup_enabled\": true, \"reseller_display_name\": \"Brand One\", \"reseller_id\": 2, \"role\": \"customer\"}; leaked=False",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC10",
+      "title": "Customer 錢包線上儲值 API 未封鎖",
+      "steps": "GET topup info；確認 reseller.online_topup_enabled；aff/subscription 仍封鎖",
+      "expected": "online_topup_enabled=true；aff/subscription 被 BlockResellerCustomer 拒絕；topup info 可讀",
+      "actual": "online=True; topup=HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 10, \"total\": 0, \"items\": []}; aff=HTTP403 success=False msg='This feature is not available for reseller customers' data=; sub=HTTP403 success=False msg='This feature is not available for reseller customers' data=",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC11",
+      "title": "無代理商庫存消費（期望拒絕）",
+      "steps": "給 cust1 額度與 token；reseller1 quota=0；POST /v1/chat/completions；channel=HTTP307 success=None msg='' data=; credit=HTTP200 success=True msg='' data={\"quota_delta\": 1000000}; tok=HTTP200 success=True msg='' data={\"accessed_time\": 1791804332, \"created_time\": 1791804332, \"expired_time\": -1, \"group\": \"default\", \"id\": 1, \"key\": \"9pguG",
+      "expected": "請求被拒（reseller cost balance insufficient 或同等錯誤）",
+      "actual": "{\"error\": {\"code\": \"model_not_found\", \"message\": \"No available channel for model gpt-4o-mini under group default (distributor) (request id: 202610121125326541648158268d9d6JK4nzr7n)\", \"type\": \"new_api_error\"}, \"_status\": 503}",
+      "result": "Blocked",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC12",
+      "title": "有代理商庫存消費（期望可過 billing 預扣）",
+      "steps": "Admin credit reseller1；再 POST /v1/chat/completions；credit=HTTP200 success=True msg='' data={\"quota_delta\": 5000000}/HTTP200 success=True msg='' data={\"quota_delta\": 5000000}; quota=10000000",
+      "expected": "不再因 reseller stock 拒絕（上游錯誤可接受）",
+      "actual": "{\"error\": {\"code\": \"model_not_found\", \"message\": \"No available channel for model gpt-4o-mini under group default (distributor) (request id: 202610121125326834576528268d9d6lXaBuFGc)\", \"type\": \"new_api_error\"}, \"_status\": 503}",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC05",
+      "title": "Admin 為 Reseller 入帳（庫存）",
+      "steps": "POST /api/admin/resellers/2/credit",
+      "expected": "quota 增加成功",
+      "actual": "HTTP200 success=True msg='' data={\"quota_delta\": 5000000}; HTTP200 success=True msg='' data={\"quota_delta\": 5000000}; after_quota=10000000",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC13",
+      "title": "停用代理商後凍結客戶消費",
+      "steps": "PUT reseller status=disabled；客戶 token 再消費；再啟用。dis=HTTP200 success=True msg='' data={\"customer_count\": 2, \"display_name\": \"Reseller One\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 2, \"profile\": {\"u",
+      "expected": "消費回 403 / reseller disabled",
+      "actual": "{\"error\": {\"code\": \"\", \"message\": \"User has been banned (request id: 202610121125327013624028268d9d661y6egfC)\", \"type\": \"new_api_error\"}, \"_status\": 403} reenable=HTTP200 success=True msg='' data={\"customer_count\": 2, \"display_name\": \"Reseller One\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 2, \"profile\": {\"u",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC14",
+      "title": "OAuth/OIDC 新用戶註冊關閉",
+      "steps": "確認 register_enabled=false；未配置之 OAuth 端點不可完成註冊；程式碼路徑 OAuthRegistrationDisabledError",
+      "expected": "公開註冊關閉；OAuth 新用戶會被拒（既有用戶登入不受影響）",
+      "actual": "register_enabled=False; gh=HTTP403 success=False msg='State parameter is empty or mismatched' data=; oidc=HTTP403 success=False msg='State parameter is empty or mismatched' data=",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC15",
+      "title": "Reseller 控制台 API（markups/tokens/redemptions/logs/reports）",
+      "steps": "GET/PUT markups、redemptions、logs、reports、self",
+      "expected": "主要列表 API success；寫入可選",
+      "actual": "self=HTTP401 success=False msg='Unauthorized, not logged in and no access token provided' data=; mk=HTTP401 success=False msg='Unauthorized, not logged in and no access token provided' data=; mk_put=HTTP404 success=None msg='' data=; red=HTTP401 success=False msg='Unauthorized, not logged in and no access token provided' data=; red_c=HTTP401 success=False msg='Unauthorized, not logged in and no access token provided' data=; logs=HTTP401 success=False msg='Unauthorized, not logged in and no access token provided' data=; rep=HTTP401 success=False msg='Unauthorized, not logged in and no access token provided' data=",
+      "result": "Fail",
+      "severity": null,
+      "notes": ""
+    },
+    {
+      "id": "TC16",
+      "title": "Admin Reseller 列表與詳情",
+      "steps": "GET /api/admin/resellers；GET :id",
+      "expected": "列表含 reseller1/2；詳情成功",
+      "actual": "list=HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 10, \"total\": 2, \"items\": [{\"customer_count\": 1, \"display_name\": \"Reseller Two\", \"group\": \"defau; detail=HTTP200 success=True msg='' data={\"customer_count\": 1, \"display_name\": \"Reseller Two\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 3, \"profile\": {\"u",
+      "result": "Pass",
+      "severity": null,
+      "notes": ""
+    }
+  ]
+}

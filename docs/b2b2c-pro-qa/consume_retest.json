@@ -1,0 +1,73 @@
+{
+  "no_stock": {
+    "error": {
+      "message": "Insufficient user quota, remaining quota: - (request id: 202610121126189342470818268d9d6Mf9fjuUq)",
+      "type": "new_api_error",
+      "param": "",
+      "code": "insufficient_user_quota"
+    },
+    "_status": 403
+  },
+  "with_stock": {
+    "args": {},
+    "data": "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\",\"content\":\"say hi\"}],\"max_tokens\":5}",
+    "files": {},
+    "form": {},
+    "headers": {
+      "Accept": "application/json",
+      "Accept-Encoding": "gzip",
+      "Authorization": "Bearer sk-fake-qa-key-not-real",
+      "Content-Length": "86",
+      "Content-Type": "application/json",
+      "Host": "httpbin.org",
+      "User-Agent": "Go-http-client/2.0",
+      "X-Amzn-Trace-Id": "Root=1-6accc3db-25cfceb900e4ccf35bc1d006"
+    },
+    "json": {
+      "max_tokens": 5,
+      "messages": [
+        {
+          "content": "say hi",
+          "role": "user"
+        }
+      ],
+      "model": "gpt-4o-mini"
+    },
+    "method": "POST",
+    "origin": "140.248.51.119",
+    "url": "https://httpbin.org/anything/v1/chat/completions",
+    "usage": {
+      "prompt_tokens": 10,
+      "completion_tokens": 0,
+      "total_tokens": 10,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 0,
+        "reasoning_tokens": 0
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "input_tokens_details": null,
+      "claude_cache_creation_5_m_tokens": 0,
+      "claude_cache_creation_1_h_tokens": 0
+    },
+    "_status": 200
+  },
+  "disabled": {
+    "error": {
+      "code": "",
+      "message": "User has been banned (request id: 202610121126315840917478268d9d67SFVzsTH)",
+      "type": "new_api_error"
+    },
+    "_status": 403
+  },
+  "channel_msg": "",
+  "channel_ok": true
+}
