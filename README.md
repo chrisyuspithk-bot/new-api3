@@ -60,7 +60,9 @@
 
 New API is a self-hosted AI gateway for applications, agents, and teams. Connect upstream model services, expose a consistent API to your clients, and manage routing, access, usage, and costs in one place.
 
-Use it to share authorized model access across a team, switch providers without configuring every client again, or operate a private multi-model service with a web console. Upstreams include OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, Vertex AI, DeepSeek, Qwen, and other compatible services.
+**This branch (`main` / `feat/b2b2c-phase1`) includes B2B2C Phase 1**: reseller roles, dual-leg billing, admin/reseller consoles, customer markups, and monthly invoices. See [docs/b2b2c-phase1-STATUS.md](./docs/b2b2c-phase1-STATUS.md).
+
+Use it to share authorized model access across a team, switch providers without configuring every client again, or operate a private multi-model / reseller service with a web console. Upstreams include OpenAI, Anthropic, Google Gemini, Azure OpenAI, AWS Bedrock, Vertex AI, DeepSeek, Qwen, and other compatible services.
 
 > [!IMPORTANT]
 > - This project is intended solely for lawful and authorized AI API gateway, organization-level authentication, multi-model management, usage analytics, cost accounting, and private deployment scenarios.
@@ -141,6 +143,7 @@ Accounts, channels, plugin installation states, usage, prices, and costs shown b
 | Access control | Manage users, groups, fine-grained permissions, and API key restrictions; use OAuth/OIDC, passkeys, two-factor authentication, and login session management |
 | Asynchronous tasks | Extend image, video, and other task APIs with JavaScript plugins, including task status and output retrieval |
 | Web console | Configure channels and models, inspect usage and audit logs, and try models in the playground; available in English, Simplified Chinese, Traditional Chinese, French, Japanese, Russian, and Vietnamese |
+| B2B2C (this branch) | Admin resellers, reseller console (customers/tokens/markups/redemptions/logs/reports/invoices), dual-leg billing (customer charge + reseller cost), registration default-off (`POST /api/setup` closes public signup) |
 
 ### Protocols and endpoints
 
@@ -160,40 +163,77 @@ This README describes the current source tree. Check the release notes for the v
 
 <a id="quick-start"></a>
 
-## Quick start
+## Quick start (B2B2C image from this repo)
 
-### Try locally with Docker
+> **Do not use `calciumion/new-api:latest` for this branch.** That Hub image does not include B2B2C. Build from the repository [Dockerfile](./Dockerfile) so the image matches this source tree.
 
-This starts a single instance with SQLite and binds it to localhost:
+### 1. Build the image
+
+```bash
+git clone https://github.com/chrisyuspithk-bot/new-api3.git
+cd new-api3
+# optional: git checkout feat/b2b2c-phase1   # same B2B2C code as main after merge
+
+docker build -t new-api-b2b2c:local .
+```
+
+The Dockerfile builds the React console (Bun) then the Go binary, and exposes **port 3000**. Working directory inside the container is `/data`.
+
+### 2. Run with SQLite (simplest)
+
+Unset `SQL_DSN` → the server uses SQLite under `/data` (override path with `SQLITE_PATH` if needed). Persist `/data` with a volume:
 
 ```bash
 mkdir -p data
-docker run --name new-api -d --restart unless-stopped \
+docker run --name new-api-b2b2c -d --restart unless-stopped \
   -p 127.0.0.1:3000:3000 \
   -e TZ=Asia/Shanghai \
+  -e SESSION_SECRET="$(openssl rand -hex 32)" \
   -v "$(pwd)/data:/data" \
-  calciumion/new-api:latest
+  new-api-b2b2c:local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and complete the setup wizard to create the administrator account. The `data` directory persists the SQLite database across container replacements.
+- **Host port**: map any host port → container `3000` (default app listen port; override inside the container with env `PORT` or flag `--port`).
+- Open [http://localhost:3000](http://localhost:3000). On first boot the setup wizard runs (or use the API below).
 
-### Make your first request
+### 3. First-time setup — `POST /api/setup`
+
+Creates the root admin (if none) and marks the system initialized. On this B2B2C branch it also persists **`RegisterEnabled=false`** and **`PasswordRegisterEnabled=false`** (customers are created by resellers).
+
+Check status:
+
+```bash
+curl -s http://localhost:3000/api/setup
+```
+
+Initialize (only works while setup is incomplete):
+
+```bash
+curl -s -X POST http://localhost:3000/api/setup \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "username": "root",
+    "password": "YourStrongPassword!",
+    "confirmPassword": "YourStrongPassword!",
+    "SelfUseModeEnabled": false,
+    "DemoSiteEnabled": false
+  }'
+```
+
+Then sign in at `/sign-in`, add channels, create resellers under **Resellers**, and let resellers provision customers.
+
+### 4. Make your first request
 
 1. Add a channel with your upstream API key, available models, and group assignment; run a channel test.
-2. Configure model pricing and ensure the user has quota or a valid subscription.
+2. Configure model pricing and ensure the user has quota.
 3. Create an API key in the console with access to the same group and models.
 4. Set your client's base URL to `http://localhost:3000/v1` for OpenAI-compatible clients and use the **New API-issued key**.
 
-Set `NEW_API_KEY` in your shell to that key. List the models accessible to it:
-
 ```bash
+export NEW_API_KEY=sk-...
 curl --fail-with-body http://localhost:3000/v1/models \
   -H "Authorization: Bearer ${NEW_API_KEY}"
-```
 
-Then call Responses, replacing `your-enabled-model` with an enabled model that supports this interface:
-
-```bash
 curl --fail-with-body http://localhost:3000/v1/responses \
   -H "Authorization: Bearer ${NEW_API_KEY}" \
   -H "Content-Type: application/json" \
@@ -204,47 +244,82 @@ curl --fail-with-body http://localhost:3000/v1/responses \
 
 ## Deployment
 
-### Docker Compose
+### SQLite vs `SQL_DSN`
 
-The repository's [Compose configuration](./docker-compose.yml) starts **New API + PostgreSQL + Redis** by default. It also contains examples for MySQL and a separate ClickHouse log database.
+| Mode | How | Notes |
+| --- | --- | --- |
+| **SQLite** (default) | Leave `SQL_DSN` unset | DB file under `/data` (or `SQLITE_PATH`). Fine for single-node / demo. Mount `/data` for persistence. |
+| **MySQL / MariaDB** | Set `SQL_DSN`, e.g. `user:pass@tcp(host:3306)/dbname?parseTime=true` | MySQL ≥ 5.7.8 / MariaDB. B2B2C AutoMigrate widens quota columns to bigint on first start. |
+| **PostgreSQL** | Set `SQL_DSN`, e.g. `postgresql://user:pass@host:5432/dbname` | PostgreSQL ≥ 9.6. Same AutoMigrate behavior. |
+
+Optional separate log DB: `LOG_SQL_DSN` (also supports ClickHouse). See [docs/b2b2c-phase1-STATUS.md](./docs/b2b2c-phase1-STATUS.md) for schema verification notes.
+
+### Run with MySQL / PostgreSQL
 
 ```bash
-git clone https://github.com/QuantumNous/new-api.git
-cd new-api
+docker run --name new-api-b2b2c -d --restart unless-stopped \
+  -p 3000:3000 \
+  -e TZ=Asia/Shanghai \
+  -e SESSION_SECRET="$(openssl rand -hex 32)" \
+  -e SQL_DSN='postgresql://user:pass@db-host:5432/new-api' \
+  -e REDIS_CONN_STRING='redis://:pass@redis-host:6379/0' \
+  -v "$(pwd)/data:/data" \
+  new-api-b2b2c:local
 ```
 
-Before starting, edit `docker-compose.yml`: replace the database and Redis example passwords in both the services and connection strings, and set a persistent random `SESSION_SECRET` (generate one with `openssl rand -hex 32`). For an HTTPS console, configure `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_TRUSTED_URL` with its exact public HTTPS origin.
+### Docker Compose
+
+The stock [docker-compose.yml](./docker-compose.yml) still references `calciumion/new-api:latest`. For **this B2B2C branch**, build locally and point Compose at that image (or use `build: .`):
+
+```yaml
+services:
+  new-api:
+    build: .
+    image: new-api-b2b2c:local
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - TZ=Asia/Shanghai
+      - SESSION_SECRET=replace-with-openssl-rand-hex-32
+      # omit SQL_DSN for SQLite, or set it for Postgres/MySQL:
+      # - SQL_DSN=postgresql://root:CHANGE_ME@postgres:5432/new-api
+      # - REDIS_CONN_STRING=redis://:CHANGE_ME@redis:6379
+```
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 docker compose logs -f new-api
 ```
 
-### Storage and configuration
+Replace example DB/Redis passwords in both services and connection strings. For an HTTPS console set `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_TRUSTED_URL` to the exact public HTTPS origin(s).
 
-| Component | Options |
+### Ports and environment
+
+| Item | Default / purpose |
 | --- | --- |
-| Main database | SQLite, MySQL ≥ 5.7.8, or PostgreSQL ≥ 9.6 |
-| Separate log database | Configure with `LOG_SQL_DSN`; also supports ClickHouse |
-| Cache | Optional Redis plus in-memory caching; use shared Redis when application nodes need shared rate limits |
-| Container platforms | Linux amd64 / arm64 |
+| Container listen port | **3000** (`PORT` env or `--port`) |
+| Host publish | e.g. `-p 3000:3000` or `-p 127.0.0.1:3000:3000` |
+| Data dir | `/data` (SQLite + uploads); mount a host volume |
 
 | Variable | Purpose |
 | --- | --- |
-| `SQL_DSN` | Main database connection; unset uses SQLite |
-| `LOG_SQL_DSN` | Optional separate log database connection |
-| `REDIS_CONN_STRING` | Redis connection string |
-| `SESSION_SECRET` | Persistent authentication secret; all nodes must use the same value |
-| `CRYPTO_SECRET` | Defaults to `SESSION_SECRET`; nodes sharing Redis must use the same effective value |
-| `SESSION_COOKIE_SECURE` | Set to `true` for an HTTPS console; enables Secure refresh cookies and strict refresh/logout origin checks |
-| `SESSION_COOKIE_TRUSTED_URL` | Required in Secure mode: comma-separated exact HTTPS origins, without paths or wildcards; leave unset for local HTTP |
-| `TRUSTED_PROXIES` | Trusted reverse-proxy IPs/CIDRs, or `none`; explicitly configure for your network |
+| `SQL_DSN` | Main database connection; **unset → SQLite** |
+| `SQLITE_PATH` | Optional SQLite file path (when not using `SQL_DSN`) |
+| `LOG_SQL_DSN` | Optional separate log database / ClickHouse |
+| `REDIS_CONN_STRING` | Redis connection string (recommended multi-node / rate limits) |
+| `SESSION_SECRET` | Persistent auth secret; **set a random value**; all nodes must share it |
+| `CRYPTO_SECRET` | Defaults to `SESSION_SECRET`; nodes sharing Redis must match |
+| `SESSION_COOKIE_SECURE` | `true` for HTTPS console (Secure cookies + strict refresh/logout origin checks) |
+| `SESSION_COOKIE_TRUSTED_URL` | Required in Secure mode: comma-separated exact HTTPS origins (no paths/wildcards) |
+| `TRUSTED_PROXIES` | Trusted reverse-proxy IPs/CIDRs, or `none` |
+| `TZ` | Timezone, e.g. `Asia/Shanghai` |
+| `PORT` | Listen port inside the container (default 3000) |
 
-See the [environment example](./.env.example), [environment reference](https://docs.newapi.ai/en/docs/installation/config-maintenance/environment-variables), and [authentication and session guide](./docs/authentication.md) for full configuration. Configure container variables in Compose's `environment` or `env_file`; copying `.env.example` alone does not inject variables into the container.
+See the [environment example](./.env.example), [environment reference](https://docs.newapi.ai/en/docs/installation/config-maintenance/environment-variables), and [authentication and session guide](./docs/authentication.md). Compose `environment` / `env_file` injects vars into the container; copying `.env.example` alone does not.
 
-For production, put the console behind HTTPS and configure your reverse proxy for streaming and WebSocket upgrades. Persist and back up the database and mounted data. Multi-node deployments must share the main database and authentication secrets; separate Redis instances or in-memory rate limiters count limits independently per node. The session guide describes propagation behavior for each topology.
-
-Pin an image version from [Releases](https://github.com/QuantumNous/new-api/releases), review its upgrade notes, and back up before upgrading. The `latest` tag follows published builds and can change; migrations and compatibility must be assessed for your existing installation.
+For production: HTTPS reverse proxy with streaming/WebSocket support; back up the DB and `/data`; multi-node must share the main DB and auth secrets.
 
 <a id="development"></a>
 
