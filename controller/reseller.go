@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -624,22 +625,6 @@ func ResellerCreateCustomer(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	profile, err := model.GetResellerProfile(resellerId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if profile.MaxCustomers > 0 {
-		count, err := model.CountResellerCustomers(resellerId)
-		if err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		if count >= int64(profile.MaxCustomers) {
-			common.ApiError(c, model.ErrCustomerLimitReached)
-			return
-		}
-	}
 	group := req.Group
 	if group == "" && len(cfg.Groups) > 0 {
 		group = cfg.Groups[0]
@@ -681,16 +666,11 @@ func ResellerCreateCustomer(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if err := model.DB.Transaction(func(tx *gorm.DB) error { return user.InsertWithTx(tx, 0) }); err != nil {
+	// max_customers check + insert + zero quota in one transaction.
+	if err := model.CreateResellerCustomer(resellerId, &user); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	// Customers start with 0 sale quota; the reseller credits them manually.
-	if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", 0).Error; err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	user.Quota = 0
 	common.ApiSuccess(c, customerView(&user))
 }
 
@@ -1007,4 +987,221 @@ func ResellerGetLedger(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(rows)
 	common.ApiSuccess(c, pageInfo)
+}
+
+// ResellerDeleteCustomer disables (soft "deletes") a customer and its tokens.
+func ResellerDeleteCustomer(c *gin.Context) {
+	user, ok := loadCustomer(c)
+	if !ok {
+		return
+	}
+	if err := model.DisableResellerCustomer(user.Id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"id": user.Id, "status": common.UserStatusDisabled})
+}
+
+// ---------------------------------------------------------------------------
+// reseller-managed customer tokens (scoped: customer must belong to me)
+// ---------------------------------------------------------------------------
+
+type resellerTokenRequest struct {
+	Name           string  `json:"name"`
+	RemainQuota    *int    `json:"remain_quota"`
+	UnlimitedQuota *bool   `json:"unlimited_quota"`
+	ExpiredTime    *int64  `json:"expired_time"`
+	Group          *string `json:"group"`
+	ModelLimits    *string `json:"model_limits"`
+	AllowIps       *string `json:"allow_ips"`
+	Status         *int    `json:"status"`
+}
+
+func resellerTokenView(t *model.Token) gin.H {
+	return gin.H{
+		"id": t.Id, "user_id": t.UserId, "name": t.Name, "key": t.GetMaskedKey(), "status": t.Status,
+		"created_time": t.CreatedTime, "accessed_time": t.AccessedTime, "expired_time": t.ExpiredTime,
+		"remain_quota": t.RemainQuota, "unlimited_quota": t.UnlimitedQuota, "used_quota": t.UsedQuota,
+		"group": t.Group, "model_limits_enabled": t.ModelLimitsEnabled, "model_limits": t.ModelLimits,
+	}
+}
+
+// applyResellerTokenRequest validates and copies request fields onto t.
+func applyResellerTokenRequest(c *gin.Context, customer *model.User, t *model.Token, req resellerTokenRequest) bool {
+	if req.Name != "" {
+		if len(req.Name) > 50 {
+			common.ApiErrorMsg(c, "token name is too long")
+			return false
+		}
+		t.Name = req.Name
+	}
+	if req.UnlimitedQuota != nil {
+		t.UnlimitedQuota = *req.UnlimitedQuota
+	}
+	if req.RemainQuota != nil {
+		if *req.RemainQuota < 0 {
+			common.ApiErrorMsg(c, "remain_quota cannot be negative")
+			return false
+		}
+		t.RemainQuota = *req.RemainQuota
+	}
+	if req.ExpiredTime != nil {
+		t.ExpiredTime = *req.ExpiredTime
+	}
+	if req.Group != nil {
+		group := strings.TrimSpace(*req.Group)
+		if group == "auto" {
+			common.ApiErrorMsg(c, "auto group is not supported for reseller-managed tokens")
+			return false
+		}
+		if group != "" {
+			cfg, err := model.GetResellerPricingConfig(customer.ResellerId)
+			if err != nil {
+				common.ApiError(c, err)
+				return false
+			}
+			if !cfg.AllowsGroup(group) {
+				common.ApiError(c, model.ErrGroupNotAllowed)
+				return false
+			}
+		}
+		t.Group = group
+	}
+	if req.ModelLimits != nil {
+		t.ModelLimits = *req.ModelLimits
+		t.ModelLimitsEnabled = strings.TrimSpace(*req.ModelLimits) != ""
+	}
+	if req.AllowIps != nil {
+		ips := *req.AllowIps
+		t.AllowIps = &ips
+	}
+	if req.Status != nil {
+		if *req.Status != common.TokenStatusEnabled && *req.Status != common.TokenStatusDisabled {
+			common.ApiErrorMsg(c, "invalid status")
+			return false
+		}
+		t.Status = *req.Status
+	}
+	return true
+}
+
+func loadCustomerToken(c *gin.Context) (*model.User, *model.Token, bool) {
+	customer, ok := loadCustomer(c)
+	if !ok {
+		return nil, nil, false
+	}
+	tokenId, ok := paramId(c, "token_id")
+	if !ok {
+		return nil, nil, false
+	}
+	token, err := model.GetTokenByIds(tokenId, customer.Id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "token not found"})
+		return nil, nil, false
+	}
+	return customer, token, true
+}
+
+func ResellerListCustomerTokens(c *gin.Context) {
+	customer, ok := loadCustomer(c)
+	if !ok {
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	tokens, err := model.GetAllUserTokens(customer.Id, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	total, _ := model.CountUserTokens(customer.Id)
+	items := make([]gin.H, 0, len(tokens))
+	for _, t := range tokens {
+		items = append(items, resellerTokenView(t))
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(items)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func ResellerCreateCustomerToken(c *gin.Context) {
+	customer, ok := loadCustomer(c)
+	if !ok {
+		return
+	}
+	var req resellerTokenRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid parameters")
+		return
+	}
+	count, err := model.CountUserTokens(customer.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if int(count) >= operation_setting.GetMaxUserTokens() {
+		common.ApiErrorMsg(c, "maximum number of tokens reached")
+		return
+	}
+	key, err := common.GenerateKey()
+	if err != nil {
+		common.ApiErrorMsg(c, "failed to generate token")
+		return
+	}
+	now := common.GetTimestamp()
+	token := model.Token{UserId: customer.Id, Name: "default", Key: key, Status: common.TokenStatusEnabled,
+		CreatedTime: now, AccessedTime: now, ExpiredTime: -1}
+	if !applyResellerTokenRequest(c, customer, &token, req) {
+		return
+	}
+	if err := token.Insert(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	view := resellerTokenView(&token)
+	view["key"] = token.GetFullKey() // shown once so the reseller can hand it over
+	common.ApiSuccess(c, view)
+}
+
+func ResellerUpdateCustomerToken(c *gin.Context) {
+	customer, token, ok := loadCustomerToken(c)
+	if !ok {
+		return
+	}
+	var req resellerTokenRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid parameters")
+		return
+	}
+	if !applyResellerTokenRequest(c, customer, token, req) {
+		return
+	}
+	if err := token.Update(); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, resellerTokenView(token))
+}
+
+func ResellerDeleteCustomerToken(c *gin.Context) {
+	customer, token, ok := loadCustomerToken(c)
+	if !ok {
+		return
+	}
+	if err := model.DeleteTokenById(token.Id, customer.Id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"id": token.Id})
+}
+
+// AdminReconcileResellers lists (read-only) negative reseller balances and
+// consume logs with an inconsistent reseller leg. ?from=<unix> limits the log scan.
+func AdminReconcileResellers(c *gin.Context) {
+	from, _ := strconv.ParseInt(c.Query("from"), 10, 64)
+	issues, err := model.ReconcileResellers(from)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"issues": issues, "count": len(issues)})
 }

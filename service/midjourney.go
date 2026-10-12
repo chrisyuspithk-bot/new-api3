@@ -59,6 +59,38 @@ func PrepareMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.
 	return true, nil
 }
 
+// CheckMidjourneyResellerBilling fails a reseller customer's Midjourney request
+// closed before the upstream call when reseller pricing is unavailable or the
+// reseller cost balance cannot cover the charge. Direct users pass.
+func CheckMidjourneyResellerBilling(relayInfo *relaycommon.RelayInfo, quota int) error {
+	if relayInfo == nil || relayInfo.ResellerId <= 0 {
+		return nil
+	}
+	if relayInfo.ResellerPricingErr != nil {
+		return relayInfo.ResellerPricingErr
+	}
+	if !model.ValidMarkup(relayInfo.ResellerMarkup) {
+		return model.ErrInvalidMarkup
+	}
+	balance, err := model.GetUserQuota(relayInfo.ResellerId, false)
+	if err != nil {
+		return err
+	}
+	if balance < ResellerCostFromCharge(quota, relayInfo.ResellerMarkup) {
+		return ErrResellerInsufficient
+	}
+	return nil
+}
+
+// SetResellerLogContext makes the next RecordConsumeLog on c carry the reseller leg.
+func SetResellerLogContext(c *gin.Context, resellerId, costQuota int) {
+	if c == nil || resellerId <= 0 {
+		return
+	}
+	c.Set(model.ContextKeyLogResellerId, resellerId)
+	c.Set(model.ContextKeyLogResellerCostQuota, costQuota)
+}
+
 // SettleMidjourneyTaskBilling charges a persisted legacy task and records the applied stages.
 func SettleMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.Midjourney, prepared bool) (bool, error) {
 	if !prepared {
@@ -85,6 +117,20 @@ func SettleMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.M
 	task.TokenId = 0
 	if result.TokenApplied {
 		task.TokenId = relayInfo.TokenId
+	}
+	// B2B2C reseller leg: charged after the customer leg (upstream already
+	// accepted the job, so it may take the reseller below zero once).
+	task.ResellerId, task.ResellerCostQuota = 0, 0
+	if relayInfo.ResellerId > 0 && model.ValidMarkup(relayInfo.ResellerMarkup) {
+		cost := ResellerCostFromCharge(task.Quota, relayInfo.ResellerMarkup)
+		if cost > 0 {
+			if err := model.DecreaseUserQuota(relayInfo.ResellerId, cost, false); err != nil {
+				billingErr = errors.Join(billingErr, fmt.Errorf("charge reseller leg: %w", err))
+			} else {
+				task.ResellerId, task.ResellerCostQuota = relayInfo.ResellerId, cost
+				relayInfo.ResellerCostQuota = cost
+			}
+		}
 	}
 	if updateErr := task.UpdateBillingState(); updateErr != nil {
 		return true, errors.Join(billingErr, fmt.Errorf("update Midjourney billing state: %w", updateErr))
@@ -113,6 +159,16 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 		}
 	}
 
+	resellerId, resellerCost := task.ResellerId, task.ResellerCostQuota
+	if resellerId > 0 && resellerCost > 0 {
+		if err := model.IncreaseUserQuota(resellerId, resellerCost, false); err != nil {
+			logger.LogWarn(ctx, common.LogText("failed to refund Midjourney reseller leg, task %s: %s", task.MjId, err.Error()))
+			resellerCost = 0
+		} else {
+			task.ResellerCostQuota = 0
+		}
+	}
+
 	billingChannelId := task.GetBillingChannelId()
 	model.UpdateUserUsedQuota(task.UserId, -quota)
 	model.UpdateChannelUsedQuota(billingChannelId, -quota)
@@ -127,6 +183,9 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 		Quota:     quota,
 		TokenId:   task.TokenId,
 		Other:     other,
+
+		ResellerId:        resellerId,
+		ResellerCostQuota: resellerCost,
 	})
 
 	task.Quota = 0

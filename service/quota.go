@@ -119,6 +119,16 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if ok {
 		actualGroupRatio = userGroupRatio
 	}
+	if relayInfo.ResellerId > 0 {
+		if relayInfo.ResellerPricingErr != nil || !model.ValidMarkup(relayInfo.ResellerMarkup) {
+			return fmt.Errorf("reseller pricing unavailable: %v", relayInfo.ResellerPricingErr)
+		}
+		costFactor := relayInfo.ResellerCostFactor
+		if costFactor <= 0 {
+			costFactor = 1
+		}
+		actualGroupRatio = actualGroupRatio * costFactor * relayInfo.ResellerMarkup
+	}
 
 	quotaInfo := QuotaInfo{
 		InputDetails: TokenDetails{
@@ -146,10 +156,28 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		return fmt.Errorf("token quota is not enough, token remain quota: %s, need quota: %s", logger.FormatQuota(token.RemainQuota), logger.FormatQuota(quota))
 	}
 
+	// B2B2C: reserve the reseller cost leg atomically before the customer leg.
+	resellerCost := 0
+	if relayInfo.ResellerId > 0 {
+		resellerCost = ResellerCostFromCharge(quota, relayInfo.ResellerMarkup)
+		if resellerCost > 0 {
+			ok, reserveErr := model.TryReserveUserQuota(relayInfo.ResellerId, resellerCost)
+			if reserveErr != nil {
+				return reserveErr
+			}
+			if !ok {
+				return ErrResellerInsufficient
+			}
+		}
+	}
 	err = PostConsumeQuota(relayInfo, quota, 0, false)
 	if err != nil {
+		if resellerCost > 0 {
+			_ = model.IncreaseUserQuota(relayInfo.ResellerId, resellerCost, false)
+		}
 		return err
 	}
+	relayInfo.ResellerCostQuota += resellerCost
 	logger.LogInfo(ctx, common.LogText("realtime streaming consume quota success, quota: %d", quota))
 	return nil
 }
@@ -175,7 +203,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
 
 	tokenName := ctx.GetString("token_name")
-	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(modelName))
+	completionRatio := decimal.NewFromFloat(completionRatioFor(relayInfo, modelName))
 	audioRatio := decimal.NewFromFloat(ratio_setting.GetAudioRatio(relayInfo.OriginModelName))
 	audioCompletionRatio := decimal.NewFromFloat(ratio_setting.GetAudioCompletionRatio(modelName))
 
@@ -314,7 +342,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 
 	tokenName := ctx.GetString("token_name")
 	billingModelName := relayInfo.GetBillingModelName()
-	completionRatio := decimal.NewFromFloat(ratio_setting.GetCompletionRatio(billingModelName))
+	completionRatio := decimal.NewFromFloat(completionRatioFor(relayInfo, billingModelName))
 	audioRatio := decimal.NewFromFloat(ratio_setting.GetAudioRatio(billingModelName))
 	audioCompletionRatio := decimal.NewFromFloat(ratio_setting.GetAudioCompletionRatio(billingModelName))
 
@@ -553,4 +581,12 @@ func quotaNotifyContent(lang string, notifyType string, prompt string, remaining
 		topUpLink := PaymentReturnURL("/wallet")
 		return i18n.Translate(lang, i18n.MsgNotifyQuotaLowEmail, map[string]any{"Prompt": prompt, "Quota": remaining, "Link": topUpLink}), []any{prompt, remaining, topUpLink, topUpLink}
 	}
+}
+
+// completionRatioFor applies a reseller completion_ratio override when present.
+func completionRatioFor(relayInfo *relaycommon.RelayInfo, modelName string) float64 {
+	if override, ok := ResellerCompletionRatio(relayInfo, modelName); ok {
+		return override
+	}
+	return ratio_setting.GetCompletionRatio(modelName)
 }

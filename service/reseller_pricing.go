@@ -54,7 +54,8 @@ func ResolveResellerFactors(customerId, resellerId int, modelName string) (costF
 // resellerCostFactor converts an admin cost override into a multiplier on the
 // base quota. Phase 1 only re-scales the base engine result, so tiered/expression
 // billing is supported through cost_multiplier and the ratio/price overrides
-// apply as ratio-of-ratios. completion_ratio overrides are stored but not applied.
+// apply as ratio-of-ratios. completion_ratio overrides are applied separately by
+// ResellerCompletionRatio (ratio-billed, non-tiered models only).
 func resellerCostFactor(override model.ResellerModelPrice, modelName string) float64 {
 	if override.CostMultiplier != nil {
 		return *override.CostMultiplier
@@ -111,3 +112,45 @@ func ResellerCostFromCharge(charge int, markup float64) int {
 // ErrResellerInsufficient is returned when the reseller cost balance cannot
 // cover a customer request. Customers see a generic insufficient-quota message.
 var ErrResellerInsufficient = errors.New("reseller cost balance insufficient")
+
+// ResellerCompletionRatio returns the admin completion_ratio override for a
+// reseller customer's model, if any. The engine multiplies completion tokens by
+// modelRatio x completionRatio x groupRatio; groupRatio already carries
+// costFactor x markup, so replacing completionRatio yields exactly
+// cost_completion = base_model_ratio x costFactor x override.
+func ResellerCompletionRatio(info *relaycommon.RelayInfo, modelName string) (float64, bool) {
+	if info == nil || info.ResellerId <= 0 || info.ResellerPricingErr != nil {
+		return 0, false
+	}
+	cfg, err := model.GetResellerPricingConfig(info.ResellerId)
+	if err != nil {
+		return 0, false
+	}
+	override, ok := cfg.ModelPrices[modelName]
+	if !ok || override.CompletionRatio == nil || *override.CompletionRatio < 0 {
+		return 0, false
+	}
+	return *override.CompletionRatio, true
+}
+
+// ResellerPriceFactor is the multiplier applied to base model_ratio/model_price
+// for pricing display. customerId == 0 means the reseller's own cost view.
+func ResellerPriceFactor(customerId, resellerId int, modelName string) (factor float64, completionRatio *float64, ok bool) {
+	cfg, err := model.GetResellerPricingConfig(resellerId)
+	if err != nil || cfg.Status != common.UserStatusEnabled {
+		return 0, nil, false
+	}
+	costFactor := 1.0
+	if override, exists := cfg.ModelPrices[modelName]; exists {
+		costFactor = resellerCostFactor(override, modelName)
+		completionRatio = override.CompletionRatio
+	}
+	if customerId <= 0 {
+		return costFactor, completionRatio, true
+	}
+	cf, markup, err := ResolveResellerFactors(customerId, resellerId, modelName)
+	if err != nil {
+		return 0, nil, false
+	}
+	return cf * markup, completionRatio, true
+}

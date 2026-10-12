@@ -126,7 +126,7 @@ type resellerCacheEntry[T any] struct {
 	expires time.Time
 }
 
-const resellerCacheTTL = 30 * time.Second
+const resellerCacheTTL = 10 * time.Second
 
 var (
 	resellerCfgCache sync.Map // int -> resellerCacheEntry[ResellerPricingConfig]
@@ -404,32 +404,133 @@ func CountResellerCustomers(resellerId int) (int64, error) {
 }
 
 // AdjustQuotaWithLedger credits (delta>0) or debits (delta<0) a user's wallet
-// through the cache-aware quota paths and appends a ledger row. Debits never
-// take a balance below zero.
+// and appends a ledger row in ONE database transaction, so a balance change
+// never exists without its audit row (and vice versa). Debits never take a
+// balance below zero (conditional UPDATE). The Redis user cache is dropped
+// after commit so the next read reloads the committed balance.
 func AdjustQuotaWithLedger(userId int, delta int, entry ResellerLedger) error {
 	if delta == 0 {
 		return errors.New("quota delta cannot be zero")
 	}
-	if delta > 0 {
-		if err := IncreaseUserQuota(userId, delta, true); err != nil {
-			return err
-		}
-	} else {
-		ok, err := TryReserveUserQuota(userId, -delta)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return ErrInsufficientQuota
-		}
-	}
 	entry.QuotaDelta = int64(delta)
 	entry.CreatedAt = common.GetTimestamp()
-	if err := DB.Create(&entry).Error; err != nil {
-		common.SysError(common.LogText("failed to write reseller ledger (user=%d, delta=%d): %s", userId, delta, err.Error()))
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		q := tx.Model(&User{}).Where("id = ?", userId)
+		if delta < 0 {
+			q = q.Where("quota >= ?", -delta)
+		}
+		res := q.Update("quota", gorm.Expr("quota + ?", delta))
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			if delta < 0 {
+				return ErrInsufficientQuota
+			}
+			return gorm.ErrRecordNotFound
+		}
+		return tx.Create(&entry).Error
+	})
+	if err != nil {
 		return err
 	}
+	if cacheErr := invalidateUserCache(userId); cacheErr != nil {
+		common.SysError(common.LogText("failed to invalidate user cache after ledger adjust (user=%d): %s", userId, cacheErr.Error()))
+	}
 	return nil
+}
+
+// CreateResellerCustomer inserts a customer with 0 sale quota. The
+// max_customers check and the insert run in one transaction holding a row lock
+// on the reseller profile, so concurrent creates cannot exceed the limit
+// (MySQL/PG; SQLite serialises writers anyway).
+func CreateResellerCustomer(resellerId int, user *User) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var profile ResellerProfile
+		if err := lockForUpdate(tx).Where("user_id = ?", resellerId).First(&profile).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if profile.MaxCustomers > 0 {
+			var count int64
+			if err := tx.Model(&User{}).Where("reseller_id = ?", resellerId).Count(&count).Error; err != nil {
+				return err
+			}
+			if count >= int64(profile.MaxCustomers) {
+				return ErrCustomerLimitReached
+			}
+		}
+		if err := user.InsertWithTx(tx, 0); err != nil {
+			return err
+		}
+		// Customers start with 0 sale quota; the reseller credits them manually.
+		user.Quota = 0
+		return tx.Model(&User{}).Where("id = ?", user.Id).Update("quota", 0).Error
+	})
+}
+
+// DisableResellerCustomer is the reseller "delete": the customer is disabled
+// (sessions revoked) and all of its tokens are disabled. Rows are kept for
+// logs, ledger and reports.
+func DisableResellerCustomer(customerId int) error {
+	if err := SetUserStatusAndRevoke(customerId, common.UserStatusDisabled); err != nil {
+		return err
+	}
+	if err := InvalidateUserTokensCache(customerId); err != nil {
+		common.SysError(common.LogText("failed to invalidate tokens cache for user %d: %s", customerId, err.Error()))
+	}
+	if err := DB.Model(&Token{}).Where("user_id = ?", customerId).Update("status", common.TokenStatusDisabled).Error; err != nil {
+		return err
+	}
+	InvalidateCustomerPricingCache(customerId)
+	return nil
+}
+
+// ReconcileIssue is one finding of the reseller reconciliation check.
+type ReconcileIssue struct {
+	ResellerId int    `json:"reseller_id"`
+	Username   string `json:"username"`
+	Kind       string `json:"kind"`
+	Detail     string `json:"detail"`
+	Value      int64  `json:"value"`
+}
+
+// ReconcileResellers flags (read-only) resellers with a negative cost balance
+// and consume logs whose reseller leg looks inconsistent: a reseller customer
+// log with no cost recorded, or a cost above the customer charge.
+func ReconcileResellers(from int64) ([]ReconcileIssue, error) {
+	issues := []ReconcileIssue{}
+	var negative []User
+	if err := DB.Select("id", "username", "quota").Where("role = ? AND quota < 0", common.RoleResellerUser).Find(&negative).Error; err != nil {
+		return nil, err
+	}
+	for _, u := range negative {
+		issues = append(issues, ReconcileIssue{ResellerId: u.Id, Username: u.Username, Kind: "negative_balance", Detail: "reseller cost balance below zero", Value: int64(u.Quota)})
+	}
+	var rows []struct {
+		ResellerId int
+		Missing    int64
+		Excess     int64
+	}
+	q := LOG_DB.Model(&Log{}).
+		Select("reseller_id, "+
+			"COALESCE(SUM(CASE WHEN quota > 0 AND reseller_cost_quota = 0 THEN 1 ELSE 0 END),0) AS missing, "+
+			"COALESCE(SUM(CASE WHEN reseller_cost_quota > quota THEN 1 ELSE 0 END),0) AS excess").
+		Where("type = ? AND reseller_id > 0", LogTypeConsume)
+	if from > 0 {
+		q = q.Where("created_at >= ?", from)
+	}
+	if err := q.Group("reseller_id").Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		if r.Missing > 0 {
+			issues = append(issues, ReconcileIssue{ResellerId: r.ResellerId, Kind: "log_missing_cost", Detail: "consume logs with charge but no reseller cost", Value: r.Missing})
+		}
+		if r.Excess > 0 {
+			issues = append(issues, ReconcileIssue{ResellerId: r.ResellerId, Kind: "log_cost_above_charge", Detail: "consume logs where reseller cost exceeds customer charge", Value: r.Excess})
+		}
+	}
+	return issues, nil
 }
 
 // GetResellerLedger lists ledger rows for a reseller, newest first.
@@ -460,8 +561,14 @@ func GetResellerGrossProfit(resellerId int, from, to int64, groupBy string) ([]G
 		keyCol = "username"
 	}
 	query := LOG_DB.Model(&Log{}).
-		Select(keyCol+" AS "+"key_name, COUNT(*) AS requests, COALESCE(SUM(quota),0) AS charge_quota, COALESCE(SUM(reseller_cost_quota),0) AS cost_quota").
-		Where("type = ?", LogTypeConsume)
+		// Async task refunds / delta settlements carry the reseller leg too,
+		// so refunds are netted out of both charge and cost.
+		Select(keyCol+" AS key_name, "+
+			"COALESCE(SUM(CASE WHEN type = ? THEN 1 ELSE 0 END),0) AS requests, "+
+			"COALESCE(SUM(CASE WHEN type = ? THEN -quota ELSE quota END),0) AS charge_quota, "+
+			"COALESCE(SUM(CASE WHEN type = ? THEN -reseller_cost_quota ELSE reseller_cost_quota END),0) AS cost_quota",
+			LogTypeConsume, LogTypeRefund, LogTypeRefund).
+		Where("type IN ?", []int{LogTypeConsume, LogTypeRefund})
 	if resellerId > 0 {
 		query = query.Where("reseller_id = ?", resellerId)
 	} else {

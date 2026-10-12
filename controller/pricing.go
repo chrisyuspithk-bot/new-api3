@@ -35,6 +35,59 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
+// applyResellerPricingView rewrites the pricing table for B2B2C viewers.
+// Customers see only their marked-up price (cost factor x markup folded into
+// model_ratio / model_price); resellers see their own cost. Base-price
+// expressions and plugin variants are hidden, and groups are limited to the
+// reseller whitelist. Direct users and anonymous visitors are untouched.
+func applyResellerPricingView(userId int, pricing []model.Pricing, groupRatio map[string]float64, usableGroup map[string]string) ([]model.Pricing, map[string]float64, map[string]string) {
+	user, err := model.GetUserCache(userId)
+	if err != nil {
+		return pricing, groupRatio, usableGroup
+	}
+	resellerId, customerId := user.ResellerId, user.Id
+	if user.Role == common.RoleResellerUser {
+		resellerId, customerId = user.Id, 0
+	}
+	if resellerId <= 0 {
+		return pricing, groupRatio, usableGroup
+	}
+	cfg, err := model.GetResellerPricingConfig(resellerId)
+	if err != nil {
+		return []model.Pricing{}, map[string]float64{}, map[string]string{}
+	}
+	for g := range usableGroup {
+		if !cfg.AllowsGroup(g) {
+			delete(usableGroup, g)
+			delete(groupRatio, g)
+		}
+	}
+	for g := range groupRatio {
+		if _, ok := usableGroup[g]; !ok {
+			delete(groupRatio, g)
+		}
+	}
+	pricing = filterPricingByUsableGroups(pricing, usableGroup)
+	out := make([]model.Pricing, 0, len(pricing))
+	for _, item := range pricing {
+		factor, completion, ok := service.ResellerPriceFactor(customerId, resellerId, item.ModelName)
+		if !ok {
+			continue
+		}
+		item.ModelRatio *= factor
+		item.ModelPrice *= factor
+		if completion != nil && item.QuotaType == 0 {
+			item.CompletionRatio = *completion
+		}
+		item.BillingExpr = ""
+		item.BillingPluginVariants = nil
+		item.BillingUsageSchema = nil
+		item.BillingUsageExamples = nil
+		out = append(out, item)
+	}
+	return out, groupRatio, usableGroup
+}
+
 func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
@@ -62,6 +115,10 @@ func GetPricing(c *gin.Context) {
 		if _, ok := usableGroup[group]; !ok {
 			delete(groupRatio, group)
 		}
+	}
+
+	if exists {
+		pricing, groupRatio, usableGroup = applyResellerPricingView(userId.(int), pricing, groupRatio, usableGroup)
 	}
 
 	c.JSON(200, gin.H{

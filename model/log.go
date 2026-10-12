@@ -428,6 +428,9 @@ type RecordTaskBillingLogParams struct {
 	Group     string
 	Other     *LogOther
 	NodeName  string // 任务发起节点；为空时回退当前节点
+	// B2B2C: reseller leg moved by this log (always >= 0, same sign as Quota).
+	ResellerId        int
+	ResellerCostQuota int
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
@@ -456,6 +459,9 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		TokenId:   params.TokenId,
 		Group:     params.Group,
 		Other:     other.JSONString(),
+
+		ResellerId:        params.ResellerId,
+		ResellerCostQuota: params.ResellerCostQuota,
 	}
 	err := createLog(log)
 	if err != nil {

@@ -193,6 +193,7 @@ func SetApiRouter(router *gin.Engine) {
 			resellerAdminRoute.DELETE("/resellers/:id/model_prices/:model", controller.AdminDeleteResellerModelPrice)
 			resellerAdminRoute.GET("/resellers/:id/ledger", controller.AdminGetResellerLedger)
 			resellerAdminRoute.GET("/reports/gross_profit", controller.AdminGrossProfitReport)
+			resellerAdminRoute.GET("/reports/reseller_reconcile", controller.AdminReconcileResellers)
 		}
 
 		// B2B2C reseller APIs; every handler scopes queries to reseller_id = me.
@@ -207,6 +208,11 @@ func SetApiRouter(router *gin.Engine) {
 			resellerRoute.GET("/customers/:id", controller.ResellerGetCustomer)
 			resellerRoute.PUT("/customers/:id", controller.ResellerUpdateCustomer)
 			resellerRoute.POST("/customers/:id/status", controller.ResellerSetCustomerStatus)
+			resellerRoute.DELETE("/customers/:id", controller.ResellerDeleteCustomer)
+			resellerRoute.GET("/customers/:id/tokens", controller.ResellerListCustomerTokens)
+			resellerRoute.POST("/customers/:id/tokens", controller.ResellerCreateCustomerToken)
+			resellerRoute.PUT("/customers/:id/tokens/:token_id", controller.ResellerUpdateCustomerToken)
+			resellerRoute.DELETE("/customers/:id/tokens/:token_id", controller.ResellerDeleteCustomerToken)
 			resellerRoute.POST("/customers/:id/credit", controller.ResellerCreditCustomer)
 			resellerRoute.POST("/customers/:id/debit", controller.ResellerDebitCustomer)
 			resellerRoute.GET("/customers/:id/model_markups", controller.ResellerListCustomerModelMarkups)

@@ -631,6 +631,11 @@ func executeTaskSubmissionWith(
 		PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		TieredSnapshot:  relayInfo.TieredBillingSnapshot,
 	}
+	if relayInfo.ResellerId > 0 {
+		task.PrivateData.BillingContext.ResellerId = relayInfo.ResellerId
+		task.PrivateData.BillingContext.ResellerMarkup = relayInfo.ResellerMarkup
+		task.PrivateData.BillingContext.ResellerCostFactor = relayInfo.ResellerCostFactor
+	}
 	task.Quota = result.Quota
 	task.Data = result.TaskData
 	if len(result.PluginState) > 0 {

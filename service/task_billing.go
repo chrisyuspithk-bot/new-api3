@@ -144,6 +144,52 @@ func taskAdjustTokenQuota(ctx context.Context, task *model.Task, delta int) {
 	}
 }
 
+// taskResellerLeg returns the reseller leg frozen at submit (0 = direct user).
+func taskResellerLeg(task *model.Task) (resellerId int, markup float64, costFactor float64) {
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ResellerId <= 0 || !model.ValidMarkup(bc.ResellerMarkup) {
+		return 0, 0, 0
+	}
+	costFactor = bc.ResellerCostFactor
+	if costFactor <= 0 {
+		costFactor = 1
+	}
+	return bc.ResellerId, bc.ResellerMarkup, costFactor
+}
+
+// taskAdjustResellerLeg moves the reseller wallet from the cost of oldCharge to
+// the cost of newCharge and returns the signed cost delta (>0 = charged more).
+// Like the synchronous settle, a positive delta may take the reseller below
+// zero once: upstream cost is already incurred (design section 5).
+func taskAdjustResellerLeg(ctx context.Context, task *model.Task, oldCharge, newCharge int) int {
+	resellerId, markup, _ := taskResellerLeg(task)
+	if resellerId <= 0 {
+		return 0
+	}
+	delta := ResellerCostFromCharge(newCharge, markup) - ResellerCostFromCharge(oldCharge, markup)
+	if delta == 0 {
+		return 0
+	}
+	var err error
+	if delta > 0 {
+		err = model.DecreaseUserQuota(resellerId, delta, false)
+	} else {
+		err = model.IncreaseUserQuota(resellerId, -delta, false)
+	}
+	if err != nil {
+		logger.LogError(ctx, common.LogText("failed to adjust reseller leg (reseller=%d, delta=%d, task=%s): %s", resellerId, delta, task.TaskID, err.Error()))
+		return 0
+	}
+	return delta
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // taskBillingOther 从 task 的 BillingContext 构建日志 Other 字段。
 func taskBillingOther(task *model.Task) *model.LogOther {
 	other := model.NewLogOther()
@@ -272,6 +318,10 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 		return false
 	}
 
+	// 1b. 退还 Reseller 成本腿
+	resellerId, _, _ := taskResellerLeg(task)
+	resellerCostRefund := absInt(taskAdjustResellerLeg(ctx, task, quota, 0))
+
 	// 2. 退还令牌额度
 	taskAdjustTokenQuota(ctx, task, -quota)
 
@@ -292,6 +342,9 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 		TokenId:   task.PrivateData.TokenId,
 		Group:     task.Group,
 		Other:     other,
+
+		ResellerId:        resellerId,
+		ResellerCostQuota: resellerCostRefund,
 	})
 
 	// 5. 资金退款完成后再清除持久化标记。
@@ -334,6 +387,10 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		return
 	}
 
+	// 调整 Reseller 成本腿
+	resellerId, _, _ := taskResellerLeg(task)
+	resellerCostDelta := taskAdjustResellerLeg(ctx, task, preConsumedQuota, actualQuota)
+
 	// 调整令牌额度
 	taskAdjustTokenQuota(ctx, task, quotaDelta)
 
@@ -373,6 +430,9 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 		Group:     task.Group,
 		Other:     other,
 		NodeName:  task.PrivateData.NodeName,
+
+		ResellerId:        resellerId,
+		ResellerCostQuota: absInt(resellerCostDelta),
 	})
 }
 
@@ -413,6 +473,12 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		finalGroupRatio = userGroupRatio
 	} else {
 		finalGroupRatio = groupRatio
+	}
+
+	// B2B2C: re-apply the frozen reseller cost factor and markup so the
+	// recalculated quota stays the customer charge.
+	if _, markup, costFactor := taskResellerLeg(task); markup > 0 {
+		finalGroupRatio = finalGroupRatio * costFactor * markup
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）
