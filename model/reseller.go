@@ -517,3 +517,6 @@ func UpdateResellerCustomerFields(customerId int, fields map[string]any) error {
 	InvalidateCustomerPricingCache(customerId)
 	return nil
 }
+
+// TableName pins the design name (singular) for the audit table.
+func (ResellerLedger) TableName() string { return "reseller_ledger" }
