@@ -1012,7 +1012,8 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid input {{error}}", map[string]any{"error": err.Error()})
 		return
 	}
-	if !common.IsValidateRole(user.Role) {
+	// Resellers are created through /api/admin/resellers so their profile exists.
+	if !common.IsValidateRole(user.Role) || user.Role == common.RoleResellerUser {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}

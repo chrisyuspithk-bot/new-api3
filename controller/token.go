@@ -90,15 +90,11 @@ func getTokenRequestUserGroup(c *gin.Context) (string, error) {
 // ensureResellerCustomerGroups rejects token groups outside the owning
 // reseller's whitelist for B2B2C customers. Direct users are unaffected.
 func ensureResellerCustomerGroups(c *gin.Context, group string, autoGroups []string) bool {
-	user, err := model.GetUserCache(c.GetInt("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return false
-	}
-	if user.ResellerId <= 0 {
+	resellerId := common.GetContextKeyInt(c, constant.ContextKeyUserResellerId)
+	if resellerId <= 0 {
 		return true
 	}
-	cfg, err := model.GetResellerPricingConfig(user.ResellerId)
+	cfg, err := model.GetResellerPricingConfig(resellerId)
 	if err != nil {
 		common.ApiError(c, err)
 		return false
