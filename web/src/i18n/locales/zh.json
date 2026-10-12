@@ -2797,7 +2797,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高级自定义渠道仅对 /v1/responses 且不做协议转换的路由生效。",
     "GitHub ID is empty!": "GitHub ID 为空！",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
@@ -7368,6 +7368,7 @@
     "No invoices yet": "暂无发票",
     "Your reseller": "您的代理商",
     "Reseller Contact": "代理商联系方式",
-    "You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock.": "您可以在线为钱包充值。API 调用仍需代理商具备成本余额——若因库存不足导致请求失败，请联系您的代理商。"
+    "You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock.": "您可以在线为钱包充值。API 调用仍需代理商具备成本余额——若因库存不足导致请求失败，请联系您的代理商。",
+    "Failed to load user": "加载用户失败"
   }
 }

@@ -16,10 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQuery } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -32,17 +31,29 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { getUser } from '@/features/users/api'
+import { UsersDeleteDialog } from '@/features/users/components/users-delete-dialog'
+import { UsersMutateDrawer } from '@/features/users/components/users-mutate-drawer'
+import {
+  UsersProvider,
+  useUsers,
+} from '@/features/users/components/users-provider'
+import { handleServerError } from '@/lib/handle-server-error'
 import { formatQuota } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { listResellerCustomers } from '../api'
+import type { ResellerCustomer } from '../types'
 
 const PAGE_SIZE = 20
 
-export function ResellerCustomersTab(props: { resellerId: number }) {
+function ResellerCustomersTabInner(props: { resellerId: number }) {
   const { t } = useTranslation()
+  const qc = useQueryClient()
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const { open, setOpen, currentRow, setCurrentRow, refreshTrigger } =
+    useUsers()
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-reseller-customers', props.resellerId, page, keyword],
@@ -57,6 +68,27 @@ export function ResellerCustomersTab(props: { resellerId: number }) {
       return res.data
     },
   })
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      qc.invalidateQueries({
+        queryKey: ['admin-reseller-customers', props.resellerId],
+      })
+    }
+  }, [refreshTrigger, props.resellerId, qc])
+
+  const openUserDialog = async (
+    row: ResellerCustomer,
+    dialog: 'update' | 'delete'
+  ) => {
+    try {
+      const res = requireServerSuccess(await getUser(row.id))
+      setCurrentRow(res.data!)
+      setOpen(dialog)
+    } catch (error) {
+      handleServerError(error, t('Failed to load user'))
+    }
+  }
 
   const items = data?.items ?? []
   const total = data?.total ?? 0
@@ -85,17 +117,18 @@ export function ResellerCustomersTab(props: { resellerId: number }) {
               <TableHead>{t('Used')}</TableHead>
               <TableHead>{t('Requests')}</TableHead>
               <TableHead>{t('Markup')}</TableHead>
+              <TableHead className='text-right'>{t('Actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={8}>{t('Loading...')}</TableCell>
+                <TableCell colSpan={9}>{t('Loading...')}</TableCell>
               </TableRow>
             )}
             {!isLoading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8}>{t('No customers')}</TableCell>
+                <TableCell colSpan={9}>{t('No customers')}</TableCell>
               </TableRow>
             )}
             {items.map((row) => (
@@ -124,6 +157,25 @@ export function ResellerCustomersTab(props: { resellerId: number }) {
                 <TableCell>{row.request_count}</TableCell>
                 <TableCell>
                   {row.markup != null ? row.markup : t('Default')}
+                </TableCell>
+                <TableCell className='text-right'>
+                  <div className='inline-flex items-center gap-1'>
+                    <Button
+                      size='sm'
+                      variant='outline'
+                      onClick={() => openUserDialog(row, 'update')}
+                    >
+                      {t('Edit')}
+                    </Button>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      className='text-destructive'
+                      onClick={() => openUserDialog(row, 'delete')}
+                    >
+                      {t('Remove')}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -156,6 +208,21 @@ export function ResellerCustomersTab(props: { resellerId: number }) {
           </Button>
         </div>
       </div>
+
+      <UsersMutateDrawer
+        open={open === 'create' || open === 'update'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        currentRow={open === 'update' ? currentRow || undefined : undefined}
+      />
+      <UsersDeleteDialog />
     </div>
+  )
+}
+
+export function ResellerCustomersTab(props: { resellerId: number }) {
+  return (
+    <UsersProvider>
+      <ResellerCustomersTabInner resellerId={props.resellerId} />
+    </UsersProvider>
   )
 }
