@@ -1,0 +1,249 @@
+{
+  "base": "http://127.0.0.1:3310",
+  "sha": "8c7f53138",
+  "results": [
+    {
+      "id": "TC-A01",
+      "title": "Admin 新增多個代理商",
+      "req": "Admin: 新增多個 Reseller",
+      "steps": "Admin POST /api/admin/resellers（既有 reseller1/2 + 新建 Boss QA Reseller）",
+      "expected": "可連續建立多個代理商，回傳 id／display_name",
+      "actual": "HTTP200 success=True msg='' data={\"customer_count\": 0, \"display_name\": \"Boss QA Reseller\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 7, \"profile\": {\"user_id\": 7, \"default_markup\": 1.25, ; prior_count=2",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A02",
+      "title": "Admin 編輯代理商名稱／聯絡（品牌）",
+      "req": "Admin: 名稱／聯絡",
+      "steps": "PUT /api/admin/resellers/2 更新 display_name／brand_name；再 GET 詳情",
+      "expected": "display_name／brand 更新成功",
+      "actual": "edit=HTTP200 success=True msg='' data={\"customer_count\": 2, \"display_name\": \"Reseller One Updated\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 2, \"profile\": {\"user_id\": 2, \"default_markup\": 1.; display_name='Reseller One Updated'; brand='Brand One Contact'",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A03",
+      "title": "Admin 設定模型與每模型成本價",
+      "req": "Admin: 模型＋每模型費率",
+      "steps": "PUT …/resellers/2/model_prices {model_name,cost_multiplier}；GET 列表",
+      "expected": "可覆寫成本價並出現於列表",
+      "actual": "upsert=HTTP200 success=True msg='' data={\"id\": 1, \"reseller_id\": 2, \"model_name\": \"gpt-4o-mini\", \"cost_multiplier\": 0.9, \"updated_at\": 1791810429}; list=HTTP200 success=True msg='' data=[{'id': 1, 'reseller_id': 2, 'model_name': 'gpt-4o-mini', 'cost_multiplier': 0.9, 'updated_at': 1791810429}]; has=gpt-4o-mini:True",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A04",
+      "title": "Admin 代理商列表",
+      "req": "Admin: Reseller 列表",
+      "steps": "GET /api/admin/resellers",
+      "expected": "回傳多筆代理商（至少 2）",
+      "actual": "HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 50, \"total\": 3, \"items\": [{\"customer_count\": 0, \"display_name\": \"Boss QA Reseller\", \"group\": \"default\", \"groups\": [\"default\"], \"id\": 7,; total≈3",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A05",
+      "title": "Admin 檢視代理商付款／帳本歷史",
+      "req": "Admin: 付款歷史",
+      "steps": "GET /api/admin/resellers/2/ledger",
+      "expected": "可讀取 ledger（含 admin_credit 等）",
+      "actual": "HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 20, \"total\": 6, \"items\": [{\"id\": 6, \"reseller_id\": 2, \"customer_id\": 0, \"kind\": \"admin_credit\", \"quota_delta\": 5000000, \"operator_id\": ; items=6",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A06",
+      "title": "代理商可走既有支付方式自助儲值（未封鎖）",
+      "req": "Admin/Reseller: 既有方式自付",
+      "steps": "Reseller GET /api/user/topup/info 與 /api/user/self（online_topup_enabled）",
+      "expected": "topup info 可讀；online_topup_enabled=true（閘道未配置屬環境）",
+      "actual": "topinfo=HTTP200 success=True msg='' data={\"amount_options\": [10, 20, 50, 100, 200, 500], \"creem_products\": \"[]\", \"discount\": {}, \"enable_creem_topup\": false, \"enable_online_topup\": false, \"enable_redem; online_topup_enabled=True",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A07",
+      "title": "Admin 手動入帳（庫存）",
+      "req": "Admin: 手動 credit",
+      "steps": "POST …/resellers/2/credit money_usd=1.0",
+      "expected": "quota 增加（約 +500000）",
+      "actual": "credit=HTTP200 success=True msg='' data={\"quota_delta\": 500000}; before=4999999; after=5499999; delta=500000",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-A08",
+      "title": "Admin→Reseller 成本加價／費率（model_prices）",
+      "req": "Admin: markup Admin→Reseller",
+      "steps": "以 model_prices cost_multiplier 作為 Admin→Reseller 成本層",
+      "expected": "可設定並讀回每模型成本乘數",
+      "actual": "HTTP200 success=True msg='' data=[{'id': 1, 'reseller_id': 2, 'model_name': 'gpt-4o-mini', 'cost_multiplier': 0.9, 'updated_at': 1791810429}]",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R01",
+      "title": "Reseller 新增多個客戶",
+      "req": "Reseller: 新增多個 Customer",
+      "steps": "POST /api/reseller/customers ×2",
+      "expected": "連續建立成功",
+      "actual": "cA=HTTP200 success=True msg='' data={\"created_at\": 1791810429, \"display_name\": \"Boss Customer A\", \"group\": \"default\", \"id\": 8, \"markup\": null, \"quota\": 0, \"remark\": \"\", \"request_count\": 0}; cB=HTTP200 success=True msg='' data={\"created_at\": 1791810429, \"display_name\": \"Boss Customer B\", \"group\": \"default\", \"id\": 9, \"markup\": null, \"quota\": 0, \"remark\": \"\", \"request_count\": 0}",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R02",
+      "title": "Reseller 編輯客戶名稱／聯絡",
+      "req": "Reseller: 名稱／聯絡",
+      "steps": "PUT /api/reseller/customers/4 display_name",
+      "expected": "display_name 更新",
+      "actual": "put=HTTP200 success=True msg='' data={\"created_at\": 1791804332, \"display_name\": \"Customer One Contact\", \"group\": \"default\", \"id\": 4, \"markup\": null, \"quota\": 1999999, \"remark\": \"\", \"request_count\":; get_display_name='Customer One Contact'",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R03",
+      "title": "Reseller 設定模型加價",
+      "req": "Reseller: 模型＋加價",
+      "steps": "PUT /api/reseller/model_markups；GET 列表",
+      "expected": "可設定 per-model markup",
+      "actual": "upsert=HTTP200 success=True msg='' data={\"model_name\": \"gpt-4o-mini\", \"markup\": 1.5}; list=HTTP200 success=True msg='' data=[{'id': 1, 'reseller_id': 2, 'model_name': 'gpt-4o-mini', 'markup': 1.5, 'updated_at': 1791810429}]",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R04",
+      "title": "Reseller 客戶列表",
+      "req": "Reseller: Customer 列表",
+      "steps": "GET /api/reseller/customers",
+      "expected": "列表含多筆客戶",
+      "actual": "HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 50, \"total\": 4, \"items\": [{\"created_at\": 1791810429, \"display_name\": \"Boss Customer B\", \"group\": \"default\", \"id\": 9, \"markup\": null, \"q; total≈4",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R05",
+      "title": "Reseller 付款／帳本歷史",
+      "req": "Reseller: 付款歷史",
+      "steps": "GET /api/reseller/ledger",
+      "expected": "可讀取自身 ledger",
+      "actual": "HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 20, \"total\": 7, \"items\": [{\"id\": 7, \"reseller_id\": 2, \"customer_id\": 0, \"kind\": \"admin_credit\", \"quota_delta\": 500000, \"money_usd\": 1, ",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R06",
+      "title": "客戶可自助儲值（未封鎖）",
+      "req": "Reseller/Customer: 客戶自付",
+      "steps": "Customer GET /api/user/topup/info；self.reseller.online_topup_enabled",
+      "expected": "topup info 200；online_topup_enabled=true",
+      "actual": "topinfo=HTTP200 success=True msg='' data={\"amount_options\": [10, 20, 50, 100, 200, 500], \"creem_products\": \"[]\", \"discount\": {}, \"enable_creem_topup\": false, \"enable_online_topup\": false, \"enable_redem; online=True; role=customer",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R07",
+      "title": "Reseller 手動給客戶入帳",
+      "req": "Reseller: 手動 credit",
+      "steps": "POST …/customers/4/credit quota=1000",
+      "expected": "客戶 quota 增加",
+      "actual": "credit=HTTP200 success=True msg='' data={\"quota_delta\": 1000}; before=1999999; after=2000999",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R08",
+      "title": "Reseller→Customer 加價（客戶模型 markup）",
+      "req": "Reseller: markup Reseller→Customer",
+      "steps": "PUT …/customers/4/model_markups markup=1.8",
+      "expected": "可設定客戶級模型加價",
+      "actual": "upsert=HTTP200 success=True msg='' data={\"model_name\": \"gpt-4o-mini\", \"markup\": 1.8}; list=HTTP200 success=True msg='' data=[{'id': 1, 'reseller_id': 2, 'customer_id': 4, 'model_name': 'gpt-4o-mini', 'markup': 1.8, 'updated_at': 1791810429}]",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-R09",
+      "title": "客戶端顯示所屬代理商",
+      "req": "Reseller: 客戶 UI 顯示代理商",
+      "steps": "Customer GET /api/user/self → reseller 區塊",
+      "expected": "可見代理商顯示名稱；不洩漏成本／markup",
+      "actual": "reseller={\"online_topup_enabled\": true, \"reseller_display_name\": \"Brand One\", \"reseller_id\": 2, \"role\": \"customer\"}; leaked_cost_fields=False",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-S01",
+      "title": "雙腿扣款（Customer 售價＋Reseller 成本）",
+      "req": "系統: dual deduct",
+      "steps": "客戶 Token 呼叫 /v1/chat/completions；檢查 logs.reseller_cost_quota 與 Quota",
+      "expected": "消費時同時扣客戶售價與代理商成本（或預扣拒絕）",
+      "actual": "consume_http=None; body=None; dual_log={'completion_tokens': 0, 'created_at': 1790956803, 'group': 'default', 'id': 11, 'model_name': 'gpt-seed-b', 'profit_quota': 600000, 'prompt_tokens': 0, 'quota': 1000000, 'reseller_cost_quota': 400000, 'token_name': '', 'user_id': 5, 'username': 'cust1b'}",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-S02",
+      "title": "庫存入帳（Admin→Reseller cost stock）",
+      "req": "系統: stock credit",
+      "steps": "Admin credit 後查 ledger 含 admin_credit；quota 上升",
+      "expected": "庫存入帳成功並可審計",
+      "actual": "ledger_kinds=['customer_credit', 'admin_credit', 'admin_credit', 'customer_credit', 'admin_debit', 'admin_credit', 'admin_credit', 'customer_credit']; credit_ok=True",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-S03",
+      "title": "公開註冊／OAuth 註冊關閉",
+      "req": "系統: register/OAuth off",
+      "steps": "GET /api/status；POST /api/user/register",
+      "expected": "register_enabled／password_register_enabled=false；註冊失敗",
+      "actual": "reg=False pw=False oauth_reg=False; register=HTTP200 success=False msg='New user registration has been disabled by administrator' data=",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-S04",
+      "title": "月結發票 — Admin",
+      "req": "系統: 月結發票 Admin",
+      "steps": "POST /api/admin/invoices/generate period=2026-10；GET 列表",
+      "expected": "可產生並列表（含 admin_rollup／reseller／customer）",
+      "actual": "gen=HTTP200 success=True msg='' data={\"period\": \"2026-10\", \"customer_invoices\": 2, \"reseller_invoices\": 1, \"admin_rollup\": true, \"from_unix\": 1790784000, \"to_unix\": 1793462399}; list_total=4; scopes={'reseller', 'admin_rollup', 'customer'}",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-S05",
+      "title": "月結發票 — Reseller",
+      "req": "系統: 月結發票 Reseller",
+      "steps": "Reseller GET /api/reseller/invoices",
+      "expected": "可看自己／所屬客戶發票；無 admin_rollup",
+      "actual": "list=HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 50, \"total\": 3, \"items\": [{\"id\": 1, \"period\": \"2026-10\", \"scope\": \"customer\", \"reseller_id\": 2, \"customer_id\": 4, \"reseller_name\": \"Res; scopes={'reseller', 'customer'}",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-S06",
+      "title": "月結發票 — Customer",
+      "req": "系統: 月結發票 Customer",
+      "steps": "Customer GET /api/user/invoices",
+      "expected": "僅 customer 發票",
+      "actual": "list=HTTP200 success=True msg='' data={\"page\": 1, \"page_size\": 50, \"total\": 1, \"items\": [{\"id\": 1, \"period\": \"2026-10\", \"scope\": \"customer\", \"reseller_id\": 2, \"customer_id\": 4, \"reseller_name\": \"Res; scopes={'customer'}",
+      "result": "Pass",
+      "screenshot": ""
+    },
+    {
+      "id": "TC-X01",
+      "title": "跨代理商客戶隔離",
+      "req": "系統: 隔離",
+      "steps": "Reseller1 GET Reseller2 的客戶 id=6",
+      "expected": "404／不可見",
+      "actual": "HTTP404 success=False msg='customer not found' data=",
+      "result": "Pass",
+      "screenshot": ""
+    }
+  ],
+  "pass": 24,
+  "fail": 0,
+  "blocked": 0
+}

@@ -265,3 +265,6 @@ If `options` already has `RegisterEnabled=true` / `PasswordRegisterEnabled=true`
 - Reconciliation is report-only (no automatic job/repair); partial-settle detection relies on logs.
 - Frontend i18n: new UI strings use English `t('…')` keys (same pattern as existing pages); no separate locale JSON entries added.
 - Admin users table still lists resellers as role=5 rows (read-only manage via generic APIs is blocked for promote/demote/delete); prefer `/resellers` for commercial ops.
+
+### Boss requirements QA (2026-10-12 ~21:08 HKT)
+Traditional Chinese report: `docs/b2b2c-boss-qa/REPORT-boss.md` + `REPORT-boss.pdf`. Functional TCs mapped to boss checklist (Admin/Reseller/Customer/dual deduct/stock/register off/monthly invoices): **24 Pass / 0 Fail**; UI screenshots 17 Pass.

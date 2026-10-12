@@ -1,0 +1,138 @@
+[
+  {
+    "id": "UI-S03a",
+    "title": "登入頁無註冊入口",
+    "path": "/sign-in",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-S03-sign-in-no-register.png",
+    "notes": "sign-up links=0",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-S03b",
+    "title": "註冊深鏈導向／關閉",
+    "path": "/sign-up",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-S03-sign-up-redirect.png",
+    "notes": "url=http://127.0.0.1:3310/sign-in",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-A04",
+    "title": "Admin 代理商列表",
+    "path": "/resellers",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-A04-admin-resellers-list.png",
+    "notes": "list visible",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-A01",
+    "title": "Admin 新增代理商 UI",
+    "path": "/resellers",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-A01-admin-add-reseller.png",
+    "notes": "drawer/form",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-A02",
+    "title": "Admin 代理商詳情（名稱／聯絡／費率／帳本）",
+    "path": "http://127.0.0.1:3310/resellers/7",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-A02-admin-reseller-detail.png",
+    "notes": "detail",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-A03",
+    "title": "Admin 模型費率／帳本分頁",
+    "path": "http://127.0.0.1:3310/resellers/7",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-A03-A05-admin-reseller-tabs.png",
+    "notes": "tabs",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-S04",
+    "title": "Admin 月結發票",
+    "path": "/invoices",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-S04-admin-invoices.png",
+    "notes": "invoices",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R00",
+    "title": "Reseller 總覽",
+    "path": "/reseller",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R-reseller-console.png",
+    "notes": "console",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R04",
+    "title": "Reseller 客戶列表",
+    "path": "/reseller/customers",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R04-reseller-customers.png",
+    "notes": "customers",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R02",
+    "title": "Reseller 客戶詳情／入帳／加價",
+    "path": "http://127.0.0.1:3310/reseller/customers/9",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R02-R07-R08-customer-detail.png",
+    "notes": "detail",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R03",
+    "title": "Reseller 模型加價",
+    "path": "/reseller/markups",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R03-reseller-markups.png",
+    "notes": "markups",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-A06",
+    "title": "Reseller 錢包自助儲值",
+    "path": "/wallet",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-A06-reseller-wallet.png",
+    "notes": "wallet",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-S05",
+    "title": "Reseller 月結發票",
+    "path": "/reseller/invoices",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-S05-reseller-invoices.png",
+    "notes": "invoices",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R09",
+    "title": "客戶個人資料顯示代理商",
+    "path": "/profile",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R09-cust-profile-reseller.png",
+    "notes": "showsReseller=true",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R09b",
+    "title": "客戶概覽",
+    "path": "http://127.0.0.1:3310/dashboard/overview",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R09-cust-overview.png",
+    "notes": "overview",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-R06",
+    "title": "客戶錢包自助儲值",
+    "path": "/wallet",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-R06-cust-wallet.png",
+    "notes": "wallet",
+    "result": "Pass"
+  },
+  {
+    "id": "UI-S06",
+    "title": "客戶月結發票／歷史",
+    "path": "http://127.0.0.1:3310/wallet",
+    "screenshot": "/workspace/b2b2c-boss-qa/screenshots/TC-S06-cust-invoices.png",
+    "notes": "invoices",
+    "result": "Pass"
+  }
+]
