@@ -106,6 +106,7 @@ export function ResellerCustomersPage() {
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['reseller-customers'] })
     qc.invalidateQueries({ queryKey: ['reseller-self'] })
+    qc.invalidateQueries({ queryKey: ['reseller-ledger'] })
   }
 
   const onCreate = async (e: React.FormEvent) => {

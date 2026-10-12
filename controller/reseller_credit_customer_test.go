@@ -83,6 +83,10 @@ func TestResellerCreditCustomerRejectsWhenAmountExceedsAvailableBalance(t *testi
 	require.NoError(t, model.DB.First(&customer, customerID).Error)
 	assert.Equal(t, 0, customer.Quota, "customer quota unchanged on reject")
 
+	var reseller model.User
+	require.NoError(t, model.DB.First(&reseller, resellerID).Error)
+	assert.Equal(t, 1000, reseller.Quota, "reseller quota unchanged on reject")
+
 	var n int64
 	require.NoError(t, model.DB.Model(&model.ResellerLedger{}).Where("customer_id = ?", customerID).Count(&n).Error)
 	assert.Equal(t, int64(0), n, "no ledger row on reject")
@@ -105,7 +109,87 @@ func TestResellerCreditCustomerAllowsWhenAmountWithinAvailableBalance(t *testing
 
 	var reseller model.User
 	require.NoError(t, model.DB.First(&reseller, resellerID).Error)
-	assert.Equal(t, 1000, reseller.Quota, "credit does not transfer cost balance")
+	assert.Equal(t, 0, reseller.Quota, "credit deducts reseller cost balance 1:1")
+
+	var ledger model.ResellerLedger
+	require.NoError(t, model.DB.Where("customer_id = ?", customerID).First(&ledger).Error)
+	assert.Equal(t, model.ResellerLedgerCustomerCredit, ledger.Kind)
+	assert.Equal(t, int64(1000), ledger.QuotaDelta)
+	assert.Equal(t, resellerID, ledger.ResellerId)
+}
+
+func TestResellerCreditCustomerPartialTransferUpdatesBothBalances(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 1000)
+
+	recorder := postResellerCreditCustomer(t, resellerID, customerID, `{"quota":400}`)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["success"])
+
+	var customer, reseller model.User
+	require.NoError(t, model.DB.First(&customer, customerID).Error)
+	require.NoError(t, model.DB.First(&reseller, resellerID).Error)
+	assert.Equal(t, 400, customer.Quota)
+	assert.Equal(t, 600, reseller.Quota)
+}
+
+func postResellerDebitCustomer(t *testing.T, resellerID, customerID int, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", resellerID)
+	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(customerID)}}
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/reseller/customers/"+strconv.Itoa(customerID)+"/debit", strings.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ResellerDebitCustomer(ctx)
+	return recorder
+}
+
+func TestResellerDebitCustomerClawbackReturnsQuotaToReseller(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 1000)
+	require.Equal(t, http.StatusOK, postResellerCreditCustomer(t, resellerID, customerID, `{"quota":700}`).Code)
+
+	recorder := postResellerDebitCustomer(t, resellerID, customerID, `{"quota":300}`)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	require.Equal(t, true, resp["success"])
+
+	var customer, reseller model.User
+	require.NoError(t, model.DB.First(&customer, customerID).Error)
+	require.NoError(t, model.DB.First(&reseller, resellerID).Error)
+	assert.Equal(t, 400, customer.Quota)
+	assert.Equal(t, 600, reseller.Quota)
+
+	var ledger model.ResellerLedger
+	require.NoError(t, model.DB.Where("customer_id = ? AND kind = ?", customerID, model.ResellerLedgerCustomerDebit).First(&ledger).Error)
+	assert.Equal(t, int64(-300), ledger.QuotaDelta)
+}
+
+func TestResellerDebitCustomerRejectsWhenCustomerInsufficient(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 1000)
+	require.Equal(t, http.StatusOK, postResellerCreditCustomer(t, resellerID, customerID, `{"quota":100}`).Code)
+
+	recorder := postResellerDebitCustomer(t, resellerID, customerID, `{"quota":101}`)
+	require.Equal(t, http.StatusOK, recorder.Code)
+
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &resp))
+	assert.Equal(t, false, resp["success"])
+	assert.Equal(t, model.ErrInsufficientQuota.Error(), resp["message"])
+
+	var customer, reseller model.User
+	require.NoError(t, model.DB.First(&customer, customerID).Error)
+	require.NoError(t, model.DB.First(&reseller, resellerID).Error)
+	assert.Equal(t, 100, customer.Quota)
+	assert.Equal(t, 900, reseller.Quota)
 }
 
 func TestResellerCreditCustomerRejectsMoneyUsdAboveAvailableBalance(t *testing.T) {

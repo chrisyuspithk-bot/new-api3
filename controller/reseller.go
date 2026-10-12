@@ -842,24 +842,21 @@ func resellerAdjustCustomer(c *gin.Context, sign int) {
 		common.ApiError(c, err)
 		return
 	}
-	// Credit must not exceed the reseller's available cost balance (users.quota).
-	if sign > 0 {
-		available, qerr := model.GetUserQuota(user.ResellerId, true)
-		if qerr != nil {
-			common.ApiError(c, qerr)
-			return
-		}
-		if amount > available {
-			common.ApiError(c, model.ErrAmountExceedsResellerBalance)
-			return
-		}
-	}
 	kind := model.ResellerLedgerCustomerCredit
 	if sign < 0 {
 		kind = model.ResellerLedgerCustomerDebit
 	}
-	entry := model.ResellerLedger{ResellerId: user.ResellerId, CustomerId: user.Id, Kind: kind, OperatorId: c.GetInt("id"), Remark: req.Remark}
-	if err := model.AdjustQuotaWithLedger(user.Id, sign*amount, entry); err != nil {
+	entry := model.ResellerLedger{
+		ResellerId: user.ResellerId,
+		CustomerId: user.Id,
+		Kind:       kind,
+		MoneyUsd:   req.MoneyUsd,
+		OperatorId: c.GetInt("id"),
+		Remark:     req.Remark,
+	}
+	// Atomic transfer: credit → +customer −reseller; debit/clawback → −customer +reseller.
+	// Insufficient reseller funds (credit) or customer funds (debit) reject with no writes.
+	if err := model.TransferResellerCustomerQuota(user.ResellerId, user.Id, sign*amount, entry); err != nil {
 		common.ApiError(c, err)
 		return
 	}

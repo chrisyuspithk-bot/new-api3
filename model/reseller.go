@@ -442,6 +442,9 @@ func FillResellerNames(users []*User) error {
 // never exists without its audit row (and vice versa). Debits never take a
 // balance below zero (conditional UPDATE). The Redis user cache is dropped
 // after commit so the next read reloads the committed balance.
+//
+// Admin→Reseller funding uses this helper. Reseller→Customer credit/debit must
+// use TransferResellerCustomerQuota so the reseller cost balance moves too.
 func AdjustQuotaWithLedger(userId int, delta int, entry ResellerLedger) error {
 	if delta == 0 {
 		return errors.New("quota delta cannot be zero")
@@ -470,6 +473,74 @@ func AdjustQuotaWithLedger(userId int, delta int, entry ResellerLedger) error {
 	}
 	if cacheErr := invalidateUserCache(userId); cacheErr != nil {
 		common.SysError(common.LogText("failed to invalidate user cache after ledger adjust (user=%d): %s", userId, cacheErr.Error()))
+	}
+	return nil
+}
+
+// applyQuotaDeltaTx applies delta to users.quota inside an open transaction.
+// Negative deltas are conditional (quota >= |delta|) so the wallet never goes
+// below zero. insufficient maps the zero-row case for debits.
+func applyQuotaDeltaTx(tx *gorm.DB, userId int, delta int, insufficient error) error {
+	q := tx.Model(&User{}).Where("id = ?", userId)
+	if delta < 0 {
+		q = q.Where("quota >= ?", -delta)
+	}
+	res := q.Update("quota", gorm.Expr("quota + ?", delta))
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		if delta < 0 {
+			return insufficient
+		}
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// TransferResellerCustomerQuota moves quota between a reseller's cost balance
+// and a customer's sale wallet in ONE transaction, then writes a single ledger
+// row (quota_delta = customer side). customerDelta > 0 credits the customer and
+// debits the reseller by the same amount; customerDelta < 0 is clawback
+// (−customer, +reseller). Rejects when the funded side cannot cover the move.
+func TransferResellerCustomerQuota(resellerId, customerId, customerDelta int, entry ResellerLedger) error {
+	if customerDelta == 0 {
+		return errors.New("quota delta cannot be zero")
+	}
+	if resellerId <= 0 || customerId <= 0 {
+		return errors.New("invalid user id")
+	}
+	entry.ResellerId = resellerId
+	entry.CustomerId = customerId
+	entry.QuotaDelta = int64(customerDelta)
+	entry.CreatedAt = common.GetTimestamp()
+	resellerDelta := -customerDelta
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		// Debit the funding side first so a failed credit never orphans funds.
+		if resellerDelta < 0 {
+			if err := applyQuotaDeltaTx(tx, resellerId, resellerDelta, ErrAmountExceedsResellerBalance); err != nil {
+				return err
+			}
+			if err := applyQuotaDeltaTx(tx, customerId, customerDelta, ErrInsufficientQuota); err != nil {
+				return err
+			}
+		} else {
+			if err := applyQuotaDeltaTx(tx, customerId, customerDelta, ErrInsufficientQuota); err != nil {
+				return err
+			}
+			if err := applyQuotaDeltaTx(tx, resellerId, resellerDelta, ErrAmountExceedsResellerBalance); err != nil {
+				return err
+			}
+		}
+		return tx.Create(&entry).Error
+	})
+	if err != nil {
+		return err
+	}
+	for _, uid := range []int{resellerId, customerId} {
+		if cacheErr := invalidateUserCache(uid); cacheErr != nil {
+			common.SysError(common.LogText("failed to invalidate user cache after customer transfer (user=%d): %s", uid, cacheErr.Error()))
+		}
 	}
 	return nil
 }
