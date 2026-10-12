@@ -94,11 +94,14 @@ export interface ResellerModelPrice {
 export interface ResellerLedgerRow {
   id: number
   reseller_id: number
+  reseller_username?: string
   customer_id: number
+  customer_username?: string
   kind: string
   quota_delta: number
   money_usd?: number | null
   operator_id: number
+  operator_username?: string
   ref_id?: string
   remark?: string
   created_at: number

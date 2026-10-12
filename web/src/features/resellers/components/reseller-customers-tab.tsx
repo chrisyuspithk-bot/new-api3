@@ -17,12 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -42,7 +52,7 @@ import { handleServerError } from '@/lib/handle-server-error'
 import { formatQuota } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import { listResellerCustomers } from '../api'
+import { createResellerCustomer, listResellerCustomers } from '../api'
 import type { ResellerCustomer } from '../types'
 
 const PAGE_SIZE = 20
@@ -52,6 +62,14 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
   const qc = useQueryClient()
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [form, setForm] = useState({
+    username: '',
+    password: '',
+    display_name: '',
+    group: 'default',
+    markup: '',
+  })
   const { open, setOpen, currentRow, setCurrentRow, refreshTrigger } =
     useUsers()
 
@@ -90,21 +108,53 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
     }
   }
 
+  const onCreate = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      requireServerSuccess(
+        await createResellerCustomer(props.resellerId, {
+          ...form,
+          markup: form.markup ? Number(form.markup) : undefined,
+        })
+      )
+      toast.success(t('Customer created'))
+      setCreateOpen(false)
+      setForm({
+        username: '',
+        password: '',
+        display_name: '',
+        group: 'default',
+        markup: '',
+      })
+      qc.invalidateQueries({
+        queryKey: ['admin-reseller-customers', props.resellerId],
+      })
+    } catch (error) {
+      handleServerError(error, t('Failed to create customer'))
+    }
+  }
+
   const items = data?.items ?? []
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className='space-y-3'>
-      <Input
-        placeholder={t('Search username or display name')}
-        value={keyword}
-        onChange={(e) => {
-          setKeyword(e.target.value)
-          setPage(1)
-        }}
-        className='max-w-sm'
-      />
+      <div className='flex flex-wrap items-center gap-2'>
+        <Input
+          placeholder={t('Search username or display name')}
+          value={keyword}
+          onChange={(e) => {
+            setKeyword(e.target.value)
+            setPage(1)
+          }}
+          className='max-w-sm'
+        />
+        <Button size='sm' onClick={() => setCreateOpen(true)}>
+          <Plus className='h-4 w-4' />
+          {t('Add Customer')}
+        </Button>
+      </div>
       <div className='rounded-lg border'>
         <Table>
           <TableHeader>
@@ -208,6 +258,42 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
           </Button>
         </div>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <form onSubmit={onCreate}>
+            <DialogHeader>
+              <DialogTitle>{t('Add Customer')}</DialogTitle>
+            </DialogHeader>
+            <div className='grid gap-3 py-4'>
+              {(
+                [
+                  ['username', t('Username'), true],
+                  ['password', t('Password'), true],
+                  ['display_name', t('Display Name'), false],
+                  ['group', t('Group'), false],
+                  ['markup', t('Markup override'), false],
+                ] as const
+              ).map(([key, label, required]) => (
+                <div key={key} className='space-y-1.5'>
+                  <Label>{label}</Label>
+                  <Input
+                    type={key === 'password' ? 'password' : 'text'}
+                    required={required}
+                    value={form[key]}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, [key]: e.target.value }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              <Button type='submit'>{t('Create')}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <UsersMutateDrawer
         open={open === 'create' || open === 'update'}

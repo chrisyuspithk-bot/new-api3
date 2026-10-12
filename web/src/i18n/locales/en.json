@@ -7369,6 +7369,13 @@
     "Your reseller": "Your reseller",
     "Reseller Contact": "Reseller Contact",
     "You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock.": "You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock.",
-    "Failed to load user": "Failed to load user"
+    "Failed to load user": "Failed to load user",
+    "Balance ledger": "Balance ledger",
+    "Admin credit": "Admin credit",
+    "Admin debit": "Admin debit",
+    "Customer credit": "Customer credit",
+    "Customer debit": "Customer debit",
+    "All kinds": "All kinds",
+    "Enter a period as YYYY-MM to load the balance ledger": "Enter a period as YYYY-MM to load the balance ledger"
   }
 }

@@ -7369,6 +7369,13 @@
     "Your reseller": "您的代理商",
     "Reseller Contact": "代理商联系方式",
     "You can top up your wallet online. API usage still requires your reseller to have cost balance — contact them if requests fail for insufficient stock.": "您可以在线为钱包充值。API 调用仍需代理商具备成本余额——若因库存不足导致请求失败，请联系您的代理商。",
-    "Failed to load user": "加载用户失败"
+    "Failed to load user": "加载用户失败",
+    "Balance ledger": "余额流水",
+    "Admin credit": "管理员充值",
+    "Admin debit": "管理员扣款",
+    "Customer credit": "客户充值",
+    "Customer debit": "客户扣款",
+    "All kinds": "全部类型",
+    "Enter a period as YYYY-MM to load the balance ledger": "请输入 YYYY-MM 格式的账期以加载余额流水"
   }
 }

@@ -50,6 +50,22 @@ import {
 } from '../api'
 import { ResellerCustomersTab } from './reseller-customers-tab'
 
+
+function ledgerKindLabel(kind: string, t: (key: string) => string): string {
+  switch (kind) {
+    case 'admin_credit':
+      return t('Admin credit')
+    case 'admin_debit':
+      return t('Admin debit')
+    case 'customer_credit':
+      return t('Customer credit')
+    case 'customer_debit':
+      return t('Customer debit')
+    default:
+      return kind
+  }
+}
+
 export function ResellerDetail({ id }: { id: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -295,13 +311,15 @@ export function ResellerDetail({ id }: { id: number }) {
                       <TableHead>{t('Kind')}</TableHead>
                       <TableHead>{t('Delta')}</TableHead>
                       <TableHead>{t('USD')}</TableHead>
+                      <TableHead>{t('Customer')}</TableHead>
+                      <TableHead>{t('Operator')}</TableHead>
                       <TableHead>{t('Remark')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(ledger.data?.items ?? []).length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={5}>{t('No ledger rows')}</TableCell>
+                        <TableCell colSpan={7}>{t('No ledger rows')}</TableCell>
                       </TableRow>
                     ) : (
                       (ledger.data?.items ?? []).map((row) => (
@@ -311,9 +329,19 @@ export function ResellerDetail({ id }: { id: number }) {
                               ? new Date(row.created_at * 1000).toLocaleString()
                               : '—'}
                           </TableCell>
-                          <TableCell>{row.kind}</TableCell>
+                          <TableCell>{ledgerKindLabel(row.kind, t)}</TableCell>
                           <TableCell>{formatQuota(row.quota_delta)}</TableCell>
                           <TableCell>{row.money_usd ?? '—'}</TableCell>
+                          <TableCell>
+                            {row.customer_id
+                              ? row.customer_username || `#${row.customer_id}`
+                              : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {row.operator_id
+                              ? row.operator_username || `#${row.operator_id}`
+                              : '—'}
+                          </TableCell>
                           <TableCell>{row.remark || '—'}</TableCell>
                         </TableRow>
                       ))

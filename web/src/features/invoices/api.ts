@@ -24,6 +24,7 @@ import type {
   InvoiceDetail,
   InvoiceGenerateResult,
   PageData,
+  ResellerLedgerRow,
 } from './types'
 
 export async function adminListInvoices(params: {
@@ -96,4 +97,15 @@ export async function customerGetInvoice(
 
 export function customerInvoiceCsvUrl(id: number): string {
   return `/api/user/invoices/${id}?format=csv`
+}
+
+export async function adminListResellerLedger(params: {
+  period?: string
+  kind?: string
+  reseller_id?: number
+  p?: number
+  page_size?: number
+}): Promise<ApiResponse<PageData<ResellerLedgerRow>>> {
+  const res = await api.get('/api/admin/reseller_ledger', { params })
+  return res.data
 }

@@ -75,3 +75,24 @@ export interface PageData<T> {
   page?: number
   page_size?: number
 }
+
+export type ResellerLedgerKind =
+  | 'admin_credit'
+  | 'admin_debit'
+  | 'customer_credit'
+  | 'customer_debit'
+
+export interface ResellerLedgerRow {
+  id: number
+  reseller_id: number
+  reseller_username?: string
+  customer_id: number
+  customer_username?: string
+  kind: string
+  quota_delta: number
+  money_usd?: number | null
+  operator_id: number
+  operator_username?: string
+  remark?: string
+  created_at: number
+}

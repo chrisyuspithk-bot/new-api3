@@ -525,7 +525,34 @@ func AdminGetResellerLedger(c *gin.Context) {
 		return
 	}
 	pageInfo := common.GetPageQuery(c)
-	rows, total, err := model.GetResellerLedger(id, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	rows, total, err := model.GetResellerLedger(id, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.Query("kind"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(rows)
+	common.ApiSuccess(c, pageInfo)
+}
+
+// AdminListResellerLedger lists credit/debit ledger rows across all resellers.
+// Query: period=YYYY-MM (preferred) or from/to unix; optional kind, reseller_id.
+func AdminListResellerLedger(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	var from, toEx int64
+	if period := c.Query("period"); period != "" {
+		var err error
+		from, toEx, err = model.ParseInvoicePeriod(period)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	} else {
+		from, _ = strconv.ParseInt(c.Query("from"), 10, 64)
+		toEx, _ = strconv.ParseInt(c.Query("to"), 10, 64)
+	}
+	resellerId, _ := strconv.Atoi(c.Query("reseller_id"))
+	rows, total, err := model.ListResellerLedgerRange(from, toEx, resellerId, c.Query("kind"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -652,6 +679,23 @@ type resellerCustomerRequest struct {
 	Remark      *string  `json:"remark"`
 }
 
+// AdminCreateResellerCustomer creates a customer under reseller :id (same body as ResellerCreateCustomer).
+func AdminCreateResellerCustomer(c *gin.Context) {
+	id, ok := paramId(c, "id")
+	if !ok {
+		return
+	}
+	if _, ok := loadReseller(c, id); !ok {
+		return
+	}
+	var req resellerCustomerRequest
+	if err := common.DecodeJson(c.Request.Body, &req); err != nil {
+		common.ApiErrorMsg(c, "invalid parameters")
+		return
+	}
+	createResellerCustomer(c, id, req)
+}
+
 func ResellerCreateCustomer(c *gin.Context) {
 	resellerId := c.GetInt("id")
 	var req resellerCustomerRequest
@@ -659,6 +703,11 @@ func ResellerCreateCustomer(c *gin.Context) {
 		common.ApiErrorMsg(c, "invalid parameters")
 		return
 	}
+	createResellerCustomer(c, resellerId, req)
+}
+
+// createResellerCustomer validates and creates a customer for the given reseller.
+func createResellerCustomer(c *gin.Context, resellerId int, req resellerCustomerRequest) {
 	cfg, err := model.GetResellerPricingConfig(resellerId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -1029,7 +1078,7 @@ func ResellerGrossProfitReport(c *gin.Context) {
 
 func ResellerGetLedger(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	rows, total, err := model.GetResellerLedger(c.GetInt("id"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	rows, total, err := model.GetResellerLedger(c.GetInt("id"), pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.Query("kind"))
 	if err != nil {
 		common.ApiError(c, err)
 		return

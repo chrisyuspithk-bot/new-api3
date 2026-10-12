@@ -73,26 +73,29 @@ const (
 // ResellerLedger is the audit trail of manual balance movements. Consumption is
 // recorded in logs only.
 type ResellerLedger struct {
-	Id         int64    `json:"id"`
-	ResellerId int      `json:"reseller_id" gorm:"not null;index"`
-	CustomerId int      `json:"customer_id" gorm:"not null;default:0;index"`
-	Kind       string   `json:"kind" gorm:"type:varchar(32);not null"`
-	QuotaDelta int64    `json:"quota_delta" gorm:"not null"`
-	MoneyUsd   *float64 `json:"money_usd,omitempty" gorm:"type:decimal(18,6)"`
-	OperatorId int      `json:"operator_id"`
-	RefId      string   `json:"ref_id" gorm:"type:varchar(64);default:''"`
-	Remark     string   `json:"remark" gorm:"type:varchar(255);default:''"`
-	CreatedAt  int64    `json:"created_at" gorm:"bigint;index"`
+	Id               int64    `json:"id"`
+	ResellerId       int      `json:"reseller_id" gorm:"not null;index"`
+	CustomerId       int      `json:"customer_id" gorm:"not null;default:0;index"`
+	Kind             string   `json:"kind" gorm:"type:varchar(32);not null"`
+	QuotaDelta       int64    `json:"quota_delta" gorm:"not null"`
+	MoneyUsd         *float64 `json:"money_usd,omitempty" gorm:"type:decimal(18,6)"`
+	OperatorId       int      `json:"operator_id"`
+	RefId            string   `json:"ref_id" gorm:"type:varchar(64);default:''"`
+	Remark           string   `json:"remark" gorm:"type:varchar(255);default:''"`
+	CreatedAt        int64    `json:"created_at" gorm:"bigint;index"`
+	CustomerUsername string   `json:"customer_username,omitempty" gorm:"-"`
+	OperatorUsername string   `json:"operator_username,omitempty" gorm:"-"`
+	ResellerUsername string   `json:"reseller_username,omitempty" gorm:"-"`
 }
 
 var (
-	ErrResellerNotFound     = errors.New("reseller not found")
-	ErrResellerDisabled     = errors.New("reseller disabled")
-	ErrInvalidMarkup        = errors.New("markup must be greater than 0")
-	ErrGroupNotAllowed      = errors.New("group is not allowed for this reseller")
-	ErrInsufficientQuota           = errors.New("insufficient quota")
+	ErrResellerNotFound             = errors.New("reseller not found")
+	ErrResellerDisabled             = errors.New("reseller disabled")
+	ErrInvalidMarkup                = errors.New("markup must be greater than 0")
+	ErrGroupNotAllowed              = errors.New("group is not allowed for this reseller")
+	ErrInsufficientQuota            = errors.New("insufficient quota")
 	ErrAmountExceedsResellerBalance = errors.New("amount exceeds available cost balance")
-	ErrCustomerLimitReached        = errors.New("reseller customer limit reached")
+	ErrCustomerLimitReached         = errors.New("reseller customer limit reached")
 )
 
 // ValidMarkup reports whether m is an acceptable markup (0, +Inf).
@@ -565,15 +568,103 @@ func ReconcileResellers(from int64) ([]ReconcileIssue, error) {
 }
 
 // GetResellerLedger lists ledger rows for a reseller, newest first.
-func GetResellerLedger(resellerId int, startIdx, num int) ([]ResellerLedger, int64, error) {
+// kindFilter may be empty (all) or one of the ResellerLedger* constants.
+func GetResellerLedger(resellerId int, startIdx, num int, kindFilter string) ([]ResellerLedger, int64, error) {
 	var rows []ResellerLedger
 	var total int64
 	query := DB.Model(&ResellerLedger{}).Where("reseller_id = ?", resellerId)
+	if kindFilter != "" {
+		query = query.Where("kind = ?", kindFilter)
+	}
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	err := query.Order("id desc").Offset(startIdx).Limit(num).Find(&rows).Error
-	return rows, total, err
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := FillLedgerUsernames(rows); err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
+}
+
+// FillLedgerUsernames attaches customer_username, operator_username and
+// reseller_username for UI lists.
+func FillLedgerUsernames(rows []ResellerLedger) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	idSet := map[int]struct{}{}
+	for i := range rows {
+		if rows[i].CustomerId > 0 {
+			idSet[rows[i].CustomerId] = struct{}{}
+		}
+		if rows[i].OperatorId > 0 {
+			idSet[rows[i].OperatorId] = struct{}{}
+		}
+		if rows[i].ResellerId > 0 {
+			idSet[rows[i].ResellerId] = struct{}{}
+		}
+	}
+	if len(idSet) == 0 {
+		return nil
+	}
+	ids := make([]int, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	var users []User
+	if err := DB.Unscoped().Select("id", "username").Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return err
+	}
+	names := make(map[int]string, len(users))
+	for _, u := range users {
+		names[u.Id] = u.Username
+	}
+	for i := range rows {
+		if rows[i].CustomerId > 0 {
+			rows[i].CustomerUsername = names[rows[i].CustomerId]
+		}
+		if rows[i].OperatorId > 0 {
+			rows[i].OperatorUsername = names[rows[i].OperatorId]
+		}
+		if rows[i].ResellerId > 0 {
+			rows[i].ResellerUsername = names[rows[i].ResellerId]
+		}
+	}
+	return nil
+}
+
+// ListResellerLedgerRange lists ledger rows across resellers in [from, toExclusive).
+// resellerId/kindFilter may be 0 / "" for no filter.
+func ListResellerLedgerRange(from, toExclusive int64, resellerId int, kindFilter string, startIdx, num int) ([]ResellerLedger, int64, error) {
+	var rows []ResellerLedger
+	var total int64
+	query := DB.Model(&ResellerLedger{})
+	if from > 0 {
+		query = query.Where("created_at >= ?", from)
+	}
+	if toExclusive > 0 {
+		query = query.Where("created_at < ?", toExclusive)
+	}
+	if resellerId > 0 {
+		query = query.Where("reseller_id = ?", resellerId)
+	}
+	if kindFilter != "" {
+		query = query.Where("kind = ?", kindFilter)
+	}
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := query.Order("id desc").Offset(startIdx).Limit(num).Find(&rows).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	if err := FillLedgerUsernames(rows); err != nil {
+		return nil, 0, err
+	}
+	return rows, total, nil
 }
 
 // GrossProfitRow is one bucket of the gross profit report.

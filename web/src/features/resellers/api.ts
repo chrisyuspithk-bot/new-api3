@@ -135,6 +135,24 @@ export async function listResellerCustomers(
   return res.data
 }
 
+export async function createResellerCustomer(
+  resellerId: number,
+  body: {
+    username: string
+    password: string
+    display_name?: string
+    group?: string
+    markup?: number
+    remark?: string
+  }
+): Promise<ApiResponse<ResellerCustomer>> {
+  const res = await api.post(
+    `/api/admin/resellers/${resellerId}/customers`,
+    body
+  )
+  return res.data
+}
+
 export async function getGrossProfit(params: {
   reseller_id?: number
   from?: number
