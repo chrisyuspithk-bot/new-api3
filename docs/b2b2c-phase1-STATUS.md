@@ -27,7 +27,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 - `go test ./model ./service ./middleware ./controller ./relay/helper ./relay ./router -count=1` → all ok.
 - New `service/reseller_billing_test.go`: dual-leg reserve/settle/refund, reseller-insufficient (nothing charged), customer-insufficient releases reseller leg, disabled reseller 403, group outside whitelist, markup precedence + cost multiplier, ceil rounding.
 - SQLite fresh DB: started the server twice on the same DB — no errors; all new tables/indexes/columns present.
-- **MySQL(MariaDB) / PostgreSQL**: verified 2026-10-12 (fresh + upgrade-from-int32) — see DB verification section. **ClickHouse**: still not run.
+- **MySQL(MariaDB) / PostgreSQL**: verified 2026-10-12 (fresh + upgrade-from-int32) — see DB verification section. **ClickHouse**: verified 2026-10-12 18:50 HKT (fresh CREATE + upgrade ADD COLUMN + idempotent re-run) — see DB verification section.
 
 ## Phase 1b (leftovers pass, 2026-10-12)
 
@@ -90,7 +90,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 | Customer | `/profile`, `/dashboard/overview`, `/wallet` | Reseller name/contact + top-up restrictions |
 
 ### DB verification (this environment)
-- See **DB verification (2026-10-12)** section below (MariaDB + PostgreSQL PASS; ClickHouse blocked).
+- See **DB verification (2026-10-12)** section below (MariaDB + PostgreSQL + ClickHouse PASS).
 - **SQLite**: already verified in Phase 1 (fresh DB + restart).
 
 ### Tests (Phase 1c)
@@ -98,12 +98,13 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 - `go test ./model ./service ./middleware ./controller ./relay/helper ./relay ./router -count=1` → all ok.
 - Frontend: `pnpm install` + `pnpm run build` OK (routeTree regenerates reseller routes).
 
-## DB verification (2026-10-12 18:45 HKT)
+## DB verification (2026-10-12; ClickHouse 18:50 HKT)
 
 Environment: Debian 13 (trixie) box; installed via apt (no Docker):
 - **MariaDB** `11.8.6-MariaDB-0+deb13u1` (MySQL-compatible; `mysql-server` package unavailable on Trixie — used `mariadb-server`)
 - **PostgreSQL** `17.11 (Debian 17.11-0+deb13u1)`
-- Harness: `cmd/verify-b2b2c-schema` calls `model.InitDB` + `model.InitLogDB` (full AutoMigrate path) twice for idempotency, then asserts tables/columns/types.
+- **ClickHouse** `26.9.16.11` (official `packages.clickhouse.com/deb stable`; not in Debian stock apt)
+- Harness: `cmd/verify-b2b2c-schema` (MySQL/PG) and `cmd/verify-clickhouse-b2b2c` (ClickHouse logs) call `model.InitDB` + `model.InitLogDB` (full migrate path) twice for idempotency, then assert columns/types.
 
 ### Fresh migrate — MariaDB **PASS** (2/2 passes)
 DSN: `newapi:***@tcp(127.0.0.1:3306)/newapi?parseTime=true&charset=utf8mb4`
@@ -153,13 +154,26 @@ ALTER TABLE users ALTER COLUMN used_quota TYPE bigint;
 ```
 All other B2B2C columns/tables come from GORM `AutoMigrate` (no hand-written DDL beyond the bigint widen + ClickHouse `ADD COLUMN IF NOT EXISTS` below).
 
-### ClickHouse — **NOT RUN / blocked**
-No `clickhouse-server` package or Docker on this box (apt only offers unrelated plugins). Code path present in `migrateClickHouseLogDB`:
+### ClickHouse logs — **PASS** (2026-10-12 18:50 HKT)
+Environment: Debian 13 (trixie) box; installed ClickHouse from official apt (`packages.clickhouse.com/deb stable`):
+- **clickhouse-server / clickhouse-client** `26.9.16.11`
+- Primary DB: SQLite scratch (`SQLITE_PATH`); log DB: `LOG_SQL_DSN=clickhouse://default:@127.0.0.1:9000/new_api_logs`
+- Path exercised: `model.InitLogDB` → `migrateLOGDB` → `migrateClickHouseLogDB` (via `cmd/verify-clickhouse-b2b2c`)
+
+**SQL issued by `migrateClickHouseLogDB`** (after `CREATE TABLE IF NOT EXISTS logs (... reseller_id Int32 ..., reseller_cost_quota Int64 ...)`):
 ```sql
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS reseller_id Int32 DEFAULT 0;
 ALTER TABLE logs ADD COLUMN IF NOT EXISTS reseller_cost_quota Int64 DEFAULT 0;
 ```
-Cannot claim ClickHouse compatibility until a real ClickHouse instance is exercised.
+
+| Scenario | Result |
+|---|---|
+| Upgrade: pre-create legacy `logs` **without** reseller columns, then InitLogDB | **PASS** — `ADD COLUMN IF NOT EXISTS` added `reseller_id Int32 DEFAULT 0`, `reseller_cost_quota Int64 DEFAULT 0` |
+| Fresh: drop `logs`, InitLogDB `CREATE TABLE IF NOT EXISTS` | **PASS** — both columns present in `system.columns` / `SHOW CREATE TABLE` |
+| Idempotent second InitLogDB | **PASS** (no error) |
+| Smoke INSERT/SELECT of reseller cols | **PASS** — wrote `reseller_id=42`, `reseller_cost_quota=1000`, read back |
+
+Asserted types (`system.columns`): `reseller_id` = `Int32`, `reseller_cost_quota` = `Int64`, both `DEFAULT 0`.
 
 ### How to re-run
 ```bash
@@ -173,15 +187,21 @@ SQL_DSN='postgres://user:pass@127.0.0.1:5432/dbname?sslmode=disable' \
 
 # Legacy int32 wallet upgrade
 SKIP_64BIT_QUOTA_SCHEMA_CHECK=true SQL_DSN='...' go run ./cmd/verify-b2b2c-schema/
+
+# ClickHouse logs (needs clickhouse-server; empty default password OK for local)
+SQLITE_PATH=/tmp/verify-ch-b2b2c-main.db \
+LOG_SQL_DSN='clickhouse://default:@127.0.0.1:9000/new_api_logs' \
+SKIP_64BIT_QUOTA_SCHEMA_CHECK=true \
+  go run ./cmd/verify-clickhouse-b2b2c/
 ```
 
 ### Errors observed
 - Fresh MySQL/PG: none.
 - Upgrade without skip flag: expected `ensureUserQuotaColumns` rejection (operators must set `SKIP_64BIT_QUOTA_SCHEMA_CHECK=true` once to allow the bigint widen, or pre-ALTER manually).
-- ClickHouse: not attempted (no server).
+- ClickHouse: none on migrate path (CREATE + ADD COLUMN + idempotent re-run). Inline `INSERT ... VALUES (..., toUnixTimestamp(now()), ...)` via native client hung once in this environment; HTTP insert and `FORMAT Values` succeeded — not an app migrate issue.
 
 ## Still open / blocked
-- **ClickHouse** migration verification still blocked (no server/Docker here). MySQL(MariaDB)/PostgreSQL fresh + upgrade-from-int32 verified 2026-10-12 — see DB verification section.
+- MySQL(MariaDB)/PostgreSQL/ClickHouse schema migrate verified 2026-10-12 — see DB verification section. No remaining DB-dialect blockers for Phase 1 schema.
 - Design-exact pricing order (`charge = ceil(cost × markup)`) — deliberately not done; bounded error documented above.
 - completion_ratio override for tiered-expr models; pre-WSS chunk estimate uses base completion ratio.
 - Multi-node cache is TTL-based (≤10s); no Redis pub/sub.
