@@ -2,7 +2,7 @@
 
 | 項目 | 內容 |
 |------|------|
-| 產品／分支 | `new-api` / `feat/b2b2c-phase1`（commit `9d3295364` 及先前 phase1 提交） |
+| 產品／分支 | `new-api` / `feat/b2b2c-phase1`（含 BUG-01 修復；見後續 commit） |
 | 測試類型 | 手動＋API 自動化＋Playwright UI 截圖 |
 | 測試日期 | 2026-10-12（HKT） |
 | 測試人員 | Grok Bot QA（executor） |
@@ -64,14 +64,14 @@
 | TC15 | Reseller：self／customers／tokens／model_markups／redemptions／logs／reports；UI 各頁 | API 與 UI 可用 | 全部 API 200；UI console／customers／markups／redemptions／logs／reports／wallet 正常 | **Pass** |
 | TC16 | Admin 列表／詳情／新增抽屜；UI `/resellers` | CRUD UI 可用 | 列表含兩代理商；詳情／Add Reseller 抽屜截圖 OK | **Pass** |
 | TC17 | 未登入開啟 `/sign-in` | 無註冊入口連結（因 register 關閉） | `a[href*="sign-up"]` 數量 = 0 | **Pass** |
-| TC18 | 直接開啟 `/sign-up`（深鏈） | 應導向登入或顯示「已關閉註冊」，不應仍可填密碼註冊表單 | **仍顯示**「建立一個用戶」用戶名／密碼／確認密碼表單；API 會拒，但 UI 未閘道 | **Fail** |
+| TC18 | 直接開啟 `/sign-up`（深鏈） | 應導向登入或顯示「已關閉註冊」，不應仍可填密碼註冊表單 | **已修復**：`sign-up` `beforeLoad` 讀取 status；當 `register_enabled`／`password_register_enabled` 皆關閉且無 `oauth_register_enabled` 時 redirect → `/sign-in`；密碼表單與 OAuth 區塊分別閘道 | **Pass**（修復後） |
 | TC19 | Customer 開 `/reseller`、`/resellers` | 前端 403 禁止頁 | 導向 `/403`「禁止存取」 | **Pass** |
 
 ### 結果匯總
 
 | Pass | Fail | Blocked |
 |------|------|---------|
-| 18 | 1 | 0 |
+| 19 | 0 | 0 |
 
 ---
 
@@ -82,7 +82,7 @@
 | 檔名 | 說明 |
 |------|------|
 | `public-login.png` | 登入頁；無註冊連結 |
-| `public-register-page.png` | **缺陷**：註冊關閉時深鏈仍顯示註冊表單 |
+| `public-register-page.png` | （歷史）修復前：註冊關閉時深鏈仍顯示註冊表單；修復後應 redirect 至登入 |
 | `admin-resellers-list.png` | Admin 代理商列表 |
 | `admin-add-reseller-drawer.png` | 新增代理商抽屜 |
 | `admin-reseller-detail.png` | 代理商詳情 |
@@ -107,7 +107,7 @@
 
 | ID | 嚴重度 | 標題 | 描述 | 建議 |
 |----|--------|------|------|------|
-| BUG-01 | **Major** | `/sign-up` 深鏈在註冊關閉時仍渲染密碼註冊表單 | `register_enabled`／`password_register_enabled` 預設 false；登入頁已正確隱藏註冊連結，但 `SignUp`／`SignUpForm` 未在 `password_register_enabled===false` 時隱藏表單或導向 `/sign-in`。API 會拒絕，屬 UI／產品一致性缺口，亦增加不必要的註冊嘗試與 rate-limit 壓力。 | 在 `sign-up` route 或 `SignUpForm` 讀取 status：若密碼註冊關閉則 redirect 至登入並 toast；OAuth 區塊僅在 `oauth_register_enabled` 時顯示。 |
+| BUG-01 | **Major** → **Fixed** | `/sign-up` 深鏈在註冊關閉時仍渲染密碼註冊表單 | **已修復（2026-10-12）**：`/(auth)/sign-up` `beforeLoad` 透過 `statusQueryOptions` 讀取 status；當密碼註冊（`register_enabled`∧`password_register_enabled`）與 `oauth_register_enabled` 均關閉時 `redirect` → `/sign-in`。`SignUpForm` 密碼欄位僅在密碼註冊開啟時渲染；OAuth 區塊僅在 `oauth_register_enabled` 時顯示（不再 fallback `register_enabled`）。 | 已實作於 route + form。 |
 | NOTE-01 | Info | 無庫存錯誤文案對客戶顯示為「用戶額度不足」 | `resellerInsufficientError` 使用 `MsgQuotaUserInsufficient`＋`Remaining: "-"`，屬刻意不洩露代理商庫存。行為正確；若產品希望代理商後台有更明確日誌即可（伺服器已有 log）。 | 可選：Reseller 控制台／日誌標註「成本庫存不足」。 |
 | NOTE-02 | Info | 測試環境未配置支付閘道 | 錢包 UI 顯示「尚未啟用線上儲值」來自 `enable_online_topup=false`（無 Epay 等），**不是** B2B2C `BlockResellerCustomer`。客戶／代理商均可開啟錢包頁；`reseller.online_topup_enabled=true`。 | 配置閘道後再做支付 E2E。 |
 
@@ -119,12 +119,12 @@
 
 B2B2C Phase 1 在 SQLite 環境下，**角色建模、庫存 dual-leg 計費、跨租戶隔離、停用凍結、註冊關閉（API）、自助儲值解禁（API＋錢包頁）** 均符合預期。消費無庫存拒絕、有庫存可結算已用真實 relay 路徑驗證。
 
-主要缺口為 **前端註冊頁深鏈未跟隨 `RegisterEnabled` 預設關閉**（BUG-01，Major）。其餘為資訊性說明。建議合併前修復 BUG-01；無需為 Critical blocker 阻擋 phase1 其餘功能。
+**BUG-01 已修復**：前端註冊頁深鏈現跟隨 `RegisterEnabled`／`PasswordRegisterEnabled`／`oauth_register_enabled` 閘道，關閉時導向 `/sign-in`。其餘為資訊性說明。Phase1 無 Critical／Major 未修缺陷。
 
-**建議給用戶的重點 Failures：**
-1. **BUG-01（Major）**：`/sign-up` 在註冊關閉時仍顯示註冊表單 — 見 `public-register-page.png`  
+**建議給用戶的重點：**
+1. **BUG-01 已 Fixed**：`/sign-up` 在註冊關閉時 redirect → `/sign-in`；OAuth 僅在 `oauth_register_enabled` 顯示  
 2. 其餘關鍵路徑 **Pass**（含無庫存拒絕、有庫存成功、凍結、隔離、錢包未封鎖、代理商卡片）
 
 ---
 
-*產生時間：2026-10-12 19:35 HKT*
+*產生時間：2026-10-12 19:45 HKT（含 BUG-01 修復註記）*

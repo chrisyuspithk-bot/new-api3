@@ -103,13 +103,17 @@ export function SignUpForm({
   const hasUserAgreement = Boolean(status?.user_agreement_enabled)
   const hasPrivacyPolicy = Boolean(status?.privacy_policy_enabled)
   const requiresLegalConsent = hasUserAgreement || hasPrivacyPolicy
-  const oauthRegisterEnabled =
-    status?.oauth_register_enabled ??
-    status?.data?.oauth_register_enabled ??
-    status?.register_enabled ??
-    status?.data?.register_enabled ??
-    false
-  const hasWeChatLogin = Boolean(status?.wechat_login)
+  // Password signup requires both flags (matches backend Register).
+  const passwordRegisterEnabled = Boolean(
+    (status?.password_register_enabled ??
+      status?.data?.password_register_enabled) &&
+      (status?.register_enabled ?? status?.data?.register_enabled)
+  )
+  // OAuth signup only when explicitly enabled — do not fall back to register_enabled.
+  const oauthRegisterEnabled = Boolean(
+    status?.oauth_register_enabled ?? status?.data?.oauth_register_enabled
+  )
+  const hasWeChatLogin = Boolean(status?.wechat_login) && oauthRegisterEnabled
   const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
@@ -142,6 +146,9 @@ export function SignUpForm({
   }, [])
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
+    if (!passwordRegisterEnabled) {
+      return
+    }
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
       return
@@ -253,6 +260,8 @@ export function SignUpForm({
         className={cn('grid gap-4', className)}
         {...props}
       >
+        {passwordRegisterEnabled && (
+          <>
         {/* Username Field */}
         <FormField
           control={form.control}
@@ -383,6 +392,17 @@ export function SignUpForm({
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           {t('Create account')}
         </Button>
+          </>
+        )}
+
+        {!passwordRegisterEnabled && (
+          <LegalConsent
+            status={status}
+            checked={agreedToLegal}
+            onCheckedChange={setAgreedToLegal}
+            className='mt-1'
+          />
+        )}
 
         {oauthRegisterEnabled && (
           <OAuthProviders
