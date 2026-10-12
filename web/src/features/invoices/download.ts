@@ -18,8 +18,6 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 
-import type { Invoice } from './types'
-
 /**
  * Downloads an invoice CSV through the authenticated API client.
  *
@@ -40,76 +38,6 @@ export async function downloadInvoiceCsv(
 
 export function invoiceCsvFilename(id: number, period?: string): string {
   return period ? `invoice-${id}-${period}.csv` : `invoice-${id}.csv`
-}
-
-export function invoicesListCsvFilename(period: string): string {
-  return `invoices-${period}.csv`
-}
-
-function csvEscape(value: string | number | null | undefined): string {
-  const s = value == null ? '' : String(value)
-  if (/[",\n\r]/.test(s)) {
-    return `"${s.replace(/"/g, '""')}"`
-  }
-  return s
-}
-
-/** Build a list-level CSV from already-loaded invoice rows (client-side). */
-export function buildInvoicesListCsv(rows: Invoice[]): string {
-  const headers = [
-    'id',
-    'period',
-    'scope',
-    'reseller_id',
-    'reseller_name',
-    'customer_id',
-    'customer_name',
-    'requests',
-    'charge_quota',
-    'cost_quota',
-    'profit_quota',
-    'charge_usd',
-    'cost_usd',
-    'profit_usd',
-    'generated_at',
-    'generated_by',
-  ]
-  const lines = [headers.join(',')]
-  for (const row of rows) {
-    lines.push(
-      [
-        row.id,
-        row.period,
-        row.scope,
-        row.reseller_id,
-        row.reseller_name,
-        row.customer_id,
-        row.customer_name,
-        row.requests,
-        row.charge_quota,
-        row.cost_quota,
-        row.profit_quota,
-        row.charge_usd,
-        row.cost_usd,
-        row.profit_usd,
-        row.generated_at,
-        row.generated_by,
-      ]
-        .map(csvEscape)
-        .join(',')
-    )
-  }
-  return lines.join('\n') + '\n'
-}
-
-/** Download the currently filtered invoice list as CSV (client-side). */
-export function downloadInvoicesListCsv(
-  rows: Invoice[],
-  filename: string
-): void {
-  const csv = buildInvoicesListCsv(rows)
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  saveBlobAsFile(blob, filename)
 }
 
 function saveBlobAsFile(blob: Blob, filename: string): void {

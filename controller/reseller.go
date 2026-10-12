@@ -552,7 +552,7 @@ func AdminListResellerLedger(c *gin.Context) {
 		toEx, _ = strconv.ParseInt(c.Query("to"), 10, 64)
 	}
 	resellerId, _ := strconv.Atoi(c.Query("reseller_id"))
-	rows, total, err := model.ListResellerLedgerRange(from, toEx, resellerId, c.Query("kind"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	rows, total, err := model.ListResellerLedgerRange(from, toEx, resellerId, 0, c.Query("kind"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -1074,8 +1074,43 @@ func ResellerGrossProfitReport(c *gin.Context) {
 }
 
 func ResellerGetLedger(c *gin.Context) {
+	// Session reseller only. Query reseller_id / customer_id are ignored.
+	ledgerPage(c, c.GetInt("id"), 0)
+}
+
+func CustomerGetLedger(c *gin.Context) {
+	// Session user only. Query reseller_id / customer_id are ignored.
+	ledgerPage(c, 0, c.GetInt("id"))
+}
+
+// ledgerPage lists balance-ledger rows for one role scope.
+// A positive resellerId returns that reseller's own and customer rows.
+// A positive customerId returns only that customer's rows.
+func ledgerPage(c *gin.Context, resellerId, customerId int) {
+	if resellerId <= 0 && customerId <= 0 {
+		common.ApiErrorMsg(c, "unauthorized")
+		return
+	}
 	pageInfo := common.GetPageQuery(c)
-	rows, total, err := model.GetResellerLedger(c.GetInt("id"), pageInfo.GetStartIdx(), pageInfo.GetPageSize(), c.Query("kind"))
+	kind := c.Query("kind")
+	var (
+		rows  []model.ResellerLedger
+		total int64
+		err   error
+	)
+	if period := strings.TrimSpace(c.Query("period")); period != "" {
+		var from, toEx int64
+		from, toEx, err = model.ParseInvoicePeriod(period)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		rows, total, err = model.ListResellerLedgerRange(from, toEx, resellerId, customerId, kind, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	} else if customerId > 0 {
+		rows, total, err = model.ListResellerLedgerRange(0, 0, 0, customerId, kind, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	} else {
+		rows, total, err = model.GetResellerLedger(resellerId, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), kind)
+	}
 	if err != nil {
 		common.ApiError(c, err)
 		return

@@ -247,6 +247,8 @@ export async function getGrossProfit(params: {
 export async function getLedger(params: {
   p?: number
   page_size?: number
+  period?: string
+  kind?: string
 }): Promise<ApiResponse<PageData<LedgerRow>>> {
   const res = await api.get('/api/reseller/ledger', { params })
   return res.data

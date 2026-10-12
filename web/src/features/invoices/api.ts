@@ -22,62 +22,9 @@ import type {
   ApiResponse,
   Invoice,
   InvoiceDetail,
-  InvoiceGenerateResult,
   PageData,
   ResellerLedgerRow,
 } from './types'
-
-export async function adminListInvoices(params: {
-  p?: number
-  page_size?: number
-  period?: string
-  scope?: string
-  reseller_id?: number
-  customer_id?: number
-}): Promise<ApiResponse<PageData<Invoice>>> {
-  const res = await api.get('/api/admin/invoices', { params })
-  return res.data
-}
-
-export async function adminGetInvoice(
-  id: number
-): Promise<ApiResponse<InvoiceDetail>> {
-  const res = await api.get(`/api/admin/invoices/${id}`)
-  return res.data
-}
-
-export async function adminGenerateInvoices(
-  period: string
-): Promise<ApiResponse<InvoiceGenerateResult>> {
-  const res = await api.post('/api/admin/invoices/generate', { period })
-  return res.data
-}
-
-export function adminInvoiceCsvUrl(id: number): string {
-  return `/api/admin/invoices/${id}?format=csv`
-}
-
-export async function resellerListInvoices(params: {
-  p?: number
-  page_size?: number
-  period?: string
-  scope?: string
-  customer_id?: number
-}): Promise<ApiResponse<PageData<Invoice>>> {
-  const res = await api.get('/api/reseller/invoices', { params })
-  return res.data
-}
-
-export async function resellerGetInvoice(
-  id: number
-): Promise<ApiResponse<InvoiceDetail>> {
-  const res = await api.get(`/api/reseller/invoices/${id}`)
-  return res.data
-}
-
-export function resellerInvoiceCsvUrl(id: number): string {
-  return `/api/reseller/invoices/${id}?format=csv`
-}
 
 export async function customerListInvoices(params: {
   p?: number
@@ -107,5 +54,15 @@ export async function adminListResellerLedger(params: {
   page_size?: number
 }): Promise<ApiResponse<PageData<ResellerLedgerRow>>> {
   const res = await api.get('/api/admin/reseller_ledger', { params })
+  return res.data
+}
+
+export async function customerListLedger(params: {
+  period?: string
+  kind?: string
+  p?: number
+  page_size?: number
+}): Promise<ApiResponse<PageData<ResellerLedgerRow>>> {
+  const res = await api.get('/api/user/ledger', { params })
   return res.data
 }

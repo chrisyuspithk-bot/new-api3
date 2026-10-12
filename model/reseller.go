@@ -707,9 +707,9 @@ func FillLedgerUsernames(rows []ResellerLedger) error {
 	return nil
 }
 
-// ListResellerLedgerRange lists ledger rows across resellers in [from, toExclusive).
-// resellerId/kindFilter may be 0 / "" for no filter.
-func ListResellerLedgerRange(from, toExclusive int64, resellerId int, kindFilter string, startIdx, num int) ([]ResellerLedger, int64, error) {
+// ListResellerLedgerRange lists ledger rows in [from, toExclusive).
+// resellerId, customerId, and kindFilter may be 0 / "" to skip that filter.
+func ListResellerLedgerRange(from, toExclusive int64, resellerId int, customerId int, kindFilter string, startIdx, num int) ([]ResellerLedger, int64, error) {
 	var rows []ResellerLedger
 	var total int64
 	query := DB.Model(&ResellerLedger{})
@@ -721,6 +721,9 @@ func ListResellerLedgerRange(from, toExclusive int64, resellerId int, kindFilter
 	}
 	if resellerId > 0 {
 		query = query.Where("reseller_id = ?", resellerId)
+	}
+	if customerId > 0 {
+		query = query.Where("customer_id = ?", customerId)
 	}
 	if kindFilter != "" {
 		query = query.Where("kind = ?", kindFilter)

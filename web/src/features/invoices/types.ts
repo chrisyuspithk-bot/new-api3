@@ -54,15 +54,6 @@ export interface InvoiceDetail {
   line_items: InvoiceLineItem[]
 }
 
-export interface InvoiceGenerateResult {
-  period: string
-  customer_invoices: number
-  reseller_invoices: number
-  admin_rollup: boolean
-  from_unix: number
-  to_unix: number
-}
-
 export interface ApiResponse<T> {
   success: boolean
   message?: string
@@ -82,6 +73,18 @@ export type ResellerLedgerKind =
   | 'customer_credit'
   | 'customer_debit'
 
+export const RESELLER_LEDGER_KINDS: ResellerLedgerKind[] = [
+  'admin_credit',
+  'admin_debit',
+  'customer_credit',
+  'customer_debit',
+]
+
+export const CUSTOMER_LEDGER_KINDS: ResellerLedgerKind[] = [
+  'customer_credit',
+  'customer_debit',
+]
+
 export interface ResellerLedgerRow {
   id: number
   reseller_id: number
@@ -95,4 +98,16 @@ export interface ResellerLedgerRow {
   operator_username?: string
   remark?: string
   created_at: number
+}
+
+export type LedgerQuery = {
+  period: string
+  kind: string
+  page: number
+  pageSize: number
+}
+
+export type LedgerPage = {
+  items: ResellerLedgerRow[]
+  total: number
 }

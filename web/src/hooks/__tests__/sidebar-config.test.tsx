@@ -45,7 +45,12 @@ afterEach(() => {
   useAuthStore.getState().auth.reset()
 })
 
-function sidebarFor(admin?: object, user?: object, canConfigure = true) {
+function sidebarFor(
+  admin?: object,
+  user?: object,
+  canConfigure = true,
+  role = 1
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -55,7 +60,7 @@ function sidebarFor(admin?: object, user?: object, canConfigure = true) {
   useAuthStore.getState().auth.setUser({
     id: 1,
     username: 'alice',
-    role: 1,
+    role,
     permissions: { sidebar_settings: canConfigure },
     sidebar_modules: user ? JSON.stringify(user) : '',
   })
@@ -83,12 +88,24 @@ describe('security sidebar visibility', () => {
       result.current
         .find((group) => group.id === 'personal')
         ?.items.map((item) => item.title)
-    ).toEqual(['Wallet', 'Profile', 'Security & Access'])
+    ).toEqual(['Wallet', 'Invoices', 'Profile', 'Security & Access'])
     expect(
       result.current
         .flatMap((group) => group.items)
         .some((item) => item.title === 'API Keys')
     ).toBe(true)
+  })
+
+  it('hides the customer invoices link from reseller and admin roles', () => {
+    for (const role of [5, 10]) {
+      cleanup()
+      const { result } = sidebarFor(undefined, undefined, true, role)
+      expect(
+        result.current
+          .flatMap((group) => group.items)
+          .some((item) => 'url' in item && item.url === '/my-invoices')
+      ).toBe(false)
+    }
   })
   it.each([
     [{ personal: { enabled: true, security: false } }, undefined],

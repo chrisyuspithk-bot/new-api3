@@ -236,6 +236,108 @@ func TestAdminListResellerCustomersScopedToPathReseller(t *testing.T) {
 	assert.EqualValues(t, customerID, resp.Data.Items[0]["id"])
 }
 
+type ledgerListBody struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+	Data    struct {
+		Total int `json:"total"`
+		Items []struct {
+			Kind       string `json:"kind"`
+			CustomerId int    `json:"customer_id"`
+			ResellerId int    `json:"reseller_id"`
+		} `json:"items"`
+	} `json:"data"`
+}
+
+func callLedger(t *testing.T, handler gin.HandlerFunc, userID int, rawURL string) ledgerListBody {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", userID)
+	ctx.Request = httptest.NewRequest(http.MethodGet, rawURL, nil)
+	handler(ctx)
+	var body ledgerListBody
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &body))
+	return body
+}
+
+func seedMonthLedger(t *testing.T, resellerID, customerID int) (from int64) {
+	t.Helper()
+	var toEx int64
+	var err error
+	from, toEx, err = model.ParseInvoicePeriod("2026-09")
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: 9599, Username: "other-r", Status: common.UserStatusEnabled, AffCode: "or1",
+	}).Error)
+	require.NoError(t, model.DB.Create(&model.User{
+		Id: 9503, Username: "other-c", ResellerId: resellerID, Status: common.UserStatusEnabled, AffCode: "oc1",
+	}).Error)
+	rows := []model.ResellerLedger{
+		{ResellerId: resellerID, CustomerId: customerID, Kind: model.ResellerLedgerCustomerCredit, QuotaDelta: 10, CreatedAt: from + 1},
+		{ResellerId: resellerID, CustomerId: 0, Kind: model.ResellerLedgerAdminCredit, QuotaDelta: 50, CreatedAt: from + 2},
+		{ResellerId: resellerID, CustomerId: customerID, Kind: model.ResellerLedgerCustomerDebit, QuotaDelta: -1, CreatedAt: toEx + 1},
+		{ResellerId: 9599, CustomerId: 9503, Kind: model.ResellerLedgerCustomerCredit, QuotaDelta: 99, CreatedAt: from + 3},
+	}
+	require.NoError(t, model.DB.Create(&rows).Error)
+	return from
+}
+
+func TestResellerGetLedgerPeriodScopesToCallerAndMonth(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+	seedMonthLedger(t, resellerID, customerID)
+
+	body := callLedger(t, ResellerGetLedger, resellerID, "/api/reseller/ledger?period=2026-09&reseller_id=9599&customer_id=9503")
+	require.True(t, body.Success)
+	assert.Equal(t, 2, body.Data.Total)
+	require.Len(t, body.Data.Items, 2)
+	for _, item := range body.Data.Items {
+		assert.Equal(t, resellerID, item.ResellerId)
+		assert.NotEqual(t, model.ResellerLedgerCustomerDebit, item.Kind)
+	}
+}
+
+func TestResellerGetLedgerWithoutPeriodKeepsFullCallerHistory(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+	seedMonthLedger(t, resellerID, customerID)
+
+	body := callLedger(t, ResellerGetLedger, resellerID, "/api/reseller/ledger")
+	require.True(t, body.Success)
+	assert.Equal(t, 3, body.Data.Total)
+	for _, item := range body.Data.Items {
+		assert.Equal(t, resellerID, item.ResellerId)
+	}
+}
+
+func TestCustomerGetLedgerReturnsOnlyCallerRows(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+	seedMonthLedger(t, resellerID, customerID)
+
+	body := callLedger(t, CustomerGetLedger, customerID, "/api/user/ledger?period=2026-09&reseller_id=9599&customer_id=9503")
+	require.True(t, body.Success)
+	assert.Equal(t, 1, body.Data.Total)
+	require.Len(t, body.Data.Items, 1)
+	assert.Equal(t, customerID, body.Data.Items[0].CustomerId)
+	assert.Equal(t, model.ResellerLedgerCustomerCredit, body.Data.Items[0].Kind)
+}
+
+func TestLedgerPeriodRejectsInvalidMonth(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+
+	resellerBody := callLedger(t, ResellerGetLedger, resellerID, "/api/reseller/ledger?period=2026-9")
+	assert.False(t, resellerBody.Success)
+	assert.Equal(t, model.ErrInvalidInvoicePeriod.Error(), resellerBody.Message)
+
+	customerBody := callLedger(t, CustomerGetLedger, customerID, "/api/user/ledger?period=nope")
+	assert.False(t, customerBody.Success)
+	assert.Equal(t, model.ErrInvalidInvoicePeriod.Error(), customerBody.Message)
+}
+
 func TestFillResellerNamesSetsNamesOnlyForAffiliatedUsers(t *testing.T) {
 	setupResellerCreditCustomerDB(t)
 	resellerID, customerID := seedResellerCreditFixture(t, 0)
