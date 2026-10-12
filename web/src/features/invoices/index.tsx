@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   downloadInvoiceCsv,
+  downloadInvoicesListCsv,
   invoiceCsvFilename,
+  invoicesListCsvFilename,
 } from '@/features/invoices/download'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
@@ -47,9 +49,10 @@ import {
   adminListInvoices,
   adminListResellerLedger,
 } from './api'
-import type { Invoice, ResellerLedgerRow } from './types'
+import type { Invoice, InvoiceScope, ResellerLedgerRow } from './types'
 
 const LEDGER_PAGE_SIZE = 20
+const PERIOD_RE = /^\d{4}-\d{2}$/
 
 function usd(n: number) {
   return `$${n.toFixed(4)}`
@@ -59,6 +62,28 @@ function currentMonthPeriod(): string {
   // Box / user zone is Asia/Hong_Kong; local calendar month is correct.
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function previousMonthPeriod(): string {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function scopeLabel(
+  scope: InvoiceScope | string,
+  t: (key: string) => string
+): string {
+  switch (scope) {
+    case 'customer':
+      return t('Customer')
+    case 'reseller':
+      return t('Reseller')
+    case 'admin_rollup':
+      return t('Admin rollup')
+    default:
+      return scope
+  }
 }
 
 function ledgerKindLabel(
@@ -83,37 +108,31 @@ export function AdminInvoicesPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [tab, setTab] = useState<'invoices' | 'ledger'>('invoices')
-  const [period, setPeriod] = useState('')
-  const [ledgerPeriod, setLedgerPeriod] = useState(currentMonthPeriod)
-  const [scope, setScope] = useState('')
+  // One YYYY-MM filter for the active tab (invoices + ledger). Defaults to
+  // the current calendar month so invoices never load the full history.
+  const [period, setPeriod] = useState(currentMonthPeriod)
   const [kind, setKind] = useState('')
   const [ledgerPage, setLedgerPage] = useState(1)
-  const [genPeriod, setGenPeriod] = useState(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() - 1)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-  })
+  const [genPeriod, setGenPeriod] = useState(previousMonthPeriod)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
-  const sharedPeriod = tab === 'ledger' ? ledgerPeriod : period
-  const setSharedPeriod = (value: string) => {
-    if (tab === 'ledger') {
-      setLedgerPeriod(value)
-      setLedgerPage(1)
-    } else {
-      setPeriod(value)
-    }
+  const periodValid = PERIOD_RE.test(period)
+
+  const onPeriodChange = (value: string) => {
+    setPeriod(value)
+    setLedgerPage(1)
+    setSelectedId(null)
   }
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['admin-invoices', period, scope],
+    queryKey: ['admin-invoices', period],
+    enabled: periodValid,
     queryFn: async () => {
       const res = requireServerSuccess(
         await adminListInvoices({
           p: 1,
           page_size: 50,
-          period: period || undefined,
-          scope: scope || undefined,
+          period,
         })
       )
       return (res.data?.items as Invoice[]) ?? []
@@ -130,12 +149,12 @@ export function AdminInvoicesPage() {
   })
 
   const ledger = useQuery({
-    queryKey: ['admin-reseller-ledger-range', ledgerPeriod, kind, ledgerPage],
-    enabled: tab === 'ledger' && /^\d{4}-\d{2}$/.test(ledgerPeriod),
+    queryKey: ['admin-reseller-ledger-range', period, kind, ledgerPage],
+    enabled: tab === 'ledger' && periodValid,
     queryFn: async () => {
       const res = requireServerSuccess(
         await adminListResellerLedger({
-          period: ledgerPeriod,
+          period,
           kind: kind || undefined,
           p: ledgerPage,
           page_size: LEDGER_PAGE_SIZE,
@@ -171,39 +190,56 @@ export function AdminInvoicesPage() {
     Math.ceil(ledgerTotal / LEDGER_PAGE_SIZE)
   )
 
+  const exportList = () => {
+    if (!periodValid) {
+      toast.error(t('Enter a period as YYYY-MM'))
+      return
+    }
+    if (rows.length === 0) {
+      toast.error(t('No invoices to export'))
+      return
+    }
+    try {
+      downloadInvoicesListCsv(rows, invoicesListCsvFilename(period))
+    } catch {
+      toast.error(t('Download failed'))
+    }
+  }
+
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Invoices')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <Input
           className='h-8 w-28'
-          placeholder='YYYY-MM'
-          value={sharedPeriod}
-          onChange={(e) => setSharedPeriod(e.target.value)}
+          placeholder={t('YYYY-MM')}
+          aria-label={t('Month')}
+          value={period}
+          onChange={(e) => onPeriodChange(e.target.value)}
         />
         {tab === 'invoices' ? (
           <>
-            <select
-              className='border-input bg-background h-8 rounded-lg border px-2 text-sm'
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-            >
-              <option value=''>{t('All scopes')}</option>
-              <option value='customer'>{t('Customer')}</option>
-              <option value='reseller'>{t('Reseller')}</option>
-              <option value='admin_rollup'>{t('Admin rollup')}</option>
-            </select>
             <Button size='sm' variant='outline' onClick={() => refetch()}>
               {t('Refresh')}
+            </Button>
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={!periodValid || rows.length === 0}
+              onClick={exportList}
+            >
+              {t('Export')}
             </Button>
             <Input
               className='h-8 w-28'
               value={genPeriod}
               onChange={(e) => setGenPeriod(e.target.value)}
+              aria-label={t('Generate period')}
+              placeholder={t('YYYY-MM')}
             />
             <Button
               size='sm'
-              disabled={generate.isPending}
+              disabled={generate.isPending || !PERIOD_RE.test(genPeriod)}
               onClick={() => generate.mutate()}
             >
               {t('Generate')}
@@ -246,122 +282,130 @@ export function AdminInvoicesPage() {
           </TabsList>
 
           <TabsContent value='invoices' className='mt-4'>
-            <div className='grid gap-4 lg:grid-cols-2'>
-              <div className='rounded-lg border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Period')}</TableHead>
-                      <TableHead>{t('Scope')}</TableHead>
-                      <TableHead>{t('Party')}</TableHead>
-                      <TableHead>{t('Charge')}</TableHead>
-                      <TableHead>{t('Cost')}</TableHead>
-                      <TableHead>{t('Profit')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isLoading ? (
+            {!periodValid ? (
+              <p className='text-muted-foreground text-sm'>
+                {t('Enter a period as YYYY-MM to load invoices')}
+              </p>
+            ) : (
+              <div className='grid gap-4 lg:grid-cols-2'>
+                <div className='rounded-lg border'>
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={6}>{t('Loading...')}</TableCell>
+                        <TableHead>{t('Period')}</TableHead>
+                        <TableHead>{t('Scope')}</TableHead>
+                        <TableHead>{t('Party')}</TableHead>
+                        <TableHead>{t('Charge')}</TableHead>
+                        <TableHead>{t('Cost')}</TableHead>
+                        <TableHead>{t('Profit')}</TableHead>
                       </TableRow>
-                    ) : rows.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6}>{t('No data')}</TableCell>
-                      </TableRow>
-                    ) : (
-                      rows.map((row) => (
-                        <TableRow
-                          key={row.id}
-                          className='cursor-pointer'
-                          onClick={() => setSelectedId(row.id)}
-                        >
-                          <TableCell>{row.period}</TableCell>
-                          <TableCell>{row.scope}</TableCell>
-                          <TableCell>
-                            {row.scope === 'customer'
-                              ? row.customer_name
-                              : row.scope === 'reseller'
-                                ? row.reseller_name
-                                : t('All')}
-                          </TableCell>
-                          <TableCell>{usd(row.charge_usd)}</TableCell>
-                          <TableCell>{usd(row.cost_usd)}</TableCell>
-                          <TableCell>{usd(row.profit_usd)}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              <div className='rounded-lg border p-4'>
-                {!selectedId ? (
-                  <p className='text-muted-foreground text-sm'>
-                    {t('Select an invoice to view details')}
-                  </p>
-                ) : detail.isLoading ? (
-                  <p>{t('Loading...')}</p>
-                ) : detail.data ? (
-                  <div className='space-y-3'>
-                    <div className='flex items-center justify-between'>
-                      <h3 className='font-medium'>
-                        {detail.data.invoice.period} /{' '}
-                        {detail.data.invoice.scope}
-                      </h3>
-                      <a
-                        className='text-primary text-sm underline'
-                        href={adminInvoiceCsvUrl(detail.data.invoice.id)}
-                        onClick={(e) => {
-                          e.preventDefault()
-                          const inv = detail.data?.invoice
-                          if (!inv) return
-                          downloadInvoiceCsv(
-                            adminInvoiceCsvUrl(inv.id),
-                            invoiceCsvFilename(inv.id, inv.period)
-                          ).catch(() => toast.error(t('Download failed')))
-                        }}
-                      >
-                        {t('Download CSV')}
-                      </a>
-                    </div>
-                    <p className='text-sm'>
-                      {t('Charge')}: {usd(detail.data.invoice.charge_usd)} (
-                      {formatQuota(detail.data.invoice.charge_quota)}) ·{' '}
-                      {t('Cost')}: {usd(detail.data.invoice.cost_usd)} ·{' '}
-                      {t('Profit')}: {usd(detail.data.invoice.profit_usd)} ·{' '}
-                      {t('Requests')}: {detail.data.invoice.requests}
-                    </p>
-                    <Table>
-                      <TableHeader>
+                    </TableHeader>
+                    <TableBody>
+                      {isLoading ? (
                         <TableRow>
-                          <TableHead>{t('Model')}</TableHead>
-                          <TableHead>{t('Requests')}</TableHead>
-                          <TableHead>{t('Charge')}</TableHead>
-                          <TableHead>{t('Cost')}</TableHead>
-                          <TableHead>{t('Profit')}</TableHead>
+                          <TableCell colSpan={6}>{t('Loading...')}</TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {(detail.data.line_items ?? []).map((it) => (
-                          <TableRow key={it.model}>
-                            <TableCell>{it.model}</TableCell>
-                            <TableCell>{it.requests}</TableCell>
-                            <TableCell>{usd(it.charge_usd)}</TableCell>
-                            <TableCell>{usd(it.cost_usd)}</TableCell>
-                            <TableCell>{usd(it.profit_usd)}</TableCell>
+                      ) : rows.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6}>
+                            {t('No invoices for this month')}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        rows.map((row) => (
+                          <TableRow
+                            key={row.id}
+                            className='cursor-pointer'
+                            onClick={() => setSelectedId(row.id)}
+                          >
+                            <TableCell>{row.period}</TableCell>
+                            <TableCell>{scopeLabel(row.scope, t)}</TableCell>
+                            <TableCell>
+                              {row.scope === 'customer'
+                                ? row.customer_name
+                                : row.scope === 'reseller'
+                                  ? row.reseller_name
+                                  : t('All')}
+                            </TableCell>
+                            <TableCell>{usd(row.charge_usd)}</TableCell>
+                            <TableCell>{usd(row.cost_usd)}</TableCell>
+                            <TableCell>{usd(row.profit_usd)}</TableCell>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <p>{t('No data')}</p>
-                )}
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className='rounded-lg border p-4'>
+                  {!selectedId ? (
+                    <p className='text-muted-foreground text-sm'>
+                      {t('Select an invoice to view details')}
+                    </p>
+                  ) : detail.isLoading ? (
+                    <p>{t('Loading...')}</p>
+                  ) : detail.data ? (
+                    <div className='space-y-3'>
+                      <div className='flex items-center justify-between'>
+                        <h3 className='font-medium'>
+                          {detail.data.invoice.period} /{' '}
+                          {scopeLabel(detail.data.invoice.scope, t)}
+                        </h3>
+                        <a
+                          className='text-primary text-sm underline'
+                          href={adminInvoiceCsvUrl(detail.data.invoice.id)}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            const inv = detail.data?.invoice
+                            if (!inv) return
+                            downloadInvoiceCsv(
+                              adminInvoiceCsvUrl(inv.id),
+                              invoiceCsvFilename(inv.id, inv.period)
+                            ).catch(() => toast.error(t('Download failed')))
+                          }}
+                        >
+                          {t('Download CSV')}
+                        </a>
+                      </div>
+                      <p className='text-sm'>
+                        {t('Charge')}: {usd(detail.data.invoice.charge_usd)} (
+                        {formatQuota(detail.data.invoice.charge_quota)}) ·{' '}
+                        {t('Cost')}: {usd(detail.data.invoice.cost_usd)} ·{' '}
+                        {t('Profit')}: {usd(detail.data.invoice.profit_usd)} ·{' '}
+                        {t('Requests')}: {detail.data.invoice.requests}
+                      </p>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>{t('Model')}</TableHead>
+                            <TableHead>{t('Requests')}</TableHead>
+                            <TableHead>{t('Charge')}</TableHead>
+                            <TableHead>{t('Cost')}</TableHead>
+                            <TableHead>{t('Profit')}</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {(detail.data.line_items ?? []).map((it) => (
+                            <TableRow key={it.model}>
+                              <TableCell>{it.model}</TableCell>
+                              <TableCell>{it.requests}</TableCell>
+                              <TableCell>{usd(it.charge_usd)}</TableCell>
+                              <TableCell>{usd(it.cost_usd)}</TableCell>
+                              <TableCell>{usd(it.profit_usd)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p>{t('No data')}</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </TabsContent>
 
           <TabsContent value='ledger' className='mt-4 space-y-3'>
-            {!/^\d{4}-\d{2}$/.test(ledgerPeriod) ? (
+            {!periodValid ? (
               <p className='text-muted-foreground text-sm'>
                 {t('Enter a period as YYYY-MM to load the balance ledger')}
               </p>

@@ -7376,6 +7376,13 @@
     "Customer credit": "Customer credit",
     "Customer debit": "Customer debit",
     "All kinds": "All kinds",
-    "Enter a period as YYYY-MM to load the balance ledger": "Enter a period as YYYY-MM to load the balance ledger"
+    "Enter a period as YYYY-MM to load the balance ledger": "Enter a period as YYYY-MM to load the balance ledger",
+    "Export": "Export",
+    "YYYY-MM": "YYYY-MM",
+    "Generate period": "Generate period",
+    "Enter a period as YYYY-MM": "Enter a period as YYYY-MM",
+    "Enter a period as YYYY-MM to load invoices": "Enter a period as YYYY-MM to load invoices",
+    "No invoices for this month": "No invoices for this month",
+    "No invoices to export": "No invoices to export"
   }
 }

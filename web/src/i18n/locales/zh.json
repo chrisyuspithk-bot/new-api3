@@ -7376,6 +7376,13 @@
     "Customer credit": "客户充值",
     "Customer debit": "客户扣款",
     "All kinds": "全部类型",
-    "Enter a period as YYYY-MM to load the balance ledger": "请输入 YYYY-MM 格式的账期以加载余额流水"
+    "Enter a period as YYYY-MM to load the balance ledger": "请输入 YYYY-MM 格式的账期以加载余额流水",
+    "Export": "导出",
+    "YYYY-MM": "YYYY-MM",
+    "Generate period": "生成账期",
+    "Enter a period as YYYY-MM": "请输入 YYYY-MM 格式的账期",
+    "Enter a period as YYYY-MM to load invoices": "请输入 YYYY-MM 格式的账期以加载发票",
+    "No invoices for this month": "本月暂无发票",
+    "No invoices to export": "没有可导出的发票"
   }
 }
