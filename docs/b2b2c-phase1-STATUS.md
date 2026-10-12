@@ -27,7 +27,7 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 - `go test ./model ./service ./middleware ./controller ./relay/helper ./relay ./router -count=1` → all ok.
 - New `service/reseller_billing_test.go`: dual-leg reserve/settle/refund, reseller-insufficient (nothing charged), customer-insufficient releases reseller leg, disabled reseller 403, group outside whitelist, markup precedence + cost multiplier, ceil rounding.
 - SQLite fresh DB: started the server twice on the same DB — no errors; all new tables/indexes/columns present.
-- **NOT run**: MySQL / PostgreSQL / ClickHouse verification and upgrade-from-release test (required by AGENTS.md before claiming DB compatibility).
+- **MySQL(MariaDB) / PostgreSQL**: verified 2026-10-12 (fresh + upgrade-from-int32) — see DB verification section. **ClickHouse**: still not run.
 
 ## Phase 1b (leftovers pass, 2026-10-12)
 
@@ -90,19 +90,98 @@ Design followed: /workspace/new-api-b2b2c-phase1-datamodel.md
 | Customer | `/profile`, `/dashboard/overview`, `/wallet` | Reseller name/contact + top-up restrictions |
 
 ### DB verification (this environment)
-- **Docker / podman / nerdctl**: not installed; no docker.sock → cannot spin MySQL/Postgres/ClickHouse containers.
-- **Host mysqld / postgres / clickhouse binaries**: not present; apt install requires root (unavailable).
-- **SQLite**: already verified in Phase 1 (fresh DB + restart; AutoMigrate adds all B2B2C tables/columns). Reconfirmed by package tests using SQLite.
-- **ClickHouse**: blocked (no server / no Docker).
-- **MySQL / PostgreSQL upgrade-from-release**: still required by AGENTS.md before claiming cross-DB compatibility — **blocked here**.
+- See **DB verification (2026-10-12)** section below (MariaDB + PostgreSQL PASS; ClickHouse blocked).
+- **SQLite**: already verified in Phase 1 (fresh DB + restart).
 
 ### Tests (Phase 1c)
 - `go build ./...` OK; `go vet` controller/model/service/middleware/router OK.
 - `go test ./model ./service ./middleware ./controller ./relay/helper ./relay ./router -count=1` → all ok.
 - Frontend: `pnpm install` + `pnpm run build` OK (routeTree regenerates reseller routes).
 
+## DB verification (2026-10-12 18:45 HKT)
+
+Environment: Debian 13 (trixie) box; installed via apt (no Docker):
+- **MariaDB** `11.8.6-MariaDB-0+deb13u1` (MySQL-compatible; `mysql-server` package unavailable on Trixie — used `mariadb-server`)
+- **PostgreSQL** `17.11 (Debian 17.11-0+deb13u1)`
+- Harness: `cmd/verify-b2b2c-schema` calls `model.InitDB` + `model.InitLogDB` (full AutoMigrate path) twice for idempotency, then asserts tables/columns/types.
+
+### Fresh migrate — MariaDB **PASS** (2/2 passes)
+DSN: `newapi:***@tcp(127.0.0.1:3306)/newapi?parseTime=true&charset=utf8mb4`
+
+| Check | Result |
+|---|---|
+| `users.reseller_id` | PASS — `bigint(20) NOT NULL DEFAULT 0`, indexes `idx_users_reseller_id`, `idx_users_reseller_status(reseller_id,status)` |
+| `users.markup` | PASS — `decimal(18,6) NULL` |
+| `users.quota` / `used_quota` | PASS — `bigint(20) DEFAULT 0` |
+| tables `reseller_profiles`, `reseller_groups`, `reseller_model_prices`, `reseller_model_markups`, `customer_model_markups`, `reseller_ledger` | PASS |
+| `logs.reseller_id`, `logs.reseller_cost_quota` | PASS — `bigint(20) DEFAULT 0`; index `idx_logs_reseller_created(reseller_id,created_at)` |
+| `redemptions.reseller_id` | PASS — `bigint(20) NOT NULL DEFAULT 0`, index |
+| `midjourneys.reseller_id`, `reseller_cost_quota` | PASS — `bigint(20) DEFAULT 0` |
+| Idempotent second startup | PASS |
+
+### Fresh migrate — PostgreSQL **PASS** (2/2 passes)
+DSN: `postgres://newapi:***@127.0.0.1:5432/newapi?sslmode=disable`
+
+| Check | Result |
+|---|---|
+| `users.reseller_id` | PASS — `bigint NOT NULL DEFAULT 0`, indexes `idx_users_reseller_id`, `idx_users_reseller_status` |
+| `users.markup` | PASS — `numeric` / `numeric(18,6)` NULL |
+| `users.quota` / `used_quota` | PASS — `bigint` (`int8`) DEFAULT 0 |
+| six reseller tables | PASS (unique indexes `uniq_reseller_group`, `uniq_rmp`, `uniq_rmm`, `uniq_cmm`) |
+| `logs.reseller_id`, `logs.reseller_cost_quota` | PASS — `bigint` DEFAULT 0; `idx_logs_reseller_created` |
+| `redemptions.reseller_id` | PASS |
+| `midjourneys.reseller_id`, `reseller_cost_quota` | PASS |
+| Idempotent second startup | PASS |
+
+### Upgrade-from-int32 (representative pre-B2B2C schema) — MariaDB & PG
+Minimal legacy tables with `INT`/`INTEGER` `users.quota`/`used_quota` and **no** B2B2C columns; one row preserved (`quota=100`, `used_quota=10`).
+
+1. **Without** `SKIP_64BIT_QUOTA_SCHEMA_CHECK`: **FAIL as designed** — `ensureUserQuotaColumns` rejects before migrate:
+   - MySQL: `users.quota uses int; 32-bit is not supported`
+   - PG: `users.quota uses int4; 32-bit is not supported`
+2. **With** `SKIP_64BIT_QUOTA_SCHEMA_CHECK=true`: **PASS** on both — `migrateUserQuotaColumnsToBigint` widens columns, AutoMigrate adds B2B2C columns/tables; row data preserved (`reseller_id=0`, `markup=NULL`).
+
+**Exact SQL issued by `migrateUserQuotaColumnsToBigint`** (when column is not already bigint):
+```sql
+-- MySQL / MariaDB
+ALTER TABLE users MODIFY COLUMN quota bigint DEFAULT 0;
+ALTER TABLE users MODIFY COLUMN used_quota bigint DEFAULT 0;
+
+-- PostgreSQL
+ALTER TABLE users ALTER COLUMN quota TYPE bigint;
+ALTER TABLE users ALTER COLUMN used_quota TYPE bigint;
+```
+All other B2B2C columns/tables come from GORM `AutoMigrate` (no hand-written DDL beyond the bigint widen + ClickHouse `ADD COLUMN IF NOT EXISTS` below).
+
+### ClickHouse — **NOT RUN / blocked**
+No `clickhouse-server` package or Docker on this box (apt only offers unrelated plugins). Code path present in `migrateClickHouseLogDB`:
+```sql
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS reseller_id Int32 DEFAULT 0;
+ALTER TABLE logs ADD COLUMN IF NOT EXISTS reseller_cost_quota Int64 DEFAULT 0;
+```
+Cannot claim ClickHouse compatibility until a real ClickHouse instance is exercised.
+
+### How to re-run
+```bash
+# MariaDB/MySQL
+SQL_DSN='user:pass@tcp(127.0.0.1:3306)/dbname?parseTime=true&charset=utf8mb4' \
+  go run ./cmd/verify-b2b2c-schema/
+
+# PostgreSQL
+SQL_DSN='postgres://user:pass@127.0.0.1:5432/dbname?sslmode=disable' \
+  go run ./cmd/verify-b2b2c-schema/
+
+# Legacy int32 wallet upgrade
+SKIP_64BIT_QUOTA_SCHEMA_CHECK=true SQL_DSN='...' go run ./cmd/verify-b2b2c-schema/
+```
+
+### Errors observed
+- Fresh MySQL/PG: none.
+- Upgrade without skip flag: expected `ensureUserQuotaColumns` rejection (operators must set `SKIP_64BIT_QUOTA_SCHEMA_CHECK=true` once to allow the bigint widen, or pre-ALTER manually).
+- ClickHouse: not attempted (no server).
+
 ## Still open / blocked
-- MySQL / PostgreSQL / ClickHouse migration verification and upgrade-from-release test (no DB servers / Docker here) — required by AGENTS.md before claiming DB compatibility. New in 1b: `midjourneys.reseller_id/reseller_cost_quota`, `FOR UPDATE` on `reseller_profiles`.
+- **ClickHouse** migration verification still blocked (no server/Docker here). MySQL(MariaDB)/PostgreSQL fresh + upgrade-from-int32 verified 2026-10-12 — see DB verification section.
 - Design-exact pricing order (`charge = ceil(cost × markup)`) — deliberately not done; bounded error documented above.
 - completion_ratio override for tiered-expr models; pre-WSS chunk estimate uses base completion ratio.
 - Multi-node cache is TTL-based (≤10s); no Redis pub/sub.
