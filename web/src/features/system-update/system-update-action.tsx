@@ -55,7 +55,19 @@ function AdminSystemUpdateAction(props: SystemUpdateActionProps) {
   const [open, setOpen] = useState(false)
   const compact = props.compact ?? true
   const versionPresentation = props.presentation === 'version'
-  const version = update.currentVersion?.trim() || t('Unknown version')
+  const knownVersion = update.currentVersion?.trim() || ''
+  // Front-page / header version chip: hide entirely when version is unknown
+  // and there is nothing useful to announce (no update / no check error).
+  if (
+    versionPresentation &&
+    !knownVersion &&
+    !update.shouldNotify &&
+    !update.snapshot?.error &&
+    !update.checking
+  ) {
+    return null
+  }
+  const version = knownVersion || t('Unknown version')
   const label = update.shouldNotify
     ? t('Update available')
     : t('Check for updates')
