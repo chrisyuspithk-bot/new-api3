@@ -230,6 +230,30 @@ Chris product decision: hard-disable / default-off public registration and OAuth
 ### Note for existing deploys
 If `options` already has `RegisterEnabled=true` / `PasswordRegisterEnabled=true`, those rows win over code defaults until an admin turns them off.
 
+
+## Monthly invoices (2026-10-12 ~20:23 HKT)
+
+### Done
+1. **Schema** — `invoices` table (AutoMigrate): unique `(period, scope, reseller_id, customer_id)`; stores requests, charge/cost/profit quota + USD (`quota / QuotaPerUnit`), line items JSON by model, generated_at/by.
+2. **Generate** — `POST /api/admin/invoices/generate {period:"YYYY-MM"}` aggregates consume+refund logs for the Asia/Hong_Kong calendar month into:
+   - one **customer** invoice per active customer with usage
+   - one **reseller** invoice per reseller (sum of customers)
+   - one **admin_rollup** for all resellers/customers
+   Upsert on re-generate.
+3. **APIs**
+   - Admin: `GET /api/admin/invoices`, `GET /api/admin/invoices/:id` (`?format=csv`), `POST /api/admin/invoices/generate`
+   - Reseller: `GET /api/reseller/invoices`, `GET /api/reseller/invoices/:id` (own + customers only; admin_rollup hidden)
+   - Customer: `GET /api/user/invoices`, `GET /api/user/invoices/:id` (own customer scope only)
+4. **UI** — Admin `/invoices`; Reseller `/reseller/invoices`; Customer wallet `InvoiceHistoryCard` (reseller customers).
+5. **Tests** — `model/invoice_test.go` (period parse HKT, aggregate+refund net, upsert, reseller restrict). `go test ./model ./middleware ./controller ./router` OK.
+
+### UI routes
+| Audience | Path | Purpose |
+|---|---|---|
+| Admin | `/invoices` | List/generate/detail + CSV |
+| Reseller | `/reseller/invoices` | Own + customer invoices + CSV |
+| Customer | `/wallet` | Invoice history card |
+
 ## Still open / blocked
 - MySQL(MariaDB)/PostgreSQL/ClickHouse schema migrate verified 2026-10-12 — see DB verification section. No remaining DB-dialect blockers for Phase 1 schema.
 - Design-exact pricing order (`charge = ceil(cost × markup)`) — deliberately not done; bounded error documented above.

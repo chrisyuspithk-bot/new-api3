@@ -60,6 +60,9 @@ func TestMain(m *testing.M) {
 		&SystemTask{},
 		&SystemTaskLock{},
 		&UserAccessToken{},
+		&Invoice{},
+		&ResellerProfile{},
+		&ResellerLedger{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())
 	}

@@ -562,6 +562,7 @@ func calculateUserPermissions(userRole int) map[string]any {
 				"redemptions": true,
 				"logs":        true,
 				"reports":     true,
+				"invoices":    true,
 			},
 		}
 	} else {
@@ -614,6 +615,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"redemption": true,
 			"user":       true,
 			"reseller":   true,
+			"invoices":   true,
 			"setting":    false, // 管理员不能访问系统设置
 		}
 	} else if userRole == common.RoleRootUser {
@@ -625,6 +627,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"redemption": true,
 			"user":       true,
 			"reseller":   true,
+			"invoices":   true,
 			"setting":    true,
 		}
 	} else if userRole == common.RoleResellerUser {
@@ -636,6 +639,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 			"redemptions": true,
 			"logs":        true,
 			"reports":     true,
+			"invoices":    true,
 		}
 	}
 	// 普通用户不包含admin区域

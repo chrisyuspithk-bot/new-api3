@@ -121,6 +121,8 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/aff", controller.GetAffCode)
 				selfRoute.GET("/topup/info", controller.GetTopUpInfo)
 				selfRoute.GET("/topup/self", controller.GetUserTopUps)
+				selfRoute.GET("/invoices", controller.CustomerListInvoices)
+				selfRoute.GET("/invoices/:id", controller.CustomerGetInvoice)
 				selfRoute.POST("/topup", middleware.CriticalRateLimit(), controller.TopUp)
 				selfRoute.POST("/pay", middleware.CriticalRateLimit(), controller.RequestEpay)
 				selfRoute.POST("/amount", controller.RequestAmount)
@@ -194,6 +196,9 @@ func SetApiRouter(router *gin.Engine) {
 			resellerAdminRoute.GET("/resellers/:id/ledger", controller.AdminGetResellerLedger)
 			resellerAdminRoute.GET("/reports/gross_profit", controller.AdminGrossProfitReport)
 			resellerAdminRoute.GET("/reports/reseller_reconcile", controller.AdminReconcileResellers)
+			resellerAdminRoute.GET("/invoices", controller.AdminListInvoices)
+			resellerAdminRoute.GET("/invoices/:id", controller.AdminGetInvoice)
+			resellerAdminRoute.POST("/invoices/generate", controller.AdminGenerateInvoices)
 		}
 
 		// B2B2C reseller APIs; every handler scopes queries to reseller_id = me.
@@ -228,6 +233,8 @@ func SetApiRouter(router *gin.Engine) {
 			resellerRoute.DELETE("/redemptions/:id", controller.ResellerDeleteRedemption)
 			resellerRoute.GET("/logs", controller.ResellerGetLogs)
 			resellerRoute.GET("/reports/gross_profit", controller.ResellerGrossProfitReport)
+			resellerRoute.GET("/invoices", controller.ResellerListInvoices)
+			resellerRoute.GET("/invoices/:id", controller.ResellerGetInvoice)
 		}
 
 		subscriptionRoute := apiRouter.Group("/subscription")

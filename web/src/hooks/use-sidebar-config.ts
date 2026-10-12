@@ -64,6 +64,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     redemption: true,
     user: true,
     reseller: true,
+    invoices: true,
     setting: true,
     subscription: true,
   },
@@ -75,6 +76,7 @@ const DEFAULT_SIDEBAR_MODULES: SidebarModulesAdminConfig = {
     redemptions: true,
     logs: true,
     reports: true,
+    invoices: true,
   },
 }
 
@@ -127,6 +129,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/models/deployments': { section: 'admin', module: 'models' },
   '/users': { section: 'admin', module: 'user' },
   '/resellers': { section: 'admin', module: 'reseller' },
+  '/invoices': { section: 'admin', module: 'invoices' },
   '/redemption-codes': { section: 'admin', module: 'redemption' },
   '/reseller': { section: 'reseller', module: 'overview' },
   '/reseller/customers': { section: 'reseller', module: 'customers' },
@@ -134,6 +137,7 @@ const URL_TO_CONFIG_MAP: Record<string, { section: string; module: string }> = {
   '/reseller/redemptions': { section: 'reseller', module: 'redemptions' },
   '/reseller/logs': { section: 'reseller', module: 'logs' },
   '/reseller/reports': { section: 'reseller', module: 'reports' },
+  '/reseller/invoices': { section: 'reseller', module: 'invoices' },
   '/subscriptions': { section: 'admin', module: 'subscription' },
   '/system-settings': { section: 'admin', module: 'setting' },
   '/system-settings/site': { section: 'admin', module: 'setting' },

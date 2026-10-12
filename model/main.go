@@ -385,6 +385,7 @@ func migrateDB() error {
 		&ResellerModelMarkup{},
 		&CustomerModelMarkup{},
 		&ResellerLedger{},
+		&Invoice{},
 	)
 	if err != nil {
 		return err

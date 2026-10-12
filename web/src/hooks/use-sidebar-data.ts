@@ -29,6 +29,7 @@ import {
   MessageSquare,
   PlugZap,
   Radio,
+  Receipt,
   ServerCog,
   Settings,
   ShieldCheck,
@@ -169,6 +170,12 @@ export function useSidebarData(): SidebarData {
             icon: Activity,
             requiredRole: ROLE.RESELLER,
           },
+          {
+            title: t('Invoices'),
+            url: '/reseller/invoices',
+            icon: Receipt,
+            requiredRole: ROLE.RESELLER,
+          },
         ],
       },
       {
@@ -194,6 +201,11 @@ export function useSidebarData(): SidebarData {
             title: t('Resellers'),
             url: '/resellers',
             icon: Store,
+          },
+          {
+            title: t('Invoices'),
+            url: '/invoices',
+            icon: Receipt,
           },
           {
             title: t('Redemption Codes'),

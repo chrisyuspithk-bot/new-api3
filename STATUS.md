@@ -7,3 +7,5 @@ Canonical B2B2C Phase 1 status lives in [`docs/b2b2c-phase1-STATUS.md`](docs/b2b
 **ClickHouse logs migrate (2026-10-12 18:50 HKT): PASS** — `logs.reseller_id` Int32, `logs.reseller_cost_quota` Int64 via `migrateClickHouseLogDB` (fresh + upgrade ADD COLUMN + idempotent).
 
 **Public registration default-off (2026-10-12 ~19:20 HKT): DONE** — `RegisterEnabled`/`PasswordRegisterEnabled` code defaults false; OAuth signup refuses when registration disabled; existing users login/bind OK. See Product change section in the canonical STATUS.
+
+**Monthly invoices (2026-10-12 ~20:23 HKT): DONE** — customer / reseller / admin_rollup from logs; Admin generate+list+CSV; Reseller/Customer list+get; UI `/invoices`, `/reseller/invoices`, wallet history.
