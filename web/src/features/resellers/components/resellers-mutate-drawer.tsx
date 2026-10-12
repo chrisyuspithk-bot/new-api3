@@ -142,8 +142,8 @@ export function ResellersMutateDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className={sideDrawerContentClassName}>
-        <SheetHeader className={sideDrawerHeaderClassName}>
+      <SheetContent className={sideDrawerContentClassName()}>
+        <SheetHeader className={sideDrawerHeaderClassName()}>
           <SheetTitle>
             {isUpdate ? t('Edit Reseller') : t('Add Reseller')}
           </SheetTitle>
@@ -153,7 +153,7 @@ export function ResellersMutateDrawer({
             )}
           </SheetDescription>
         </SheetHeader>
-        <form className={sideDrawerFormClassName} onSubmit={onSubmit}>
+        <form className={sideDrawerFormClassName()} onSubmit={onSubmit}>
           <div className='space-y-4 p-4'>
             {!isUpdate && (
               <>
@@ -255,7 +255,7 @@ export function ResellersMutateDrawer({
               </div>
             )}
           </div>
-          <SheetFooter className={sideDrawerFooterClassName}>
+          <SheetFooter className={sideDrawerFooterClassName()}>
             <Button
               type='button'
               variant='outline'

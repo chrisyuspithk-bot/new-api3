@@ -49,7 +49,7 @@ import { createRedemptions, deleteRedemption, listRedemptions } from '../api'
 export function ResellerRedemptionsPage() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page] = useState(1)
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [usd, setUsd] = useState('1')

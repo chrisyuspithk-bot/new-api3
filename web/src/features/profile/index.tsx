@@ -53,6 +53,10 @@ export function Profile() {
           </CardStaggerItem>
 
           <CardStaggerItem>
+            <ResellerContactCard profile={profile} />
+          </CardStaggerItem>
+
+          <CardStaggerItem>
             <div className='grid gap-4 sm:gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)] xl:items-start'>
               <div className='space-y-4 sm:space-y-6'>
                 <ProfileSettingsCard
@@ -60,7 +64,6 @@ export function Profile() {
                   loading={loading}
                   onProfileUpdate={refreshProfile}
                 />
-                <ResellerContactCard profile={profile} />
                 <LanguagePreferencesCard
                   profile={profile}
                   onProfileUpdate={refreshProfile}
