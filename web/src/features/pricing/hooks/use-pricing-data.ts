@@ -21,17 +21,24 @@ import { useMemo } from 'react'
 
 import { useStatus } from '@/hooks/use-status'
 import { requireServerSuccess } from '@/lib/server-error-message'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { getPricing } from '../api'
 
 export function usePricingData(enabled = true) {
   const { status } = useStatus()
+  // /api/pricing rewrites model_ratio/model_price by the viewer's reseller
+  // costFactor × markup. The response is identity-specific, so the cache key
+  // must change on login/logout; otherwise an anonymous base-price fetch can
+  // stick for staleTime after a customer signs in.
+  const userId = useAuthStore((state) => state.auth.user?.id ?? null)
+  const bootstrapState = useAuthStore((state) => state.auth.bootstrapState)
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['pricing'],
+    queryKey: ['pricing', userId],
     queryFn: async () => requireServerSuccess(await getPricing()),
     staleTime: 5 * 60 * 1000,
-    enabled,
+    enabled: enabled && bootstrapState === 'complete',
   })
 
   // Ensure rates never reach zero to prevent division errors
