@@ -28,6 +28,7 @@ import {
   getDynamicDisplayGroupRatio,
   getDynamicPriceUnitLabelKey,
   getDynamicPricingSummary,
+  isStrippedTieredExprModel,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { isTokenBasedModel } from '../lib/model-helpers'
@@ -168,7 +169,10 @@ export function ModelPriceCell(props: {
       caption += ` · ${t('{{count}} tiers', { count: dynamic.tierCount })}`
     }
   } else {
-    if (isUnconfiguredTaskUsageModel(props.model)) {
+    if (
+      isUnconfiguredTaskUsageModel(props.model) ||
+      isStrippedTieredExprModel(props.model)
+    ) {
       return (
         <span className='text-muted-foreground text-sm'>
           {t('Not configured')}

@@ -34,6 +34,7 @@ import {
   getDynamicDisplayGroupRatio,
   getDynamicPriceUnitLabelKey,
   getDynamicPricingSummary,
+  isStrippedTieredExprModel,
   isUnconfiguredTaskUsageModel,
 } from '../lib/dynamic-price'
 import { parseTags } from '../lib/filters'
@@ -70,6 +71,7 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null
   const initial = props.model.model_name?.charAt(0).toUpperCase() || '?'
   const isUnconfiguredTaskUsage = isUnconfiguredTaskUsageModel(props.model)
+  const isStrippedTiered = isStrippedTieredExprModel(props.model)
   const billingTime = useBillingTime(props.model.billing_expr)
   const currency = useSystemConfigStore((state) => state.config.currency)
   const dynamicPriceOptions = useMemo(
@@ -215,6 +217,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
     priceSummary = (
       <span className='text-muted-foreground col-span-full'>
         {t('Usage-based billing · price not configured')}
+      </span>
+    )
+  } else if (isStrippedTiered) {
+    // Shadow model_ratio×2 is wrong for tiered_expr; refuse the fallback.
+    priceSummary = (
+      <span className='text-muted-foreground col-span-full'>
+        {t('Not configured')}
       </span>
     )
   } else if (isTokenBased) {

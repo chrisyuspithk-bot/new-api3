@@ -150,6 +150,17 @@ export function isDynamicPricingModel(model: PricingModel): boolean {
   return model.billing_mode === 'tiered_expr' && Boolean(model.billing_expr)
 }
 
+/**
+ * Tiered models whose billing_expr was stripped (e.g. older B2B2C pricing
+ * views). Their model_ratio is only a shadow value and must NOT be shown via
+ * formatPrice (model_ratio×2), which produces wildly wrong $/1M figures.
+ */
+export function isStrippedTieredExprModel(model: PricingModel): boolean {
+  if (model.billing_mode !== 'tiered_expr') return false
+  if (isDynamicPricingModel(model)) return false
+  return true
+}
+
 export function hasTaskUsageSchema(model: PricingModel): boolean {
   return Object.keys(model.billing_usage_schema ?? {}).length > 0
 }
