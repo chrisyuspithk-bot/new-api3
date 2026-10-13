@@ -53,6 +53,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import {
   createCustomer,
   creditCustomer,
+  debitCustomer,
   deleteCustomer,
   getResellerSelf,
   listCustomers,
@@ -66,7 +67,10 @@ export function ResellerCustomersPage() {
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const [creditTarget, setCreditTarget] = useState<Customer | null>(null)
+  const [adjustTarget, setAdjustTarget] = useState<{
+    customer: Customer
+    mode: 'credit' | 'debit'
+  } | null>(null)
   const [form, setForm] = useState({
     username: '',
     password: '',
@@ -74,8 +78,8 @@ export function ResellerCustomersPage() {
     group: '',
     markup: '',
   })
-  const [creditUsd, setCreditUsd] = useState('')
-  const [creditRemark, setCreditRemark] = useState('')
+  const [adjustUsd, setAdjustUsd] = useState('')
+  const [adjustRemark, setAdjustRemark] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -102,12 +106,20 @@ export function ResellerCustomersPage() {
     const { config } = getCurrencyDisplay()
     return config.quotaPerUnit > 0 ? config.quotaPerUnit : 500000
   })()
-  const availableCostUsd = availableCostQuota / quotaPerUnit
-  const creditAmountUsd = Number(creditUsd)
-  const creditExceedsBalance =
-    Number.isFinite(creditAmountUsd) &&
-    creditAmountUsd > 0 &&
-    creditAmountUsd > availableCostUsd + 1e-12
+  const isDebit = adjustTarget?.mode === 'debit'
+  // Credit draws on the reseller cost balance; debit claws back from the customer.
+  const adjustLimitQuota = isDebit
+    ? (adjustTarget?.customer.quota ?? 0)
+    : availableCostQuota
+  const adjustLimitUsd = adjustLimitQuota / quotaPerUnit
+  const adjustAmountUsd = Number(adjustUsd)
+  const adjustExceedsBalance =
+    Number.isFinite(adjustAmountUsd) &&
+    adjustAmountUsd > 0 &&
+    adjustAmountUsd > adjustLimitUsd + 1e-12
+  const adjustExceedsMessage = isDebit
+    ? t('Amount exceeds customer balance')
+    : t('Amount exceeds available cost balance')
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['reseller-customers'] })
@@ -139,27 +151,39 @@ export function ResellerCustomersPage() {
     }
   }
 
-  const onCredit = async (e: React.FormEvent) => {
+  const closeAdjust = () => {
+    setAdjustTarget(null)
+    setAdjustUsd('')
+    setAdjustRemark('')
+  }
+
+  const onAdjust = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!creditTarget) return
-    if (creditExceedsBalance) {
-      toast.error(t('Amount exceeds available cost balance'))
+    if (!adjustTarget) return
+    if (adjustExceedsBalance) {
+      toast.error(adjustExceedsMessage)
       return
     }
+    const body = { money_usd: Number(adjustUsd), remark: adjustRemark }
     try {
-      requireServerSuccess(
-        await creditCustomer(creditTarget.id, {
-          money_usd: Number(creditUsd),
-          remark: creditRemark,
-        })
-      )
-      toast.success(t('Customer credited'))
-      setCreditTarget(null)
-      setCreditUsd('')
-      setCreditRemark('')
+      if (isDebit) {
+        requireServerSuccess(
+          await debitCustomer(adjustTarget.customer.id, body)
+        )
+        toast.success(t('Customer debited'))
+      } else {
+        requireServerSuccess(
+          await creditCustomer(adjustTarget.customer.id, body)
+        )
+        toast.success(t('Customer credited'))
+      }
+      closeAdjust()
       refresh()
     } catch (error) {
-      handleServerError(error, t('Failed to credit customer'))
+      handleServerError(
+        error,
+        isDebit ? t('Failed to debit customer') : t('Failed to credit customer')
+      )
     }
   }
 
@@ -259,9 +283,21 @@ export function ResellerCustomersPage() {
                       <Button
                         size='sm'
                         variant='outline'
-                        onClick={() => setCreditTarget(row)}
+                        onClick={() =>
+                          setAdjustTarget({ customer: row, mode: 'credit' })
+                        }
                       >
                         {t('Credit')}
+                      </Button>
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        disabled={row.quota <= 0}
+                        onClick={() =>
+                          setAdjustTarget({ customer: row, mode: 'debit' })
+                        }
+                      >
+                        {t('Debit')}
                       </Button>
                       <Button
                         size='sm'
@@ -371,46 +407,51 @@ export function ResellerCustomersPage() {
       </Dialog>
 
       <Dialog
-        open={creditTarget != null}
-        onOpenChange={(o) => !o && setCreditTarget(null)}
+        open={adjustTarget != null}
+        onOpenChange={(o) => !o && closeAdjust()}
       >
         <DialogContent>
-          <form onSubmit={onCredit}>
+          <form onSubmit={onAdjust}>
             <DialogHeader>
-              <DialogTitle>{t('Credit Customer')}</DialogTitle>
-              <DialogDescription>{creditTarget?.username}</DialogDescription>
+              <DialogTitle>
+                {isDebit ? t('Debit Customer') : t('Credit Customer')}
+              </DialogTitle>
+              <DialogDescription>
+                {adjustTarget?.customer.username}
+              </DialogDescription>
             </DialogHeader>
             <div className='space-y-2 py-4'>
-              <Label htmlFor='reseller-credit-amount'>
+              <Label htmlFor='reseller-adjust-amount'>
                 {t('Amount (USD)')}
               </Label>
               <Input
-                id='reseller-credit-amount'
+                id='reseller-adjust-amount'
                 type='number'
                 step='0.000001'
                 min='0.000001'
-                max={availableCostUsd > 0 ? availableCostUsd : undefined}
-                value={creditUsd}
-                onChange={(e) => setCreditUsd(e.target.value)}
+                max={adjustLimitUsd > 0 ? adjustLimitUsd : undefined}
+                value={adjustUsd}
+                onChange={(e) => setAdjustUsd(e.target.value)}
                 required
               />
               <p className='text-muted-foreground text-xs'>
-                {t('Available cost balance')}: {formatQuota(availableCostQuota)}
+                {isDebit ? t('Customer balance') : t('Available cost balance')}:{' '}
+                {formatQuota(adjustLimitQuota)}
               </p>
-              {creditExceedsBalance ? (
+              {adjustExceedsBalance ? (
                 <p className='text-destructive text-xs'>
-                  {t('Amount exceeds available cost balance')}
+                  {adjustExceedsMessage}
                 </p>
               ) : null}
-              <Label htmlFor='reseller-credit-remark'>{t('Remark')}</Label>
+              <Label htmlFor='reseller-adjust-remark'>{t('Remark')}</Label>
               <Input
-                id='reseller-credit-remark'
-                value={creditRemark}
-                onChange={(e) => setCreditRemark(e.target.value)}
+                id='reseller-adjust-remark'
+                value={adjustRemark}
+                onChange={(e) => setAdjustRemark(e.target.value)}
               />
             </div>
             <DialogFooter>
-              <Button type='submit' disabled={creditExceedsBalance}>
+              <Button type='submit' disabled={adjustExceedsBalance}>
                 {t('Confirm')}
               </Button>
             </DialogFooter>

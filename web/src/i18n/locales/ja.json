@@ -2797,7 +2797,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
     "GitHub ID is empty!": "GitHub ID が空です！",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
@@ -7254,6 +7254,12 @@
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム",
     "Available cost balance": "利用可能なコスト残高",
-    "Amount exceeds available cost balance": "金額が利用可能なコスト残高を超えています"
+    "Amount exceeds available cost balance": "金額が利用可能なコスト残高を超えています",
+    "Debit": "引き落とし",
+    "Debit Customer": "顧客から引き落とし",
+    "Customer debited": "顧客から引き落としました",
+    "Failed to debit customer": "顧客からの引き落としに失敗しました",
+    "Customer balance": "顧客残高",
+    "Amount exceeds customer balance": "金額が顧客残高を超えています"
   }
 }

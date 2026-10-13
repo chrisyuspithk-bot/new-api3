@@ -153,4 +153,80 @@ describe('reseller customers page', () => {
     )
     expect(api.delete).not.toHaveBeenCalled()
   })
+
+  it('debits the named customer through the debit endpoint', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/api/reseller/customers') {
+        return {
+          data: {
+            success: true,
+            data: { items: [{ ...customer, quota: 5000000 }], total: 1 },
+          },
+        }
+      }
+      return {
+        data: { success: true, data: { id: 9, username: 'r', quota: 0 } },
+      }
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Debit' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Debit Customer')).toBeVisible()
+    await user.type(
+      within(dialog).getByRole('spinbutton', { name: 'Amount (USD)' }),
+      '3'
+    )
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Remark' }),
+      'refund'
+    )
+
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/reseller/customers/7/debit', {
+        money_usd: 3,
+        remark: 'refund',
+      })
+    )
+  })
+
+  it('blocks a debit above the customer balance', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/api/reseller/customers') {
+        return {
+          data: {
+            success: true,
+            data: { items: [{ ...customer, quota: 500000 }], total: 1 },
+          },
+        }
+      }
+      return {
+        data: { success: true, data: { id: 9, username: 'r', quota: 0 } },
+      }
+    })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Debit' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(
+      within(dialog).getByRole('spinbutton', { name: 'Amount (USD)' }),
+      '2'
+    )
+
+    expect(
+      within(dialog).getByText('Amount exceeds customer balance')
+    ).toBeVisible()
+    expect(
+      within(dialog).getByRole('button', { name: 'Confirm' })
+    ).toBeDisabled()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
+  it('disables debit for a customer with no balance', async () => {
+    renderPage()
+
+    expect(await screen.findByRole('button', { name: 'Debit' })).toBeDisabled()
+  })
 })

@@ -7371,6 +7371,11 @@
     "All kinds": "All kinds",
     "Enter a period as YYYY-MM to load the balance ledger": "Enter a period as YYYY-MM to load the balance ledger",
     "Export": "Export",
-    "YYYY-MM": "YYYY-MM"
+    "YYYY-MM": "YYYY-MM",
+    "Debit Customer": "Debit Customer",
+    "Customer debited": "Customer debited",
+    "Failed to debit customer": "Failed to debit customer",
+    "Customer balance": "Customer balance",
+    "Amount exceeds customer balance": "Amount exceeds customer balance"
   }
 }
