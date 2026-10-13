@@ -243,9 +243,13 @@ type ledgerListBody struct {
 	Data    struct {
 		Total int `json:"total"`
 		Items []struct {
-			Kind       string `json:"kind"`
-			CustomerId int    `json:"customer_id"`
-			ResellerId int    `json:"reseller_id"`
+			Kind             string `json:"kind"`
+			CustomerId       int    `json:"customer_id"`
+			ResellerId       int    `json:"reseller_id"`
+			OperatorId       int    `json:"operator_id"`
+			OperatorUsername string `json:"operator_username"`
+			RefId            string `json:"ref_id"`
+			Remark           string `json:"remark"`
 		} `json:"items"`
 	} `json:"data"`
 }
@@ -324,6 +328,33 @@ func TestCustomerGetLedgerReturnsOnlyCallerRows(t *testing.T) {
 	require.Len(t, body.Data.Items, 1)
 	assert.Equal(t, customerID, body.Data.Items[0].CustomerId)
 	assert.Equal(t, model.ResellerLedgerCustomerCredit, body.Data.Items[0].Kind)
+}
+
+func TestCustomerGetLedgerHidesOperatorAndRemark(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID := seedResellerCreditFixture(t, 0)
+	from := seedMonthLedger(t, resellerID, customerID)
+	require.NoError(t, model.DB.Create(&model.ResellerLedger{
+		ResellerId: resellerID, CustomerId: customerID, Kind: model.ResellerLedgerCustomerCredit,
+		QuotaDelta: 5, OperatorId: resellerID, RefId: "ref-1", Remark: "internal note", CreatedAt: from + 4,
+	}).Error)
+
+	customerBody := callLedger(t, CustomerGetLedger, customerID, "/api/user/ledger?period=2026-09")
+	require.True(t, customerBody.Success)
+	require.Len(t, customerBody.Data.Items, 2)
+	for _, item := range customerBody.Data.Items {
+		assert.Zero(t, item.OperatorId)
+		assert.Empty(t, item.OperatorUsername)
+		assert.Empty(t, item.RefId)
+		assert.Empty(t, item.Remark)
+	}
+
+	resellerBody := callLedger(t, ResellerGetLedger, resellerID, "/api/reseller/ledger?period=2026-09&kind=customer_credit")
+	require.True(t, resellerBody.Success)
+	require.NotEmpty(t, resellerBody.Data.Items)
+	assert.Equal(t, resellerID, resellerBody.Data.Items[0].OperatorId)
+	assert.NotEmpty(t, resellerBody.Data.Items[0].OperatorUsername)
+	assert.Equal(t, "internal note", resellerBody.Data.Items[0].Remark)
 }
 
 func TestLedgerPeriodRejectsInvalidMonth(t *testing.T) {

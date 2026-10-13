@@ -1126,6 +1126,16 @@ func ledgerPage(c *gin.Context, resellerId, customerId int) {
 		common.ApiError(c, err)
 		return
 	}
+	if customerId > 0 {
+		// Customers see the same fields as CustomerExportLedger: no operator,
+		// ref or reseller-internal remark.
+		for i := range rows {
+			rows[i].OperatorId = 0
+			rows[i].OperatorUsername = ""
+			rows[i].RefId = ""
+			rows[i].Remark = ""
+		}
+	}
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(rows)
 	common.ApiSuccess(c, pageInfo)
