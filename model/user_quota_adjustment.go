@@ -22,7 +22,7 @@ type UserQuotaAdjustment struct {
 	After    int
 }
 
-func AdjustUserQuota(userID, operatorID, operatorRole int, mode string, value int) (*UserQuotaAdjustment, error) {
+func AdjustUserQuota(userID, operatorID, operatorRole int, mode string, value int, remark string) (*UserQuotaAdjustment, error) {
 	if userID <= 0 || (mode != "add" && mode != "subtract" && mode != "override") {
 		return nil, ErrInvalidUserQuotaAdjustment
 	}
@@ -68,7 +68,7 @@ func AdjustUserQuota(userID, operatorID, operatorRole int, mode string, value in
 			}
 			// B2B2C wallets must be traceable in reseller_ledger. A forced
 			// admin change to a customer does not move the reseller's wallet.
-			entry := ResellerLedger{CustomerId: user.Id, QuotaDelta: int64(after) - int64(user.Quota), OperatorId: operatorID, CreatedAt: common.GetTimestamp()}
+			entry := ResellerLedger{CustomerId: user.Id, QuotaDelta: int64(after) - int64(user.Quota), OperatorId: operatorID, Remark: remark, CreatedAt: common.GetTimestamp()}
 			switch {
 			case user.Role == common.RoleResellerUser:
 				entry.ResellerId, entry.CustomerId = user.Id, 0

@@ -44,6 +44,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
   const { t } = useTranslation()
   const [mode, setMode] = useState<QuotaAdjustMode>('add')
   const [amount, setAmount] = useState('')
+  const [remark, setRemark] = useState('')
   const [loading, setLoading] = useState(false)
 
   const { meta: currencyMeta } = getCurrencyDisplay()
@@ -83,10 +84,12 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
         action: 'add_quota',
         mode,
         value: mode === 'override' ? value : Math.abs(value),
+        remark,
       })
       if (result.success) {
         toast.success(t('Quota adjusted successfully'))
         setAmount('')
+        setRemark('')
         setMode('add')
         props.onOpenChange(false)
         props.onSuccess()
@@ -102,6 +105,7 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
 
   const handleCancel = () => {
     setAmount('')
+    setRemark('')
     setMode('add')
     props.onOpenChange(false)
   }
@@ -172,6 +176,14 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleConfirm()
             }}
+          />
+        </div>
+
+        <div className='space-y-2'>
+          <Label>{t('Remark')}</Label>
+          <Input
+            value={remark}
+            onChange={(e) => setRemark(e.target.value)}
           />
         </div>
       </div>

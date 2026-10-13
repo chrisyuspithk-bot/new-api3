@@ -1134,6 +1134,7 @@ type ManageRequest struct {
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
+	Remark string `json:"remark"`
 }
 
 // ManageUser Only admin user can do this
