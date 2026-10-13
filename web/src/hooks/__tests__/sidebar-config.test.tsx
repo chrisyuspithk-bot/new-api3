@@ -49,7 +49,8 @@ function sidebarFor(
   admin?: object,
   user?: object,
   canConfigure = true,
-  role = 1
+  role = 1,
+  reseller?: { role?: string; reseller_id?: number }
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -63,6 +64,7 @@ function sidebarFor(
     role,
     permissions: { sidebar_settings: canConfigure },
     sidebar_modules: user ? JSON.stringify(user) : '',
+    ...(reseller ? { reseller, reseller_id: reseller.reseller_id ?? 9 } : {}),
   })
   function Wrapper(props: { children: ReactNode }) {
     return (
@@ -88,7 +90,7 @@ describe('security sidebar visibility', () => {
       result.current
         .find((group) => group.id === 'personal')
         ?.items.map((item) => item.title)
-    ).toEqual(['Wallet', 'Invoices', 'Profile', 'Security & Access'])
+    ).toEqual(['Wallet', 'Profile', 'Security & Access'])
     expect(
       result.current
         .flatMap((group) => group.items)
@@ -106,6 +108,25 @@ describe('security sidebar visibility', () => {
           .some((item) => 'url' in item && item.url === '/my-invoices')
       ).toBe(false)
     }
+  })
+
+  it('shows customer invoices only for reseller customers', () => {
+    const plain = sidebarFor()
+    expect(
+      plain.result.current
+        .flatMap((group) => group.items)
+        .some((item) => 'url' in item && item.url === '/my-invoices')
+    ).toBe(false)
+    cleanup()
+    const customer = sidebarFor(undefined, undefined, true, 1, {
+      role: 'customer',
+      reseller_id: 9,
+    })
+    expect(
+      customer.result.current
+        .flatMap((group) => group.items)
+        .some((item) => 'url' in item && item.url === '/my-invoices')
+    ).toBe(true)
   })
   it.each([
     [{ personal: { enabled: true, security: false } }, undefined],

@@ -49,6 +49,7 @@ export function CustomerInvoicesPage() {
       loadRows={loadCustomerLedger}
       kinds={CUSTOMER_LEDGER_KINDS}
       showReseller
+      showInternal={false}
     />
   )
 }

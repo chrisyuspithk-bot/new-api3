@@ -25,7 +25,11 @@ import { useAuthStore } from '@/stores/auth-store'
 export const Route = createFileRoute('/_authenticated/my-invoices/')({
   beforeLoad: () => {
     const { auth } = useAuthStore.getState()
-    if (!auth.user || auth.user.role !== ROLE.USER) {
+    if (
+      !auth.user ||
+      auth.user.role !== ROLE.USER ||
+      auth.user.reseller?.role !== 'customer'
+    ) {
       throw redirect({ to: '/403' })
     }
   },

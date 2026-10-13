@@ -31,12 +31,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 
 import type { LedgerPage, LedgerQuery, ResellerLedgerKind } from '../types'
 
 const LEDGER_PAGE_SIZE = 20
-const PERIOD_RE = /^\d{4}-\d{2}$/
+const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 
 type BalanceLedgerPageProps = {
   queryKey: string
@@ -44,6 +45,8 @@ type BalanceLedgerPageProps = {
   kinds: readonly ResellerLedgerKind[]
   showReseller?: boolean
   showCustomer?: boolean
+  /** When false, hide Operator/Remark (customer-facing). Default true. */
+  showInternal?: boolean
 }
 
 function usd(n: number) {
@@ -51,9 +54,12 @@ function usd(n: number) {
 }
 
 function currentMonthPeriod(): string {
-  // Box / user zone is Asia/Hong_Kong; local calendar month is correct.
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  // Server periods use Asia/Hong_Kong; default the picker the same way.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Hong_Kong',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date())
 }
 
 function ledgerKindLabel(kind: string, t: (key: string) => string): string {
@@ -72,14 +78,20 @@ function ledgerKindLabel(kind: string, t: (key: string) => string): string {
 }
 
 export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [period, setPeriod] = useState(currentMonthPeriod)
   const [kind, setKind] = useState('')
   const [ledgerPage, setLedgerPage] = useState(1)
   const periodValid = PERIOD_RE.test(period)
   const showReseller = props.showReseller === true
   const showCustomer = props.showCustomer === true
-  const columnCount = 6 + (showReseller ? 1 : 0) + (showCustomer ? 1 : 0)
+  const showInternal = props.showInternal !== false
+  const columnCount =
+    4 +
+    (showReseller ? 1 : 0) +
+    (showCustomer ? 1 : 0) +
+    (showInternal ? 2 : 0)
+  const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   const ledger = useQuery({
     queryKey: [props.queryKey, period, kind, ledgerPage],
@@ -104,6 +116,12 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
         <TableCell colSpan={columnCount}>{t('Loading...')}</TableCell>
       </TableRow>
     )
+  } else if (ledger.isError) {
+    tableBody = (
+      <TableRow>
+        <TableCell colSpan={columnCount}>{t('Failed to load')}</TableCell>
+      </TableRow>
+    )
   } else if (rows.length === 0) {
     tableBody = (
       <TableRow>
@@ -115,7 +133,7 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
       <TableRow key={row.id}>
         <TableCell>
           {row.created_at
-            ? new Date(row.created_at * 1000).toLocaleString()
+            ? new Date(row.created_at * 1000).toLocaleString(intlLocale)
             : '—'}
         </TableCell>
         {showReseller ? (
@@ -135,12 +153,16 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
               : '—'}
           </TableCell>
         ) : null}
-        <TableCell>
-          {row.operator_id
-            ? row.operator_username || `#${row.operator_id}`
-            : '—'}
-        </TableCell>
-        <TableCell>{row.remark || '—'}</TableCell>
+        {showInternal ? (
+          <>
+            <TableCell>
+              {row.operator_id
+                ? row.operator_username || `#${row.operator_id}`
+                : '—'}
+            </TableCell>
+            <TableCell>{row.remark || '—'}</TableCell>
+          </>
+        ) : null}
       </TableRow>
     ))
   }
@@ -175,7 +197,12 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
             </option>
           ))}
         </select>
-        <Button size='sm' variant='outline' onClick={() => ledger.refetch()}>
+        <Button
+          size='sm'
+          variant='outline'
+          disabled={!periodValid}
+          onClick={() => ledger.refetch()}
+        >
           {t('Refresh')}
         </Button>
       </SectionPageLayout.Actions>
@@ -200,8 +227,12 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
                     {showCustomer ? (
                       <TableHead>{t('Customer')}</TableHead>
                     ) : null}
-                    <TableHead>{t('Operator')}</TableHead>
-                    <TableHead>{t('Remark')}</TableHead>
+                    {showInternal ? (
+                      <>
+                        <TableHead>{t('Operator')}</TableHead>
+                        <TableHead>{t('Remark')}</TableHead>
+                      </>
+                    ) : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>{tableBody}</TableBody>

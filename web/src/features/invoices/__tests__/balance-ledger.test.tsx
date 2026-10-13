@@ -207,6 +207,12 @@ describe('role ledger pages', () => {
       screen.queryByRole('columnheader', { name: 'Customer' })
     ).not.toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Reseller' })).toBeVisible()
+    expect(
+      screen.queryByRole('columnheader', { name: 'Operator' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('columnheader', { name: 'Remark' })
+    ).not.toBeInTheDocument()
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
         '/api/user/ledger',

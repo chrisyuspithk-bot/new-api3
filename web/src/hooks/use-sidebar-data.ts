@@ -54,6 +54,8 @@ import { useAuthStore } from '@/stores/auth-store'
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
   const role = useAuthStore((s) => s.auth.user?.role)
+  const isResellerCustomer =
+    useAuthStore((s) => s.auth.user?.reseller?.role) === 'customer'
 
   return {
     navGroups: [
@@ -120,7 +122,7 @@ export function useSidebarData(): SidebarData {
             url: '/wallet',
             icon: Wallet,
           },
-          ...(role === ROLE.USER
+          ...(role === ROLE.USER && isResellerCustomer
             ? [
                 {
                   title: t('Invoices'),

@@ -1080,7 +1080,18 @@ func ResellerGetLedger(c *gin.Context) {
 
 func CustomerGetLedger(c *gin.Context) {
 	// Session user only. Query reseller_id / customer_id are ignored.
-	ledgerPage(c, 0, c.GetInt("id"))
+	// Plain (non-B2B2C) users have no ledger; require reseller_id > 0.
+	userId := c.GetInt("id")
+	user, err := model.GetUserCache(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user.ResellerId <= 0 {
+		common.ApiErrorMsg(c, "forbidden")
+		return
+	}
+	ledgerPage(c, 0, userId)
 }
 
 // ledgerPage lists balance-ledger rows for one role scope.
