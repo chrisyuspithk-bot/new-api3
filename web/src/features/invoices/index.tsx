@@ -47,6 +47,7 @@ export function AdminInvoicesPage() {
     <BalanceLedgerPage
       queryKey='admin-reseller-ledger-range'
       loadRows={loadAdminLedger}
+      exportUrl='/api/admin/reseller_ledger/export'
       kinds={RESELLER_LEDGER_KINDS}
       showReseller
       showCustomer

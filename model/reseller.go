@@ -709,22 +709,11 @@ func FillLedgerUsernames(rows []ResellerLedger) error {
 
 // ListResellerLedgerRange lists ledger rows in [from, toExclusive).
 // resellerId, customerId, and kindFilter may be 0 / "" to skip that filter.
+// num < 0 returns every matching row (exports).
 func ListResellerLedgerRange(from, toExclusive int64, resellerId int, customerId int, kindFilter string, startIdx, num int) ([]ResellerLedger, int64, error) {
 	var rows []ResellerLedger
 	var total int64
-	query := DB.Model(&ResellerLedger{})
-	if from > 0 {
-		query = query.Where("created_at >= ?", from)
-	}
-	if toExclusive > 0 {
-		query = query.Where("created_at < ?", toExclusive)
-	}
-	if resellerId > 0 {
-		query = query.Where("reseller_id = ?", resellerId)
-	}
-	if customerId > 0 {
-		query = query.Where("customer_id = ?", customerId)
-	}
+	query := resellerLedgerScope(from, toExclusive, resellerId, customerId)
 	if kindFilter != "" {
 		query = query.Where("kind = ?", kindFilter)
 	}
@@ -739,6 +728,45 @@ func ListResellerLedgerRange(from, toExclusive int64, resellerId int, customerId
 		return nil, 0, err
 	}
 	return rows, total, nil
+}
+
+// resellerLedgerScope selects ledger rows in [from, toExclusive) for one role
+// scope. Zero arguments skip that filter.
+func resellerLedgerScope(from, toExclusive int64, resellerId int, customerId int) *gorm.DB {
+	query := DB.Model(&ResellerLedger{})
+	if from > 0 {
+		query = query.Where("created_at >= ?", from)
+	}
+	if toExclusive > 0 {
+		query = query.Where("created_at < ?", toExclusive)
+	}
+	if resellerId > 0 {
+		query = query.Where("reseller_id = ?", resellerId)
+	}
+	if customerId > 0 {
+		query = query.Where("customer_id = ?", customerId)
+	}
+	return query
+}
+
+// LedgerKindTotal sums the ledger rows of one kind.
+type LedgerKindTotal struct {
+	Kind     string  `json:"kind"`
+	Entries  int64   `json:"entries"`
+	Quota    int64   `json:"quota"`
+	MoneyUsd float64 `json:"money_usd"`
+}
+
+// SumResellerLedgerRange totals ledger rows per kind in [from, toExclusive)
+// with the same scope filters as ListResellerLedgerRange (no kind filter).
+func SumResellerLedgerRange(from, toExclusive int64, resellerId int, customerId int) ([]LedgerKindTotal, error) {
+	var totals []LedgerKindTotal
+	err := resellerLedgerScope(from, toExclusive, resellerId, customerId).
+		Select("kind, COUNT(*) AS entries, COALESCE(SUM(quota_delta),0) AS quota, COALESCE(SUM(money_usd),0) AS money_usd").
+		Group("kind").
+		Order("kind").
+		Scan(&totals).Error
+	return totals, err
 }
 
 // GrossProfitRow is one bucket of the gross profit report.

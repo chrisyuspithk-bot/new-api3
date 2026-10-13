@@ -20,7 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AdminInvoicesPage } from '@/features/invoices'
 import { CustomerInvoicesPage } from '@/features/invoices/customer-page'
@@ -34,6 +34,21 @@ function ledgerResponse(
   return { data: { success: true, data: { items, total } } }
 }
 
+function csvResponse() {
+  return { data: new Blob(['# SUMMARY\n'], { type: 'text/csv' }) }
+}
+
+function stubFileSave() {
+  // jsdom has no object URLs; stub the browser boundary only.
+  const urlApi = URL as unknown as Record<string, unknown>
+  urlApi.createObjectURL = vi.fn(() => 'blob:ledger')
+  urlApi.revokeObjectURL = vi.fn()
+  const click = vi
+    .spyOn(HTMLAnchorElement.prototype, 'click')
+    .mockImplementation(() => {})
+  return { click }
+}
+
 function renderPage(ui: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -41,19 +56,52 @@ function renderPage(ui: ReactNode) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
 
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
 describe('admin invoices page', () => {
   beforeEach(() => {
     vi.spyOn(api, 'get').mockResolvedValue(ledgerResponse())
   })
 
-  it('loads the balance ledger for the current month and omits the invoice list and export', async () => {
+  it('exports the selected month and kind as an authenticated CSV download', async () => {
+    const { click } = stubFileSave()
+    const user = userEvent.setup()
+    renderPage(<AdminInvoicesPage />)
+    const month = screen.getByRole('textbox', { name: 'Month' })
+    await user.clear(month)
+    await user.type(month, '2026-08')
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Kind' }),
+      'admin_credit'
+    )
+    vi.mocked(api.get).mockResolvedValueOnce(csvResponse())
+
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+
+    await waitFor(() => expect(click).toHaveBeenCalled())
+    expect(api.get).toHaveBeenCalledWith('/api/admin/reseller_ledger/export', {
+      params: { period: '2026-08', kind: 'admin_credit' },
+      responseType: 'blob',
+    })
+  })
+
+  it('disables export while the month is not a valid YYYY-MM period', async () => {
+    const user = userEvent.setup()
+    renderPage(<AdminInvoicesPage />)
+    const month = screen.getByRole('textbox', { name: 'Month' })
+    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
+    await user.clear(month)
+    await user.type(month, '2026')
+    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
+  })
+
+  it('loads the balance ledger for the current month and omits the invoice list and generate', async () => {
     renderPage(<AdminInvoicesPage />)
     const month = screen.getByRole('textbox', { name: 'Month' })
     expect(screen.getByRole('heading', { name: 'Invoices' })).toBeVisible()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'Export' })
-    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Generate' })
     ).not.toBeInTheDocument()
@@ -193,6 +241,28 @@ describe('role ledger pages', () => {
     expect(params.params).not.toHaveProperty('reseller_id')
     expect(params.params).not.toHaveProperty('customer_id')
   })
+
+  it.each([
+    ['reseller', ResellerInvoicesPage, '/api/reseller/ledger/export'],
+    ['customer', CustomerInvoicesPage, '/api/user/ledger/export'],
+  ])(
+    'exports the %s month through its own scoped endpoint without id params',
+    async (_role, Page, exportUrl) => {
+      const { click } = stubFileSave()
+      const user = userEvent.setup()
+      renderPage(<Page />)
+      const month = screen.getByRole('textbox', { name: 'Month' })
+      vi.mocked(api.get).mockResolvedValue(csvResponse())
+
+      await user.click(screen.getByRole('button', { name: 'Export' }))
+
+      await waitFor(() => expect(click).toHaveBeenCalled())
+      expect(api.get).toHaveBeenCalledWith(exportUrl, {
+        params: { period: (month as HTMLInputElement).value },
+        responseType: 'blob',
+      })
+    }
+  )
 
   it('loads only the signed-in customer ledger and hides other customers', async () => {
     renderPage(<CustomerInvoicesPage />)

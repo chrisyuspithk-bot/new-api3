@@ -66,16 +66,21 @@ var (
 	ErrInvoiceNotFound      = errors.New("invoice not found")
 )
 
+// InvoicePeriodLocation is the time zone that defines invoice and ledger months.
+func InvoicePeriodLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Hong_Kong")
+	if err != nil {
+		return time.FixedZone("HKT", 8*3600)
+	}
+	return loc
+}
+
 // ParseInvoicePeriod validates YYYY-MM and returns [from, toExclusive) unix bounds in Asia/Hong_Kong.
 func ParseInvoicePeriod(period string) (from, toExclusive int64, err error) {
 	if len(period) != 7 || period[4] != '-' {
 		return 0, 0, ErrInvalidInvoicePeriod
 	}
-	loc, locErr := time.LoadLocation("Asia/Hong_Kong")
-	if locErr != nil {
-		loc = time.FixedZone("HKT", 8*3600)
-	}
-	start, err := time.ParseInLocation("2006-01", period, loc)
+	start, err := time.ParseInLocation("2006-01", period, InvoicePeriodLocation())
 	if err != nil {
 		return 0, 0, ErrInvalidInvoicePeriod
 	}
@@ -83,7 +88,8 @@ func ParseInvoicePeriod(period string) (from, toExclusive int64, err error) {
 	return start.Unix(), end.Unix(), nil
 }
 
-func quotaToUsd(quota int64) float64 {
+// QuotaToUsd converts quota to USD at the configured QuotaPerUnit.
+func QuotaToUsd(quota int64) float64 {
 	if common.QuotaPerUnit <= 0 {
 		return 0
 	}
@@ -100,7 +106,9 @@ type invoiceAggRow struct {
 	CostQuota   int64
 }
 
-func scanInvoiceAggs(from, toExclusive int64) ([]invoiceAggRow, error) {
+// scanInvoiceAggs aggregates reseller-customer consume/refund logs in
+// [from, toExclusive). resellerId / customerId narrow the scope when > 0.
+func scanInvoiceAggs(from, toExclusive int64, resellerId, customerId int) ([]invoiceAggRow, error) {
 	query := LOG_DB.Model(&Log{}).
 		Select("reseller_id, user_id AS customer_id, username, model_name, "+
 			"COALESCE(SUM(CASE WHEN type = ? THEN 1 ELSE 0 END),0) AS requests, "+
@@ -109,8 +117,14 @@ func scanInvoiceAggs(from, toExclusive int64) ([]invoiceAggRow, error) {
 			LogTypeConsume, LogTypeRefund, LogTypeRefund).
 		Where("type IN ?", []int{LogTypeConsume, LogTypeRefund}).
 		Where("reseller_id > 0").
-		Where("created_at >= ? AND created_at < ?", from, toExclusive).
-		Group("reseller_id, user_id, username, model_name")
+		Where("created_at >= ? AND created_at < ?", from, toExclusive)
+	if resellerId > 0 {
+		query = query.Where("reseller_id = ?", resellerId)
+	}
+	if customerId > 0 {
+		query = query.Where("user_id = ?", customerId)
+	}
+	query = query.Group("reseller_id, user_id, username, model_name")
 	var raw []invoiceAggRow
 	if err := query.Scan(&raw).Error; err != nil {
 		return nil, err
@@ -120,9 +134,9 @@ func scanInvoiceAggs(from, toExclusive int64) ([]invoiceAggRow, error) {
 
 func fillUsd(inv *Invoice) {
 	inv.ProfitQuota = inv.ChargeQuota - inv.CostQuota
-	inv.ChargeUsd = quotaToUsd(inv.ChargeQuota)
-	inv.CostUsd = quotaToUsd(inv.CostQuota)
-	inv.ProfitUsd = quotaToUsd(inv.ProfitQuota)
+	inv.ChargeUsd = QuotaToUsd(inv.ChargeQuota)
+	inv.CostUsd = QuotaToUsd(inv.CostQuota)
+	inv.ProfitUsd = QuotaToUsd(inv.ProfitQuota)
 }
 
 func lineItemsFromModelRows(rows []invoiceAggRow) string {
@@ -139,9 +153,9 @@ func lineItemsFromModelRows(rows []invoiceAggRow) string {
 				ChargeQuota: r.ChargeQuota,
 				CostQuota:   r.CostQuota,
 				ProfitQuota: profit,
-				ChargeUsd:   quotaToUsd(r.ChargeQuota),
-				CostUsd:     quotaToUsd(r.CostQuota),
-				ProfitUsd:   quotaToUsd(profit),
+				ChargeUsd:   QuotaToUsd(r.ChargeQuota),
+				CostUsd:     QuotaToUsd(r.CostQuota),
+				ProfitUsd:   QuotaToUsd(profit),
 			}
 			order = append(order, key)
 		} else {
@@ -149,9 +163,9 @@ func lineItemsFromModelRows(rows []invoiceAggRow) string {
 			item.ChargeQuota += r.ChargeQuota
 			item.CostQuota += r.CostQuota
 			item.ProfitQuota = item.ChargeQuota - item.CostQuota
-			item.ChargeUsd = quotaToUsd(item.ChargeQuota)
-			item.CostUsd = quotaToUsd(item.CostQuota)
-			item.ProfitUsd = quotaToUsd(item.ProfitQuota)
+			item.ChargeUsd = QuotaToUsd(item.ChargeQuota)
+			item.CostUsd = QuotaToUsd(item.CostQuota)
+			item.ProfitUsd = QuotaToUsd(item.ProfitQuota)
 		}
 	}
 	items := make([]InvoiceLineItem, 0, len(order))
@@ -193,7 +207,7 @@ func GenerateMonthlyInvoices(period string, generatedBy int) (*InvoiceGenerateRe
 	}
 	now := common.GetTimestamp()
 
-	customerRows, err := scanInvoiceAggs(from, toExclusive)
+	customerRows, err := scanInvoiceAggs(from, toExclusive, 0, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +337,33 @@ func GenerateMonthlyInvoices(period string, generatedBy int) (*InvoiceGenerateRe
 	}
 	result.AdminRollup = true
 	return result, nil
+}
+
+// ComputeInvoiceTotals returns the live (unsaved) invoice totals for period
+// using the same log aggregation as GenerateMonthlyInvoices. resellerId and
+// customerId of 0 mean every reseller / every customer (the admin rollup).
+func ComputeInvoiceTotals(period string, resellerId, customerId int) (*Invoice, error) {
+	from, toExclusive, err := ParseInvoicePeriod(period)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := scanInvoiceAggs(from, toExclusive, resellerId, customerId)
+	if err != nil {
+		return nil, err
+	}
+	inv := &Invoice{Period: period, Scope: InvoiceScopeAdminRollup, ResellerId: resellerId, CustomerId: customerId}
+	if customerId > 0 {
+		inv.Scope = InvoiceScopeCustomer
+	} else if resellerId > 0 {
+		inv.Scope = InvoiceScopeReseller
+	}
+	for _, r := range rows {
+		inv.Requests += r.Requests
+		inv.ChargeQuota += r.ChargeQuota
+		inv.CostQuota += r.CostQuota
+	}
+	fillUsd(inv)
+	return inv, nil
 }
 
 // InvoiceListFilter selects persisted invoices.

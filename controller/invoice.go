@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -75,6 +77,194 @@ func writeInvoiceCSV(c *gin.Context, inv *model.Invoice) {
 		}
 	}
 	w.Flush()
+}
+
+// csvSafeText neutralises spreadsheet formulas in user-entered CSV text.
+func csvSafeText(s string) string {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
+}
+
+func usdCell(v float64) string { return fmt.Sprintf("%.6f", v) }
+
+var resellerLedgerKinds = []string{
+	model.ResellerLedgerAdminCredit,
+	model.ResellerLedgerAdminDebit,
+	model.ResellerLedgerCustomerCredit,
+	model.ResellerLedgerCustomerDebit,
+}
+
+// ledgerExportScope is the role scope of a balance-ledger export.
+// internal adds operator/ref/remark columns and the cost/profit fee lines.
+type ledgerExportScope struct {
+	resellerId int
+	customerId int
+	internal   bool
+}
+
+// writeLedgerExportCSV writes one month of the balance ledger as CSV: a
+// summary (credit increase/decrease over every kind, plus usage and fees from
+// the same log aggregation as monthly invoices), per-kind totals, then every
+// ledger row. Only the row listing honours the optional kind filter.
+func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
+	period := strings.TrimSpace(c.Query("period"))
+	from, toEx, err := model.ParseInvoicePeriod(period)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	kind := strings.TrimSpace(c.Query("kind"))
+	if kind != "" && !slices.Contains(resellerLedgerKinds, kind) {
+		common.ApiErrorMsg(c, "invalid kind")
+		return
+	}
+	kindTotals, err := model.SumResellerLedgerRange(from, toEx, scope.resellerId, scope.customerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	usage, err := model.ComputeInvoiceTotals(period, scope.resellerId, scope.customerId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	rows, _, err := model.ListResellerLedgerRange(from, toEx, scope.resellerId, scope.customerId, kind, 0, -1)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	var increase, decrease model.LedgerKindTotal
+	for _, kt := range kindTotals {
+		switch kt.Kind {
+		case model.ResellerLedgerAdminCredit, model.ResellerLedgerCustomerCredit:
+			increase.Entries += kt.Entries
+			increase.Quota += kt.Quota
+			increase.MoneyUsd += kt.MoneyUsd
+		case model.ResellerLedgerAdminDebit, model.ResellerLedgerCustomerDebit:
+			// Debit rows store a negative quota_delta; report the magnitude.
+			decrease.Entries += kt.Entries
+			decrease.Quota -= kt.Quota
+			decrease.MoneyUsd += kt.MoneyUsd
+		}
+	}
+	rowFilter := kind
+	if rowFilter == "" {
+		rowFilter = "all"
+	}
+
+	filename := fmt.Sprintf("ledger-%s-%s.csv", period, usage.Scope)
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w := csv.NewWriter(c.Writer)
+	summary := [][]string{
+		{"# SUMMARY"},
+		{"field", "value"},
+		{"period", period},
+		{"timezone", model.InvoicePeriodLocation().String()},
+		{"scope", usage.Scope},
+		{"ledger_rows_kind_filter", rowFilter},
+		{"note", "credit and usage totals cover the whole period for this scope; the kind filter applies to LEDGER ROWS only"},
+		{"credit_increase_entries", strconv.FormatInt(increase.Entries, 10)},
+		{"credit_increase_quota", strconv.FormatInt(increase.Quota, 10)},
+		{"credit_increase_quota_usd", usdCell(model.QuotaToUsd(increase.Quota))},
+		{"credit_increase_money_usd", usdCell(increase.MoneyUsd)},
+		{"credit_decrease_entries", strconv.FormatInt(decrease.Entries, 10)},
+		{"credit_decrease_quota", strconv.FormatInt(decrease.Quota, 10)},
+		{"credit_decrease_quota_usd", usdCell(model.QuotaToUsd(decrease.Quota))},
+		{"credit_decrease_money_usd", usdCell(decrease.MoneyUsd)},
+		{"credit_net_quota", strconv.FormatInt(increase.Quota-decrease.Quota, 10)},
+		{"credit_net_quota_usd", usdCell(model.QuotaToUsd(increase.Quota - decrease.Quota))},
+		{"actual_usage_requests", strconv.FormatInt(usage.Requests, 10)},
+		{"actual_usage_quota", strconv.FormatInt(usage.ChargeQuota, 10)},
+		{"actual_usage_usd", usdCell(usage.ChargeUsd)},
+		{"related_fee_charge_quota", strconv.FormatInt(usage.ChargeQuota, 10)},
+		{"related_fee_charge_usd", usdCell(usage.ChargeUsd)},
+	}
+	if scope.internal {
+		summary = append(summary,
+			[]string{"related_fee_cost_quota", strconv.FormatInt(usage.CostQuota, 10)},
+			[]string{"related_fee_cost_usd", usdCell(usage.CostUsd)},
+			[]string{"related_fee_profit_quota", strconv.FormatInt(usage.ProfitQuota, 10)},
+			[]string{"related_fee_profit_usd", usdCell(usage.ProfitUsd)},
+		)
+	}
+	_ = w.WriteAll(summary)
+
+	_ = w.Write(nil)
+	_ = w.Write([]string{"# LEDGER BY KIND"})
+	_ = w.Write([]string{"kind", "entries", "quota_delta", "money_usd"})
+	for _, kt := range kindTotals {
+		_ = w.Write([]string{csvSafeText(kt.Kind), strconv.FormatInt(kt.Entries, 10), strconv.FormatInt(kt.Quota, 10), usdCell(kt.MoneyUsd)})
+	}
+
+	_ = w.Write(nil)
+	_ = w.Write([]string{"# LEDGER ROWS"})
+	header := []string{"id", "created_at", "created_at_local", "reseller_id", "reseller_username", "customer_id", "customer_username", "kind", "quota_delta", "money_usd"}
+	if scope.internal {
+		header = append(header, "operator_id", "operator_username", "ref_id", "remark")
+	}
+	_ = w.Write(header)
+	loc := model.InvoicePeriodLocation()
+	for _, row := range rows {
+		money := ""
+		if row.MoneyUsd != nil {
+			money = usdCell(*row.MoneyUsd)
+		}
+		record := []string{
+			strconv.FormatInt(row.Id, 10),
+			strconv.FormatInt(row.CreatedAt, 10),
+			time.Unix(row.CreatedAt, 0).In(loc).Format("2006-01-02 15:04:05"),
+			strconv.Itoa(row.ResellerId),
+			csvSafeText(row.ResellerUsername),
+			strconv.Itoa(row.CustomerId),
+			csvSafeText(row.CustomerUsername),
+			csvSafeText(row.Kind),
+			strconv.FormatInt(row.QuotaDelta, 10),
+			money,
+		}
+		if scope.internal {
+			record = append(record,
+				strconv.Itoa(row.OperatorId),
+				csvSafeText(row.OperatorUsername),
+				csvSafeText(row.RefId),
+				csvSafeText(row.Remark),
+			)
+		}
+		_ = w.Write(record)
+	}
+	w.Flush()
+}
+
+// AdminExportResellerLedger exports the month for every reseller, or one
+// reseller when reseller_id is set.
+func AdminExportResellerLedger(c *gin.Context) {
+	resellerId, _ := strconv.Atoi(c.Query("reseller_id"))
+	writeLedgerExportCSV(c, ledgerExportScope{resellerId: max(resellerId, 0), internal: true})
+}
+
+// ResellerExportLedger exports the session reseller's month. Query
+// reseller_id / customer_id are ignored.
+func ResellerExportLedger(c *gin.Context) {
+	writeLedgerExportCSV(c, ledgerExportScope{resellerId: c.GetInt("id"), internal: true})
+}
+
+// CustomerExportLedger exports the session customer's month without
+// operator/remark columns or reseller cost and profit.
+func CustomerExportLedger(c *gin.Context) {
+	userId := c.GetInt("id")
+	user, err := model.GetUserCache(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user.ResellerId <= 0 {
+		common.ApiErrorMsg(c, "forbidden")
+		return
+	}
+	writeLedgerExportCSV(c, ledgerExportScope{customerId: userId})
 }
 
 func invoiceDetailResponse(inv *model.Invoice) gin.H {

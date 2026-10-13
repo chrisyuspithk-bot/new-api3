@@ -47,6 +47,7 @@ export function CustomerInvoicesPage() {
     <BalanceLedgerPage
       queryKey='customer-ledger-range'
       loadRows={loadCustomerLedger}
+      exportUrl='/api/user/ledger/export'
       kinds={CUSTOMER_LEDGER_KINDS}
       showReseller
       showInternal={false}

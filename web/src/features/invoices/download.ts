@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 /**
  * Downloads an invoice CSV through the authenticated API client.
@@ -27,17 +28,26 @@ import { api } from '@/lib/api'
  */
 export async function downloadInvoiceCsv(
   url: string,
-  filename: string
+  filename: string,
+  params?: Record<string, string>
 ): Promise<void> {
-  const res = await api.get(url, { responseType: 'blob' })
+  const res = await api.get(url, { params, responseType: 'blob' })
   const data = res.data as Blob
   const blob =
     data instanceof Blob ? data : new Blob([String(data)], { type: 'text/csv' })
+  // Failures arrive as a JSON `{ success: false }` body, not a CSV.
+  if (blob.type.includes('json')) {
+    requireServerSuccess(JSON.parse(await blob.text()) as unknown)
+  }
   saveBlobAsFile(blob, filename)
 }
 
 export function invoiceCsvFilename(id: number, period?: string): string {
   return period ? `invoice-${id}-${period}.csv` : `invoice-${id}.csv`
+}
+
+export function ledgerExportFilename(period: string, kind?: string): string {
+  return kind ? `ledger-${period}-${kind}.csv` : `ledger-${period}.csv`
 }
 
 function saveBlobAsFile(blob: Blob, filename: string): void {

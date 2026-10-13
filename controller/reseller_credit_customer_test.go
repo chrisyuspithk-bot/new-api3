@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -350,4 +351,140 @@ func TestFillResellerNamesSetsNamesOnlyForAffiliatedUsers(t *testing.T) {
 	assert.Equal(t, "Reseller R", users[0].ResellerDisplayName)
 	assert.Empty(t, users[1].ResellerUsername)
 	assert.Empty(t, users[1].ResellerDisplayName)
+}
+
+// ledgerExport is the parsed balance-ledger export CSV.
+type ledgerExport struct {
+	summary map[string]string
+	header  []string
+	rows    [][]string
+}
+
+func callLedgerExport(t *testing.T, handler gin.HandlerFunc, userID int, rawURL string) ledgerExport {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", userID)
+	ctx.Request = httptest.NewRequest(http.MethodGet, rawURL, nil)
+	handler(ctx)
+	require.True(t, strings.HasPrefix(recorder.Header().Get("Content-Type"), "text/csv"), recorder.Body.String())
+	reader := csv.NewReader(recorder.Body)
+	reader.FieldsPerRecord = -1
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	out := ledgerExport{summary: map[string]string{}}
+	section := ""
+	for _, rec := range records {
+		if strings.HasPrefix(rec[0], "# ") {
+			section = rec[0]
+			continue
+		}
+		switch section {
+		case "# SUMMARY":
+			if len(rec) == 2 {
+				out.summary[rec[0]] = rec[1]
+			}
+		case "# LEDGER ROWS":
+			if out.header == nil {
+				out.header = rec
+			} else {
+				out.rows = append(out.rows, rec)
+			}
+		}
+	}
+	return out
+}
+
+// seedMonthUsage writes September consume/refund logs: the fixture customer
+// nets charge 80 / cost 56 over one request; other rows are out of scope.
+func seedMonthUsage(t *testing.T, resellerID, customerID int, from int64) {
+	t.Helper()
+	require.NoError(t, model.DB.AutoMigrate(&model.Log{}))
+	logs := []model.Log{
+		{Type: model.LogTypeConsume, UserId: customerID, Username: "cred-c", ModelName: "m", Quota: 100, ResellerId: resellerID, ResellerCostQuota: 70, CreatedAt: from + 10},
+		{Type: model.LogTypeRefund, UserId: customerID, Username: "cred-c", ModelName: "m", Quota: 20, ResellerId: resellerID, ResellerCostQuota: 14, CreatedAt: from + 11},
+		{Type: model.LogTypeConsume, UserId: 9503, Username: "other-c", ModelName: "m", Quota: 500, ResellerId: 9599, ResellerCostQuota: 400, CreatedAt: from + 12},
+		{Type: model.LogTypeConsume, UserId: customerID, Username: "cred-c", ModelName: "m", Quota: 7, ResellerId: resellerID, ResellerCostQuota: 5, CreatedAt: from - 1},
+	}
+	require.NoError(t, model.DB.Create(&logs).Error)
+}
+
+func seedLedgerExportFixture(t *testing.T) (resellerID, customerID int) {
+	t.Helper()
+	setupResellerCreditCustomerDB(t)
+	resellerID, customerID = seedResellerCreditFixture(t, 0)
+	from := seedMonthLedger(t, resellerID, customerID)
+	money := 2.5
+	require.NoError(t, model.DB.Create(&model.ResellerLedger{
+		ResellerId: resellerID, CustomerId: customerID, Kind: model.ResellerLedgerCustomerDebit,
+		QuotaDelta: -4, MoneyUsd: &money, Remark: "=cmd", CreatedAt: from + 5,
+	}).Error)
+	seedMonthUsage(t, resellerID, customerID, from)
+	return resellerID, customerID
+}
+
+func TestResellerExportLedgerSummarisesWholeMonthAndFiltersRowsByKind(t *testing.T) {
+	resellerID, customerID := seedLedgerExportFixture(t)
+
+	out := callLedgerExport(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export?period=2026-09&kind=customer_debit&reseller_id=9599")
+
+	assert.Equal(t, "reseller", out.summary["scope"])
+	assert.Equal(t, "customer_debit", out.summary["ledger_rows_kind_filter"])
+	assert.Equal(t, "60", out.summary["credit_increase_quota"])
+	assert.Equal(t, "4", out.summary["credit_decrease_quota"])
+	assert.Equal(t, "2.500000", out.summary["credit_decrease_money_usd"])
+	assert.Equal(t, "56", out.summary["credit_net_quota"])
+	assert.Equal(t, "1", out.summary["actual_usage_requests"])
+	assert.Equal(t, "80", out.summary["actual_usage_quota"])
+	assert.Equal(t, "56", out.summary["related_fee_cost_quota"])
+	assert.Equal(t, "24", out.summary["related_fee_profit_quota"])
+	require.Len(t, out.rows, 1)
+	assert.Contains(t, out.header, "remark")
+	assert.Equal(t, strconv.Itoa(customerID), out.rows[0][5])
+	assert.Equal(t, "-4", out.rows[0][8])
+	assert.Equal(t, "'=cmd", out.rows[0][len(out.rows[0])-1])
+}
+
+func TestCustomerExportLedgerOnlyCoversCallerAndHidesInternalFields(t *testing.T) {
+	_, customerID := seedLedgerExportFixture(t)
+
+	out := callLedgerExport(t, CustomerExportLedger, customerID, "/api/user/ledger/export?period=2026-09&customer_id=9503")
+
+	assert.Equal(t, "customer", out.summary["scope"])
+	assert.Equal(t, "10", out.summary["credit_increase_quota"])
+	assert.Equal(t, "4", out.summary["credit_decrease_quota"])
+	assert.Equal(t, "80", out.summary["related_fee_charge_quota"])
+	assert.NotContains(t, out.summary, "related_fee_cost_quota")
+	assert.NotContains(t, out.summary, "related_fee_profit_quota")
+	assert.NotContains(t, out.header, "remark")
+	assert.NotContains(t, out.header, "operator_username")
+	require.Len(t, out.rows, 2)
+	for _, row := range out.rows {
+		assert.Equal(t, strconv.Itoa(customerID), row[5])
+	}
+}
+
+func TestAdminExportResellerLedgerCoversEveryReseller(t *testing.T) {
+	seedLedgerExportFixture(t)
+
+	out := callLedgerExport(t, AdminExportResellerLedger, 1, "/api/admin/reseller_ledger/export?period=2026-09")
+
+	assert.Equal(t, "admin_rollup", out.summary["scope"])
+	assert.Equal(t, "all", out.summary["ledger_rows_kind_filter"])
+	assert.Equal(t, "159", out.summary["credit_increase_quota"])
+	assert.Equal(t, "4", out.summary["credit_decrease_quota"])
+	assert.Equal(t, "2", out.summary["actual_usage_requests"])
+	assert.Equal(t, "580", out.summary["related_fee_charge_quota"])
+	assert.Equal(t, "456", out.summary["related_fee_cost_quota"])
+	assert.Len(t, out.rows, 4)
+}
+
+func TestLedgerExportRejectsMissingPeriod(t *testing.T) {
+	setupResellerCreditCustomerDB(t)
+	resellerID, _ := seedResellerCreditFixture(t, 0)
+
+	body := callLedger(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export")
+	assert.False(t, body.Success)
+	assert.Equal(t, model.ErrInvalidInvoicePeriod.Error(), body.Message)
 }

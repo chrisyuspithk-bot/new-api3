@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 const get = vi.fn()
 vi.mock('@/lib/api', () => ({ api: { get: (...a: unknown[]) => get(...a) } }))
 
-import { downloadInvoiceCsv, invoiceCsvFilename } from './download'
+import {
+  downloadInvoiceCsv,
+  invoiceCsvFilename,
+  ledgerExportFilename,
+} from './download'
 
 describe('downloadInvoiceCsv', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -27,8 +31,31 @@ describe('downloadInvoiceCsv', () => {
     expect(click).toHaveBeenCalled()
   })
 
+  it('rejects with the server message and saves nothing when the export fails', async () => {
+    const body = JSON.stringify({
+      success: false,
+      message: 'period must be YYYY-MM',
+    })
+    get.mockResolvedValue({
+      data: new Blob([body], { type: 'application/json' }),
+    })
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {})
+    await expect(
+      downloadInvoiceCsv('/api/user/ledger/export', 'ledger.csv', {
+        period: 'bad',
+      })
+    ).rejects.toThrow('period must be YYYY-MM')
+    expect(click).not.toHaveBeenCalled()
+  })
+
   it('builds filenames', () => {
     expect(invoiceCsvFilename(1, '2026-09')).toBe('invoice-1-2026-09.csv')
     expect(invoiceCsvFilename(2)).toBe('invoice-2.csv')
+    expect(ledgerExportFilename('2026-09')).toBe('ledger-2026-09.csv')
+    expect(ledgerExportFilename('2026-09', 'admin_debit')).toBe(
+      'ledger-2026-09-admin_debit.csv'
+    )
   })
 })

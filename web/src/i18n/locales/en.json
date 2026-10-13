@@ -7370,6 +7370,7 @@
     "Customer debit": "Customer debit",
     "All kinds": "All kinds",
     "Enter a period as YYYY-MM to load the balance ledger": "Enter a period as YYYY-MM to load the balance ledger",
+    "Export": "Export",
     "YYYY-MM": "YYYY-MM"
   }
 }

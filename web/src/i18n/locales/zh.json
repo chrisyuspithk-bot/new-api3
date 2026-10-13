@@ -7370,6 +7370,7 @@
     "Customer debit": "客户扣款",
     "All kinds": "全部类型",
     "Enter a period as YYYY-MM to load the balance ledger": "请输入 YYYY-MM 格式的账期以加载余额流水",
+    "Export": "导出",
     "YYYY-MM": "YYYY-MM"
   }
 }

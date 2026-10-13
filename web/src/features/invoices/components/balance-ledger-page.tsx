@@ -33,7 +33,9 @@ import {
 } from '@/components/ui/table'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
 
+import { downloadInvoiceCsv, ledgerExportFilename } from '../download'
 import type { LedgerPage, LedgerQuery, ResellerLedgerKind } from '../types'
 
 const LEDGER_PAGE_SIZE = 20
@@ -42,6 +44,8 @@ const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/
 type BalanceLedgerPageProps = {
   queryKey: string
   loadRows: (query: LedgerQuery) => Promise<LedgerPage>
+  /** Role-scoped CSV endpoint; the server adds monthly credit, usage and fee totals. */
+  exportUrl: string
   kinds: readonly ResellerLedgerKind[]
   showReseller?: boolean
   showCustomer?: boolean
@@ -82,15 +86,13 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
   const [period, setPeriod] = useState(currentMonthPeriod)
   const [kind, setKind] = useState('')
   const [ledgerPage, setLedgerPage] = useState(1)
+  const [exporting, setExporting] = useState(false)
   const periodValid = PERIOD_RE.test(period)
   const showReseller = props.showReseller === true
   const showCustomer = props.showCustomer === true
   const showInternal = props.showInternal !== false
   const columnCount =
-    4 +
-    (showReseller ? 1 : 0) +
-    (showCustomer ? 1 : 0) +
-    (showInternal ? 2 : 0)
+    4 + (showReseller ? 1 : 0) + (showCustomer ? 1 : 0) + (showInternal ? 2 : 0)
   const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   const ledger = useQuery({
@@ -104,6 +106,23 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
         pageSize: LEDGER_PAGE_SIZE,
       }),
   })
+
+  const exportLedger = async () => {
+    setExporting(true)
+    try {
+      const params: Record<string, string> = { period }
+      if (kind) params.kind = kind
+      await downloadInvoiceCsv(
+        props.exportUrl,
+        ledgerExportFilename(period, kind),
+        params
+      )
+    } catch (error) {
+      handleServerError(error, t('Download failed'))
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const rows = ledger.data?.items ?? []
   const total = ledger.data?.total ?? 0
@@ -204,6 +223,14 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
           onClick={() => ledger.refetch()}
         >
           {t('Refresh')}
+        </Button>
+        <Button
+          size='sm'
+          variant='outline'
+          disabled={!periodValid || exporting}
+          onClick={exportLedger}
+        >
+          {t('Export')}
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
