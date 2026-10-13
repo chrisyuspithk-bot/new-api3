@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -87,6 +87,54 @@ export function ResellerDetail({ id }: { id: number }) {
   })
 
   const reseller = detail.data
+
+  const ledgerRows = ledger.data?.items ?? []
+  let ledgerBody: ReactNode
+  if (ledger.isLoading) {
+    ledgerBody = (
+      <TableRow>
+        <TableCell colSpan={7}>{t('Loading...')}</TableCell>
+      </TableRow>
+    )
+  } else if (ledger.isError) {
+    ledgerBody = (
+      <TableRow>
+        <TableCell colSpan={7}>{t('Failed to load')}</TableCell>
+      </TableRow>
+    )
+  } else if (ledgerRows.length === 0) {
+    ledgerBody = (
+      <TableRow>
+        <TableCell colSpan={7}>{t('No ledger rows')}</TableCell>
+      </TableRow>
+    )
+  } else {
+    ledgerBody = ledgerRows.map((row) => (
+      <TableRow key={row.id}>
+        <TableCell>
+          {row.created_at
+            ? new Date(row.created_at * 1000).toLocaleString(intlLocale)
+            : '—'}
+        </TableCell>
+        <TableCell>{ledgerKindLabel(row.kind, t)}</TableCell>
+        <TableCell>{formatQuota(row.quota_delta)}</TableCell>
+        <TableCell>
+          {row.money_usd != null ? `$${Number(row.money_usd).toFixed(4)}` : '—'}
+        </TableCell>
+        <TableCell>
+          {row.customer_id
+            ? row.customer_username || `#${row.customer_id}`
+            : '—'}
+        </TableCell>
+        <TableCell>
+          {row.operator_id
+            ? row.operator_username || `#${row.operator_id}`
+            : '—'}
+        </TableCell>
+        <TableCell>{row.remark || '—'}</TableCell>
+      </TableRow>
+    ))
+  }
   const groupValue = groupsText ?? (reseller?.groups ?? []).join(', ')
 
   const saveGroups = async () => {
@@ -300,39 +348,7 @@ export function ResellerDetail({ id }: { id: number }) {
                       <TableHead>{t('Remark')}</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {(ledger.data?.items ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7}>{t('No ledger rows')}</TableCell>
-                      </TableRow>
-                    ) : (
-                      (ledger.data?.items ?? []).map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell>
-                            {row.created_at
-                              ? new Date(row.created_at * 1000).toLocaleString(
-                                  intlLocale
-                                )
-                              : '—'}
-                          </TableCell>
-                          <TableCell>{ledgerKindLabel(row.kind, t)}</TableCell>
-                          <TableCell>{formatQuota(row.quota_delta)}</TableCell>
-                          <TableCell>{row.money_usd ?? '—'}</TableCell>
-                          <TableCell>
-                            {row.customer_id
-                              ? row.customer_username || `#${row.customer_id}`
-                              : '—'}
-                          </TableCell>
-                          <TableCell>
-                            {row.operator_id
-                              ? row.operator_username || `#${row.operator_id}`
-                              : '—'}
-                          </TableCell>
-                          <TableCell>{row.remark || '—'}</TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
+                  <TableBody>{ledgerBody}</TableBody>
                 </Table>
               </div>
             </TabsContent>
