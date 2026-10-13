@@ -7348,14 +7348,9 @@
     "Click Load on Gross Profit to also run reconcile": "在毛利潤中點擊載入以同時執行對帳",
     "Groups updated": "分組已更新",
     "Failed to update groups": "更新分組失敗",
-    "Model price saved": "模型價格已儲存",
-    "Failed to save model price": "儲存模型價格失敗",
-    "Model Prices": "模型價格",
     "Ledger": "帳本",
     "Allow Redemption": "允許兌換",
     "Save Groups": "儲存分組",
-    "Cost Multiplier": "成本倍率",
-    "No overrides": "暫無覆寫",
     "Invoice History": "發票歷史",
     "CSV": "CSV",
     "No invoices yet": "暫無發票",
@@ -7376,6 +7371,15 @@
     "Customer debited": "已從客戶扣款",
     "Failed to debit customer": "客戶扣款失敗",
     "Customer balance": "客戶餘額",
-    "Amount exceeds customer balance": "金額超過客戶餘額"
+    "Amount exceeds customer balance": "金額超過客戶餘額",
+    "Reseller cost (costFactor)": "代理商成本 (costFactor)",
+    "Default markup (Reseller→Customer)": "預設加價（代理商→客戶）",
+    "costFactor (Admin→Reseller)": "costFactor（管理員→代理商）",
+    "Admin→Reseller cost per model. Reseller cost = base price × costFactor; the reseller sees this cost on /pricing and is charged it for API usage.": "按模型設定管理員→代理商成本。代理商成本 = 基礎價格 × costFactor；代理商在 /pricing 頁面看到的價格及其 API 用量扣費皆按此成本計算。",
+    "Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.": "客戶扣費 = 代理商成本 × 加價。加價（代理商→客戶）需另行設定，並非 costFactor。未設定的模型 costFactor 為 1。",
+    "costFactor must be a number greater than 0": "costFactor 必須是大於 0 的數字",
+    "costFactor saved": "costFactor 已儲存",
+    "Failed to save costFactor": "儲存 costFactor 失敗",
+    "No costFactor overrides": "尚無 costFactor 覆蓋"
   }
 }

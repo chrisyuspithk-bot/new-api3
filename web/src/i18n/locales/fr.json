@@ -7260,6 +7260,15 @@
     "Customer debited": "Client débité",
     "Failed to debit customer": "Échec du débit du client",
     "Customer balance": "Solde du client",
-    "Amount exceeds customer balance": "Le montant dépasse le solde du client"
+    "Amount exceeds customer balance": "Le montant dépasse le solde du client",
+    "Reseller cost (costFactor)": "Coût revendeur (costFactor)",
+    "Default markup (Reseller→Customer)": "Majoration par défaut (Revendeur→Client)",
+    "costFactor (Admin→Reseller)": "costFactor (Admin→Revendeur)",
+    "Admin→Reseller cost per model. Reseller cost = base price × costFactor; the reseller sees this cost on /pricing and is charged it for API usage.": "Coût Admin→Revendeur par modèle. Coût revendeur = prix de base × costFactor ; le revendeur voit ce coût sur /pricing et il lui est facturé pour son utilisation de l'API.",
+    "Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.": "Facturation client = coût revendeur × majoration. La majoration (Revendeur→Client) se configure séparément et n'est pas un costFactor. Les modèles sans ligne utilisent un costFactor de 1.",
+    "costFactor must be a number greater than 0": "Le costFactor doit être un nombre supérieur à 0",
+    "costFactor saved": "costFactor enregistré",
+    "Failed to save costFactor": "Échec de l'enregistrement du costFactor",
+    "No costFactor overrides": "Aucune surcharge de costFactor"
   }
 }

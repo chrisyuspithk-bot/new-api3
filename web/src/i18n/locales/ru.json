@@ -7260,6 +7260,15 @@
     "Customer debited": "Средства списаны с клиента",
     "Failed to debit customer": "Не удалось списать средства с клиента",
     "Customer balance": "Баланс клиента",
-    "Amount exceeds customer balance": "Сумма превышает баланс клиента"
+    "Amount exceeds customer balance": "Сумма превышает баланс клиента",
+    "Reseller cost (costFactor)": "Себестоимость реселлера (costFactor)",
+    "Default markup (Reseller→Customer)": "Наценка по умолчанию (Реселлер→Клиент)",
+    "costFactor (Admin→Reseller)": "costFactor (Админ→Реселлер)",
+    "Admin→Reseller cost per model. Reseller cost = base price × costFactor; the reseller sees this cost on /pricing and is charged it for API usage.": "Себестоимость Админ→Реселлер по моделям. Себестоимость реселлера = базовая цена × costFactor; реселлер видит эту цену на /pricing, и по ней списывается его использование API.",
+    "Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.": "Списание с клиента = себестоимость реселлера × наценка. Наценка (Реселлер→Клиент) задаётся отдельно и не является costFactor. Для моделей без строки costFactor равен 1.",
+    "costFactor must be a number greater than 0": "costFactor должен быть числом больше 0",
+    "costFactor saved": "costFactor сохранён",
+    "Failed to save costFactor": "Не удалось сохранить costFactor",
+    "No costFactor overrides": "Нет переопределений costFactor"
   }
 }

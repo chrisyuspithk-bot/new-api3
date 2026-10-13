@@ -7348,14 +7348,9 @@
     "Click Load on Gross Profit to also run reconcile": "Click Load on Gross Profit to also run reconcile",
     "Groups updated": "Groups updated",
     "Failed to update groups": "Failed to update groups",
-    "Model price saved": "Model price saved",
-    "Failed to save model price": "Failed to save model price",
-    "Model Prices": "Model Prices",
     "Ledger": "Ledger",
     "Allow Redemption": "Allow Redemption",
     "Save Groups": "Save Groups",
-    "Cost Multiplier": "Cost Multiplier",
-    "No overrides": "No overrides",
     "Invoice History": "Invoice History",
     "CSV": "CSV",
     "No invoices yet": "No invoices yet",
@@ -7376,6 +7371,15 @@
     "Customer debited": "Customer debited",
     "Failed to debit customer": "Failed to debit customer",
     "Customer balance": "Customer balance",
-    "Amount exceeds customer balance": "Amount exceeds customer balance"
+    "Amount exceeds customer balance": "Amount exceeds customer balance",
+    "Reseller cost (costFactor)": "Reseller cost (costFactor)",
+    "Default markup (Reseller→Customer)": "Default markup (Reseller→Customer)",
+    "costFactor (Admin→Reseller)": "costFactor (Admin→Reseller)",
+    "Admin→Reseller cost per model. Reseller cost = base price × costFactor; the reseller sees this cost on /pricing and is charged it for API usage.": "Admin→Reseller cost per model. Reseller cost = base price × costFactor; the reseller sees this cost on /pricing and is charged it for API usage.",
+    "Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.": "Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.",
+    "costFactor must be a number greater than 0": "costFactor must be a number greater than 0",
+    "costFactor saved": "costFactor saved",
+    "Failed to save costFactor": "Failed to save costFactor",
+    "No costFactor overrides": "No costFactor overrides"
   }
 }

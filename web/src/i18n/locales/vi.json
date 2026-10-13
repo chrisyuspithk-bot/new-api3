@@ -7260,6 +7260,15 @@
     "Customer debited": "Đã trừ tiền khách hàng",
     "Failed to debit customer": "Trừ tiền khách hàng thất bại",
     "Customer balance": "Số dư khách hàng",
-    "Amount exceeds customer balance": "Số tiền vượt quá số dư khách hàng"
+    "Amount exceeds customer balance": "Số tiền vượt quá số dư khách hàng",
+    "Reseller cost (costFactor)": "Giá vốn đại lý (costFactor)",
+    "Default markup (Reseller→Customer)": "Phụ phí mặc định (Đại lý→Khách hàng)",
+    "costFactor (Admin→Reseller)": "costFactor (Quản trị→Đại lý)",
+    "Admin→Reseller cost per model. Reseller cost = base price × costFactor; the reseller sees this cost on /pricing and is charged it for API usage.": "Giá vốn Quản trị→Đại lý theo từng mô hình. Giá vốn đại lý = giá gốc × costFactor; đại lý thấy giá vốn này trên /pricing và bị tính phí theo đó khi dùng API.",
+    "Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.": "Phí khách hàng = giá vốn đại lý × phụ phí. Phụ phí (Đại lý→Khách hàng) được đặt riêng và không phải là costFactor. Mô hình không có dòng nào dùng costFactor 1.",
+    "costFactor must be a number greater than 0": "costFactor phải là số lớn hơn 0",
+    "costFactor saved": "Đã lưu costFactor",
+    "Failed to save costFactor": "Lưu costFactor thất bại",
+    "No costFactor overrides": "Chưa có ghi đè costFactor"
   }
 }

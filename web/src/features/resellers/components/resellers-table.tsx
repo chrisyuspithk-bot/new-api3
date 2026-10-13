@@ -59,7 +59,7 @@ export function ResellersTable() {
       const res = requireServerSuccess(
         await listResellers({ p: page, page_size: pageSize })
       )
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -91,99 +91,99 @@ export function ResellersTable() {
               <TableHead>{t('Brand')}</TableHead>
               <TableHead>{t('Status')}</TableHead>
               <TableHead>{t('Balance')}</TableHead>
-              <TableHead>{t('Markup')}</TableHead>
+              <TableHead>{t('Default markup (Reseller→Customer)')}</TableHead>
               <TableHead>{t('Customers')}</TableHead>
               <TableHead>{t('Groups')}</TableHead>
               <TableHead className='w-12' />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoading && (
               <TableRow>
                 <TableCell colSpan={9}>{t('Loading...')}</TableCell>
               </TableRow>
-            ) : items.length === 0 ? (
+            )}
+            {!isLoading && items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={9}>{t('No resellers yet')}</TableCell>
               </TableRow>
-            ) : (
-              items.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell>{row.id}</TableCell>
-                  <TableCell>
-                    <Link
-                      to='/resellers/$id'
-                      params={{ id: String(row.id) }}
-                      className='font-medium text-primary hover:underline'
-                    >
-                      {row.username}
-                    </Link>
-                    <div className='text-muted-foreground text-xs'>
-                      {row.display_name}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {row.profile?.display_name || row.display_name || '—'}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge
-                      variant={row.status === 1 ? 'success' : 'neutral'}
-                      label={row.status === 1 ? t('Enabled') : t('Disabled')}
-                      copyable={false}
-                    />
-                  </TableCell>
-                  <TableCell>{formatQuota(row.quota)}</TableCell>
-                  <TableCell>
-                    {row.profile?.default_markup?.toFixed?.(4) ?? '—'}
-                  </TableCell>
-                  <TableCell>{row.customer_count ?? 0}</TableCell>
-                  <TableCell className='max-w-[160px] truncate text-xs'>
-                    {(row.groups ?? []).join(', ') || '—'}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={<Button variant='ghost' size='icon' />}
-                      >
-                        <MoreHorizontal className='h-4 w-4' />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align='end'>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setCurrentRow(row)
-                            setOpen('update')
-                          }}
-                        >
-                          {t('Edit')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setCurrentRow(row)
-                            setOpen('credit')
-                          }}
-                        >
-                          {t('Credit')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setCurrentRow(row)
-                            setOpen('debit')
-                          }}
-                        >
-                          {t('Debit')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(row.id)}
-                          className='text-destructive'
-                        >
-                          {t('Disable')}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
             )}
+            {items.map((row) => (
+              <TableRow key={row.id}>
+                <TableCell>{row.id}</TableCell>
+                <TableCell>
+                  <Link
+                    to='/resellers/$id'
+                    params={{ id: String(row.id) }}
+                    className='text-primary font-medium hover:underline'
+                  >
+                    {row.username}
+                  </Link>
+                  <div className='text-muted-foreground text-xs'>
+                    {row.display_name}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {row.profile?.display_name || row.display_name || '—'}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge
+                    variant={row.status === 1 ? 'success' : 'neutral'}
+                    label={row.status === 1 ? t('Enabled') : t('Disabled')}
+                    copyable={false}
+                  />
+                </TableCell>
+                <TableCell>{formatQuota(row.quota)}</TableCell>
+                <TableCell>
+                  {row.profile?.default_markup?.toFixed?.(4) ?? '—'}
+                </TableCell>
+                <TableCell>{row.customer_count ?? 0}</TableCell>
+                <TableCell className='max-w-[160px] truncate text-xs'>
+                  {(row.groups ?? []).join(', ') || '—'}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={<Button variant='ghost' size='icon' />}
+                    >
+                      <MoreHorizontal className='h-4 w-4' />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align='end'>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setCurrentRow(row)
+                          setOpen('update')
+                        }}
+                      >
+                        {t('Edit')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setCurrentRow(row)
+                          setOpen('credit')
+                        }}
+                      >
+                        {t('Credit')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setCurrentRow(row)
+                          setOpen('debit')
+                        }}
+                      >
+                        {t('Debit')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(row.id)}
+                        className='text-destructive'
+                      >
+                        {t('Disable')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>

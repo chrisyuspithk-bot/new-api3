@@ -42,14 +42,8 @@ import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import {
-  deleteResellerModelPrice,
-  getReseller,
-  getResellerLedger,
-  listResellerModelPrices,
-  setResellerGroups,
-  upsertResellerModelPrice,
-} from '../api'
+import { getReseller, getResellerLedger, setResellerGroups } from '../api'
+import { ResellerCostTab } from './reseller-cost-tab'
 import { ResellerCustomersTab } from './reseller-customers-tab'
 
 export function ResellerDetail({ id }: { id: number }) {
@@ -57,22 +51,12 @@ export function ResellerDetail({ id }: { id: number }) {
   const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const qc = useQueryClient()
   const [groupsText, setGroupsText] = useState<string | null>(null)
-  const [modelName, setModelName] = useState('')
-  const [costMultiplier, setCostMultiplier] = useState('1')
 
   const detail = useQuery({
     queryKey: ['admin-reseller', id],
     queryFn: async () => {
       const res = requireServerSuccess(await getReseller(id))
       return res.data ?? null
-    },
-  })
-
-  const prices = useQuery({
-    queryKey: ['admin-reseller-prices', id],
-    queryFn: async () => {
-      const res = requireServerSuccess(await listResellerModelPrices(id))
-      return res.data ?? []
     },
   })
 
@@ -151,23 +135,6 @@ export function ResellerDetail({ id }: { id: number }) {
     }
   }
 
-  const addPrice = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      requireServerSuccess(
-        await upsertResellerModelPrice(id, {
-          model_name: modelName,
-          cost_multiplier: Number(costMultiplier),
-        })
-      )
-      toast.success(t('Model price saved'))
-      setModelName('')
-      qc.invalidateQueries({ queryKey: ['admin-reseller-prices', id] })
-    } catch (error) {
-      handleServerError(error, t('Failed to save model price'))
-    }
-  }
-
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
@@ -187,7 +154,9 @@ export function ResellerDetail({ id }: { id: number }) {
               <TabsTrigger value='overview'>{t('Overview')}</TabsTrigger>
               <TabsTrigger value='customers'>{t('Customers')}</TabsTrigger>
               <TabsTrigger value='groups'>{t('Groups')}</TabsTrigger>
-              <TabsTrigger value='prices'>{t('Model Prices')}</TabsTrigger>
+              <TabsTrigger value='prices'>
+                {t('Reseller cost (costFactor)')}
+              </TabsTrigger>
               <TabsTrigger value='ledger'>{t('Ledger')}</TabsTrigger>
             </TabsList>
 
@@ -197,7 +166,7 @@ export function ResellerDetail({ id }: { id: number }) {
                   [t('Balance'), formatQuota(reseller.quota)],
                   [t('Used'), formatQuota(reseller.used_quota)],
                   [
-                    t('Markup'),
+                    t('Default markup (Reseller→Customer)'),
                     String(reseller.profile?.default_markup ?? '—'),
                   ],
                   [t('Customers'), String(reseller.customer_count ?? 0)],
@@ -249,89 +218,8 @@ export function ResellerDetail({ id }: { id: number }) {
               </Button>
             </TabsContent>
 
-            <TabsContent value='prices' className='mt-4 space-y-4'>
-              <form
-                onSubmit={addPrice}
-                className='flex flex-wrap items-end gap-3'
-              >
-                <div className='space-y-1.5'>
-                  <Label>{t('Model')}</Label>
-                  <Input
-                    value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className='space-y-1.5'>
-                  <Label>{t('Cost Multiplier')}</Label>
-                  <Input
-                    type='number'
-                    step='0.0001'
-                    min='0.0001'
-                    value={costMultiplier}
-                    onChange={(e) => setCostMultiplier(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button type='submit' size='sm'>
-                  {t('Save')}
-                </Button>
-              </form>
-              <div className='rounded-lg border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>{t('Model')}</TableHead>
-                      <TableHead>{t('Cost Multiplier')}</TableHead>
-                      <TableHead>{t('Ratio')}</TableHead>
-                      <TableHead>{t('Price')}</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(prices.data ?? []).length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5}>{t('No overrides')}</TableCell>
-                      </TableRow>
-                    ) : (
-                      (prices.data ?? []).map((row) => (
-                        <TableRow key={row.model_name}>
-                          <TableCell>{row.model_name}</TableCell>
-                          <TableCell>{row.cost_multiplier ?? '—'}</TableCell>
-                          <TableCell>{row.model_ratio ?? '—'}</TableCell>
-                          <TableCell>{row.model_price ?? '—'}</TableCell>
-                          <TableCell>
-                            <Button
-                              size='sm'
-                              variant='ghost'
-                              onClick={async () => {
-                                try {
-                                  requireServerSuccess(
-                                    await deleteResellerModelPrice(
-                                      id,
-                                      row.model_name
-                                    )
-                                  )
-                                  qc.invalidateQueries({
-                                    queryKey: ['admin-reseller-prices', id],
-                                  })
-                                } catch (error) {
-                                  handleServerError(
-                                    error,
-                                    t('Failed to delete')
-                                  )
-                                }
-                              }}
-                            >
-                              {t('Delete')}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+            <TabsContent value='prices' className='mt-4'>
+              <ResellerCostTab resellerId={id} />
             </TabsContent>
 
             <TabsContent value='ledger' className='mt-4'>
