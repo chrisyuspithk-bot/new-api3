@@ -53,15 +53,24 @@ const ledgerRow = {
 }
 
 type LedgerResponse = { success: boolean; message?: string; data?: unknown }
+type LedgerParams = { p?: number; page_size?: number }
 
-function mockApi(ledger: () => Promise<{ data: LedgerResponse }>) {
-  vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
-    if (url === '/api/admin/resellers/3/ledger') return ledger()
-    if (url === '/api/admin/resellers/3') {
-      return { data: { success: true, data: reseller } }
-    }
-    return { data: { success: true, data: [] } }
-  })
+function mockApi(
+  ledger: (params: LedgerParams) => Promise<{ data: LedgerResponse }>
+) {
+  return vi
+    .spyOn(api, 'get')
+    .mockImplementation(
+      async (url: string, config?: { params?: LedgerParams }) => {
+        if (url === '/api/admin/resellers/3/ledger') {
+          return ledger(config?.params ?? {})
+        }
+        if (url === '/api/admin/resellers/3') {
+          return { data: { success: true, data: reseller } }
+        }
+        return { data: { success: true, data: [] } }
+      }
+    )
 }
 
 function renderDetail() {
@@ -78,6 +87,7 @@ function renderDetail() {
 async function openLedgerTab() {
   const user = userEvent.setup()
   await user.click(await screen.findByRole('tab', { name: 'Ledger' }))
+  return user
 }
 
 beforeEach(() => {
@@ -116,5 +126,43 @@ describe('admin reseller detail ledger tab', () => {
       await screen.findByRole('cell', { name: 'Loading...' })
     ).toBeVisible()
     expect(screen.queryByText('No ledger rows')).not.toBeInTheDocument()
+  })
+
+  it('disables Previous and Next on page 1 when the total fits one page', async () => {
+    renderDetail()
+    await openLedgerTab()
+
+    expect(await screen.findByText('1 / 1')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
+  it('requests page 2 with page size 20 when Next is clicked and total exceeds one page', async () => {
+    const ledger = vi.fn(async (params: LedgerParams) => ({
+      data: {
+        success: true,
+        data: {
+          items: [
+            { ...ledgerRow, id: params.p ?? 1, remark: `page ${params.p}` },
+          ],
+          total: 45,
+        },
+      },
+    }))
+    mockApi(ledger)
+    renderDetail()
+    const user = await openLedgerTab()
+
+    expect(await screen.findByText('Total: 45')).toBeVisible()
+    expect(screen.getByText('1 / 3')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
+    expect(ledger).toHaveBeenLastCalledWith({ p: 1, page_size: 20 })
+
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(await screen.findByRole('cell', { name: 'page 2' })).toBeVisible()
+    expect(ledger).toHaveBeenLastCalledWith({ p: 2, page_size: 20 })
+    expect(screen.getByText('2 / 3')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled()
   })
 })

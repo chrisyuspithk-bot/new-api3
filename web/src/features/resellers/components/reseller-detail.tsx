@@ -46,11 +46,14 @@ import { getReseller, getResellerLedger, setResellerGroups } from '../api'
 import { ResellerCostTab } from './reseller-cost-tab'
 import { ResellerCustomersTab } from './reseller-customers-tab'
 
+const LEDGER_PAGE_SIZE = 20
+
 export function ResellerDetail({ id }: { id: number }) {
   const { t, i18n } = useTranslation()
   const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const qc = useQueryClient()
   const [groupsText, setGroupsText] = useState<string | null>(null)
+  const [ledgerPage, setLedgerPage] = useState(1)
 
   const detail = useQuery({
     queryKey: ['admin-reseller', id],
@@ -61,10 +64,13 @@ export function ResellerDetail({ id }: { id: number }) {
   })
 
   const ledger = useQuery({
-    queryKey: ['admin-reseller-ledger', id],
+    queryKey: ['admin-reseller-ledger', id, ledgerPage],
     queryFn: async () => {
       const res = requireServerSuccess(
-        await getResellerLedger(id, { p: 1, page_size: 50 })
+        await getResellerLedger(id, {
+          p: ledgerPage,
+          page_size: LEDGER_PAGE_SIZE,
+        })
       )
       return res.data ?? null
     },
@@ -73,6 +79,11 @@ export function ResellerDetail({ id }: { id: number }) {
   const reseller = detail.data
 
   const ledgerRows = ledger.data?.items ?? []
+  const ledgerTotal = ledger.data?.total ?? 0
+  const ledgerTotalPages = Math.max(
+    1,
+    Math.ceil(ledgerTotal / LEDGER_PAGE_SIZE)
+  )
   let ledgerBody: ReactNode
   if (ledger.isLoading) {
     ledgerBody = (
@@ -222,7 +233,7 @@ export function ResellerDetail({ id }: { id: number }) {
               <ResellerCostTab resellerId={id} />
             </TabsContent>
 
-            <TabsContent value='ledger' className='mt-4'>
+            <TabsContent value='ledger' className='mt-4 space-y-3'>
               <div className='rounded-lg border'>
                 <Table>
                   <TableHeader>
@@ -238,6 +249,32 @@ export function ResellerDetail({ id }: { id: number }) {
                   </TableHeader>
                   <TableBody>{ledgerBody}</TableBody>
                 </Table>
+              </div>
+              <div className='text-muted-foreground flex items-center justify-between text-sm'>
+                <span>
+                  {t('Total')}: {ledgerTotal}
+                </span>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={ledgerPage <= 1}
+                    onClick={() => setLedgerPage((p) => p - 1)}
+                  >
+                    {t('Previous')}
+                  </Button>
+                  <span>
+                    {ledgerPage} / {ledgerTotalPages}
+                  </span>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={ledgerPage >= ledgerTotalPages}
+                    onClick={() => setLedgerPage((p) => p + 1)}
+                  >
+                    {t('Next')}
+                  </Button>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
