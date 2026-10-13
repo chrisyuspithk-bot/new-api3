@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -35,6 +35,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ledgerKindLabel } from '@/features/invoices/lib/ledger-kind'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -42,8 +44,9 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 import { getLedger, getResellerSelf, updateResellerMarkup } from './api'
 
 export function ResellerOverview() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
+  const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [markup, setMarkup] = useState<string | null>(null)
 
   const self = useQuery({
@@ -73,6 +76,46 @@ export function ResellerOverview() {
     } catch (error) {
       handleServerError(error, t('Failed to update markup'))
     }
+  }
+
+  const ledgerRows = ledger.data?.items ?? []
+  let ledgerBody: ReactNode
+  if (ledger.isLoading) {
+    ledgerBody = (
+      <TableRow>
+        <TableCell colSpan={5}>{t('Loading...')}</TableCell>
+      </TableRow>
+    )
+  } else if (ledger.isError) {
+    ledgerBody = (
+      <TableRow>
+        <TableCell colSpan={5}>{t('Failed to load')}</TableCell>
+      </TableRow>
+    )
+  } else if (ledgerRows.length === 0) {
+    ledgerBody = (
+      <TableRow>
+        <TableCell colSpan={5}>{t('No ledger rows')}</TableCell>
+      </TableRow>
+    )
+  } else {
+    ledgerBody = ledgerRows.map((row) => (
+      <TableRow key={row.id}>
+        <TableCell>
+          {row.created_at
+            ? new Date(row.created_at * 1000).toLocaleString(intlLocale)
+            : '—'}
+        </TableCell>
+        <TableCell>{ledgerKindLabel(row.kind, t)}</TableCell>
+        <TableCell>{formatQuota(row.quota_delta)}</TableCell>
+        <TableCell>
+          {row.customer_id
+            ? row.customer_username || `#${row.customer_id}`
+            : '—'}
+        </TableCell>
+        <TableCell>{row.remark || '—'}</TableCell>
+      </TableRow>
+    ))
   }
 
   return (
@@ -157,37 +200,7 @@ export function ResellerOverview() {
                         <TableHead>{t('Remark')}</TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
-                      {(ledger.data?.items ?? []).length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={5}>
-                            {t('No ledger rows')}
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        (ledger.data?.items ?? []).map((row) => (
-                          <TableRow key={row.id}>
-                            <TableCell>
-                              {row.created_at
-                                ? new Date(
-                                    row.created_at * 1000
-                                  ).toLocaleString()
-                                : '—'}
-                            </TableCell>
-                            <TableCell>{row.kind}</TableCell>
-                            <TableCell>
-                              {formatQuota(row.quota_delta)}
-                            </TableCell>
-                            <TableCell>
-                              {row.customer_id
-                                ? row.customer_username || `#${row.customer_id}`
-                                : '—'}
-                            </TableCell>
-                            <TableCell>{row.remark || '—'}</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
+                    <TableBody>{ledgerBody}</TableBody>
                   </Table>
                 </div>
               </CardContent>

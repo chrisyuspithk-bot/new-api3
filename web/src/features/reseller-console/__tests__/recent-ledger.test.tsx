@@ -108,4 +108,37 @@ describe('reseller overview recent ledger', () => {
     const rows = screen.getAllByRole('row').slice(1)
     expect(customerCell(rows[1])).toHaveTextContent(/^—$/)
   })
+
+  it('shows the translated kind label instead of the raw kind', async () => {
+    renderOverview()
+    expect(
+      await screen.findByRole('cell', { name: 'Customer credit' })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('cell', { name: 'customer_credit' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows a load error instead of the empty state when the ledger request fails', async () => {
+    vi.mocked(api.get).mockImplementation(async (url: string) => {
+      if (url === '/api/reseller/ledger') {
+        return { data: { success: false, message: 'boom' } }
+      }
+      return {
+        data: {
+          success: true,
+          data: {
+            id: 9,
+            username: 'r',
+            display_name: '',
+            quota: 0,
+            used_quota: 0,
+          },
+        },
+      }
+    })
+    renderOverview()
+    expect(await screen.findByText('Failed to load')).toBeVisible()
+    expect(screen.queryByText('No ledger rows')).not.toBeInTheDocument()
+  })
 })

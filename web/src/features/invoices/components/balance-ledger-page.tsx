@@ -36,6 +36,7 @@ import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { downloadInvoiceCsv, ledgerExportFilename } from '../download'
+import { ledgerKindLabel } from '../lib/ledger-kind'
 import type { LedgerPage, LedgerQuery, ResellerLedgerKind } from '../types'
 
 const LEDGER_PAGE_SIZE = 20
@@ -64,21 +65,6 @@ function currentMonthPeriod(): string {
     year: 'numeric',
     month: '2-digit',
   }).format(new Date())
-}
-
-function ledgerKindLabel(kind: string, t: (key: string) => string): string {
-  switch (kind) {
-    case 'admin_credit':
-      return t('Admin credit')
-    case 'admin_debit':
-      return t('Admin debit')
-    case 'customer_credit':
-      return t('Customer credit')
-    case 'customer_debit':
-      return t('Customer debit')
-    default:
-      return kind
-  }
 }
 
 export function BalanceLedgerPage(props: BalanceLedgerPageProps) {

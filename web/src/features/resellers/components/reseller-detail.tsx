@@ -36,6 +36,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ledgerKindLabel } from '@/features/invoices/lib/ledger-kind'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -50,24 +52,9 @@ import {
 } from '../api'
 import { ResellerCustomersTab } from './reseller-customers-tab'
 
-
-function ledgerKindLabel(kind: string, t: (key: string) => string): string {
-  switch (kind) {
-    case 'admin_credit':
-      return t('Admin credit')
-    case 'admin_debit':
-      return t('Admin debit')
-    case 'customer_credit':
-      return t('Customer credit')
-    case 'customer_debit':
-      return t('Customer debit')
-    default:
-      return kind
-  }
-}
-
 export function ResellerDetail({ id }: { id: number }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const qc = useQueryClient()
   const [groupsText, setGroupsText] = useState<string | null>(null)
   const [modelName, setModelName] = useState('')
@@ -77,7 +64,7 @@ export function ResellerDetail({ id }: { id: number }) {
     queryKey: ['admin-reseller', id],
     queryFn: async () => {
       const res = requireServerSuccess(await getReseller(id))
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -95,13 +82,12 @@ export function ResellerDetail({ id }: { id: number }) {
       const res = requireServerSuccess(
         await getResellerLedger(id, { p: 1, page_size: 50 })
       )
-      return res.data!
+      return res.data ?? null
     },
   })
 
   const reseller = detail.data
-  const groupValue =
-    groupsText ?? (reseller?.groups ?? []).join(', ')
+  const groupValue = groupsText ?? (reseller?.groups ?? []).join(', ')
 
   const saveGroups = async () => {
     try {
@@ -137,9 +123,7 @@ export function ResellerDetail({ id }: { id: number }) {
   return (
     <SectionPageLayout>
       <SectionPageLayout.Title>
-        {reseller
-          ? `${t('Reseller')}: ${reseller.username}`
-          : t('Reseller')}
+        {reseller ? `${t('Reseller')}: ${reseller.username}` : t('Reseller')}
       </SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <Button variant='outline' size='sm' render={<Link to='/resellers' />}>
@@ -326,7 +310,9 @@ export function ResellerDetail({ id }: { id: number }) {
                         <TableRow key={row.id}>
                           <TableCell>
                             {row.created_at
-                              ? new Date(row.created_at * 1000).toLocaleString()
+                              ? new Date(row.created_at * 1000).toLocaleString(
+                                  intlLocale
+                                )
                               : '—'}
                           </TableCell>
                           <TableCell>{ledgerKindLabel(row.kind, t)}</TableCell>
