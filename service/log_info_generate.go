@@ -182,10 +182,20 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other *model.LogOther)
 	other.SetPublic("stream_status", streamInfo)
 }
 
+// appendResellerSelfInfo notes the cost factor a reseller's own call was billed
+// at; group_ratio in the same log already includes it.
+func appendResellerSelfInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
+	if relayInfo == nil || other == nil || !relayInfo.ResellerSelf || relayInfo.ResellerId > 0 || relayInfo.ResellerCostFactor <= 0 {
+		return
+	}
+	other.SetPublic("reseller_self_cost_factor", relayInfo.ResellerCostFactor)
+}
+
 func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil || other == nil {
 		return
 	}
+	appendResellerSelfInfo(relayInfo, other)
 	// billing_source: "wallet" or "subscription"
 	if relayInfo.BillingSource != "" {
 		other.SetPublic("billing_source", relayInfo.BillingSource)
@@ -324,6 +334,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData hosttypes.P
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other.SetPublic("user_group_ratio", priceData.GroupRatioInfo.GroupSpecialRatio)
 	}
+	appendResellerSelfInfo(relayInfo, other)
 	appendRequestPath(nil, relayInfo, other)
 	return other
 }

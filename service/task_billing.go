@@ -61,6 +61,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 	if info.PriceData.GroupRatioInfo.HasSpecialRatio {
 		other.SetPublic("user_group_ratio", info.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
+	appendResellerSelfInfo(info, other)
 	if info.IsModelMapped {
 		other.SetPublic("is_model_mapped", true)
 		other.SetPublic("upstream_model_name", info.UpstreamModelName)
@@ -157,6 +158,16 @@ func taskResellerLeg(task *model.Task) (resellerId int, markup float64, costFact
 	return bc.ResellerId, bc.ResellerMarkup, costFactor
 }
 
+// taskResellerSelfCostFactor returns the cost factor frozen for a reseller's
+// own task (0 = not a reseller self-call).
+func taskResellerSelfCostFactor(task *model.Task) float64 {
+	bc := task.PrivateData.BillingContext
+	if bc == nil || bc.ResellerId > 0 || bc.ResellerCostFactor <= 0 {
+		return 0
+	}
+	return bc.ResellerCostFactor
+}
+
 // taskAdjustResellerLeg moves the reseller wallet from the cost of oldCharge to
 // the cost of newCharge and returns the signed cost delta (>0 = charged more).
 // Like the synchronous settle, a positive delta may take the reseller below
@@ -201,6 +212,9 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 			other.SetPublic("model_ratio", bc.ModelRatio)
 		}
 		other.SetPublic("group_ratio", bc.GroupRatio)
+		if costFactor := taskResellerSelfCostFactor(task); costFactor > 0 {
+			other.SetPublic("reseller_self_cost_factor", costFactor)
+		}
 		if priceData := taskBillingContextPriceData(bc); priceData != nil {
 			for k, v := range priceData.OtherRatios() {
 				if !other.SetPublic(k, v) {
@@ -479,6 +493,8 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	// recalculated quota stays the customer charge.
 	if _, markup, costFactor := taskResellerLeg(task); markup > 0 {
 		finalGroupRatio = finalGroupRatio * costFactor * markup
+	} else if costFactor := taskResellerSelfCostFactor(task); costFactor > 0 {
+		finalGroupRatio = finalGroupRatio * costFactor
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

@@ -171,7 +171,9 @@ type TaskBillingContext struct {
 	TieredSnapshot  *billingexpr.BillingSnapshot `json:"tiered_snapshot,omitempty"`
 	// B2B2C reseller leg frozen at submit. GroupRatio above already includes
 	// ResellerCostFactor x ResellerMarkup; the reseller cost of any customer
-	// charge q is ceil(q / ResellerMarkup).
+	// charge q is ceil(q / ResellerMarkup). With ResellerId == 0, a non-zero
+	// ResellerCostFactor marks a reseller's own task (single leg, no markup;
+	// GroupRatio already includes the cost factor).
 	ResellerId         int     `json:"reseller_id,omitempty"`
 	ResellerMarkup     float64 `json:"reseller_markup,omitempty"`
 	ResellerCostFactor float64 `json:"reseller_cost_factor,omitempty"`

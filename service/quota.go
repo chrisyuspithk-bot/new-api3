@@ -128,6 +128,11 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 			costFactor = 1
 		}
 		actualGroupRatio = actualGroupRatio * costFactor * relayInfo.ResellerMarkup
+	} else if relayInfo.ResellerSelf {
+		if relayInfo.ResellerPricingErr != nil || relayInfo.ResellerCostFactor <= 0 {
+			return fmt.Errorf("reseller pricing unavailable: %v", relayInfo.ResellerPricingErr)
+		}
+		actualGroupRatio = actualGroupRatio * relayInfo.ResellerCostFactor
 	}
 
 	quotaInfo := QuotaInfo{

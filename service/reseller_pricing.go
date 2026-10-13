@@ -75,9 +75,25 @@ func resellerCostFactor(override model.ResellerModelPrice, modelName string) flo
 
 // ApplyResellerPricing folds reseller cost factor and markup into the group
 // ratio, so the quota computed by every billing path is the customer charge.
-// Direct users (ResellerId == 0) are untouched.
+// A reseller calling for itself (ResellerSelf) is billed base x costFactor with
+// no markup. Other direct users (ResellerId == 0) are untouched.
 func ApplyResellerPricing(info *relaycommon.RelayInfo, groupRatioInfo *hosttypes.GroupRatioInfo) {
-	if info == nil || info.ResellerId <= 0 {
+	if info == nil {
+		return
+	}
+	if info.ResellerSelf && info.ResellerId <= 0 {
+		costFactor, _, ok := ResellerPriceFactor(0, info.UserId, info.GetBillingModelName())
+		if !ok || costFactor <= 0 {
+			info.ResellerPricingErr = model.ErrResellerDisabled
+			return
+		}
+		info.ResellerPricingErr = nil
+		info.ResellerCostFactor = costFactor
+		info.ResellerMarkup = 0
+		groupRatioInfo.GroupRatio = groupRatioInfo.GroupRatio * costFactor
+		return
+	}
+	if info.ResellerId <= 0 {
 		return
 	}
 	costFactor, markup, err := ResolveResellerFactors(info.UserId, info.ResellerId, info.GetBillingModelName())
@@ -119,10 +135,17 @@ var ErrResellerInsufficient = errors.New("reseller cost balance insufficient")
 // costFactor x markup, so replacing completionRatio yields exactly
 // cost_completion = base_model_ratio x costFactor x override.
 func ResellerCompletionRatio(info *relaycommon.RelayInfo, modelName string) (float64, bool) {
-	if info == nil || info.ResellerId <= 0 || info.ResellerPricingErr != nil {
+	if info == nil || info.ResellerPricingErr != nil {
 		return 0, false
 	}
-	cfg, err := model.GetResellerPricingConfig(info.ResellerId)
+	resellerId := info.ResellerId
+	if resellerId <= 0 && info.ResellerSelf {
+		resellerId = info.UserId
+	}
+	if resellerId <= 0 {
+		return 0, false
+	}
+	cfg, err := model.GetResellerPricingConfig(resellerId)
 	if err != nil {
 		return 0, false
 	}
@@ -134,7 +157,8 @@ func ResellerCompletionRatio(info *relaycommon.RelayInfo, modelName string) (flo
 }
 
 // ResellerPriceFactor is the multiplier applied to base model_ratio/model_price
-// for pricing display. customerId == 0 means the reseller's own cost view.
+// for pricing display. customerId == 0 means the reseller's own cost view,
+// which is also what a reseller's own API calls are billed at.
 func ResellerPriceFactor(customerId, resellerId int, modelName string) (factor float64, completionRatio *float64, ok bool) {
 	cfg, err := model.GetResellerPricingConfig(resellerId)
 	if err != nil || cfg.Status != common.UserStatusEnabled {

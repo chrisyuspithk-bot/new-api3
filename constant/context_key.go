@@ -52,6 +52,7 @@ const (
 	ContextKeyUserEmail      ContextKey = "user_email"
 	ContextKeyUserGroup      ContextKey = "user_group"
 	ContextKeyUserResellerId ContextKey = "user_reseller_id"
+	ContextKeyUserRole       ContextKey = "user_role"
 	ContextKeyUsingGroup     ContextKey = "group"
 	ContextKeyUserName       ContextKey = "username"
 

@@ -61,9 +61,18 @@ func PrepareMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.
 
 // CheckMidjourneyResellerBilling fails a reseller customer's Midjourney request
 // closed before the upstream call when reseller pricing is unavailable or the
-// reseller cost balance cannot cover the charge. Direct users pass.
+// reseller cost balance cannot cover the charge. Direct users pass; a reseller's
+// own call fails only when its cost factor is unavailable.
 func CheckMidjourneyResellerBilling(relayInfo *relaycommon.RelayInfo, quota int) error {
-	if relayInfo == nil || relayInfo.ResellerId <= 0 {
+	if relayInfo == nil {
+		return nil
+	}
+	if relayInfo.ResellerId <= 0 {
+		// A reseller's own call is single-leg; only fail closed when its cost
+		// factor could not be resolved.
+		if relayInfo.ResellerSelf {
+			return relayInfo.ResellerPricingErr
+		}
 		return nil
 	}
 	if relayInfo.ResellerPricingErr != nil {

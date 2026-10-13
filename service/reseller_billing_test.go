@@ -170,3 +170,78 @@ func TestResellerCostFromChargeRoundsUp(t *testing.T) {
 	assert.Equal(t, 34, ResellerCostFromCharge(100, 3))
 	assert.Equal(t, 200, ResellerCostFromCharge(100, 0.5), "markup below 1 sells at a loss")
 }
+
+func TestResellerSelfCallBillsCostFactorSingleLeg(t *testing.T) {
+	seedResellerLine(t, 10000, 10000, 2, common.UserStatusEnabled)
+	multiplier := 1.2
+	require.NoError(t, model.UpsertResellerModelPrice(&model.ResellerModelPrice{ResellerId: b2bResellerId, ModelName: "b2b-model", CostMultiplier: &multiplier}))
+
+	// The role written by the auth middleware marks a reseller's own call.
+	cases := []struct {
+		name         string
+		user         model.UserBase
+		resellerSelf bool
+		groupRatio   float64
+	}{
+		{"reseller self", model.UserBase{Id: b2bResellerId, Role: common.RoleResellerUser}, true, 1.2},
+		{"customer", model.UserBase{Id: b2bCustomerId, Role: common.RoleCommonUser, ResellerId: b2bResellerId}, false, 2.4},
+		{"admin", model.UserBase{Id: 1, Role: common.RoleAdminUser}, false, 1},
+	}
+	for _, tc := range cases {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+		ctx.Set("id", tc.user.Id)
+		tc.user.WriteContext(ctx)
+		info := relaycommon.GenRelayInfoOpenAI(ctx, nil)
+		info.OriginModelName, info.UsingGroup = "b2b-model", "default"
+		assert.Equal(t, tc.resellerSelf, info.ResellerSelf, tc.name)
+		groupRatio := hosttypes.GroupRatioInfo{GroupRatio: 1}
+		ApplyResellerPricing(info, &groupRatio)
+		require.NoError(t, info.ResellerPricingErr, tc.name)
+		assert.InDelta(t, tc.groupRatio, groupRatio.GroupRatio, 1e-9, tc.name)
+	}
+
+	// Pre-consume and settle charge only the reseller's own wallet.
+	info := &relaycommon.RelayInfo{
+		UserId: b2bResellerId, ResellerSelf: true, IsPlayground: true, OriginModelName: "b2b-model", UsingGroup: "default", UserGroup: "default",
+		UserSetting: dto.UserSetting{BillingPreference: "wallet_only"}, ForcePreConsume: true,
+		StartTime: time.Now(), RelayFormat: types.RelayFormatOpenAI,
+	}
+	groupRatio := hosttypes.GroupRatioInfo{GroupRatio: 1}
+	ApplyResellerPricing(info, &groupRatio)
+	info.PriceData = hosttypes.PriceData{GroupRatioInfo: groupRatio}
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	require.Nil(t, PreConsumeBilling(ctx, 120, info))
+	assert.Equal(t, 9880, quotaOf(t, b2bResellerId))
+	require.NoError(t, SettleBilling(ctx, info, 240))
+	assert.Equal(t, 9760, quotaOf(t, b2bResellerId))
+	assert.Equal(t, 10000, quotaOf(t, b2bCustomerId), "no customer leg")
+	assert.Equal(t, 0, info.ResellerCostQuota, "no second reseller leg")
+	assert.Zero(t, ctx.GetInt(model.ContextKeyLogResellerId))
+	require.NoError(t, CheckMidjourneyResellerBilling(info, 4000000))
+
+	other := model.NewLogOther()
+	appendBillingInfo(info, other)
+	assert.Equal(t, 1.2, other.Snapshot()["reseller_self_cost_factor"])
+
+	// A frozen self cost factor is re-applied when a task is recalculated.
+	task := &model.Task{UserId: b2bResellerId, Group: "default"}
+	task.PrivateData.BillingContext = &model.TaskBillingContext{ResellerCostFactor: 1.2}
+	assert.InDelta(t, 1.2, taskResellerSelfCostFactor(task), 1e-9)
+	_, markup, _ := taskResellerLeg(task)
+	assert.Zero(t, markup, "self task has no reseller leg")
+}
+
+func TestDisabledResellerSelfCallFailsClosed(t *testing.T) {
+	seedResellerLine(t, 1000, 10000, 2, common.UserStatusDisabled)
+	info := &relaycommon.RelayInfo{UserId: b2bResellerId, ResellerSelf: true, OriginModelName: "b2b-model", UsingGroup: "default"}
+	groupRatio := hosttypes.GroupRatioInfo{GroupRatio: 1}
+	ApplyResellerPricing(info, &groupRatio)
+	require.ErrorIs(t, info.ResellerPricingErr, model.ErrResellerDisabled)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	apiErr := PreConsumeBilling(ctx, 100, info)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, 403, apiErr.StatusCode)
+	assert.Equal(t, 1000, quotaOf(t, b2bResellerId))
+}

@@ -90,6 +90,9 @@ type RelayInfo struct {
 	TokenUnlimited bool
 	// ResellerId is the owning reseller of a B2B2C customer (0 = direct user).
 	ResellerId int
+	// ResellerSelf marks a reseller calling the API for itself: a single leg
+	// billed to its own balance at base x ResellerCostFactor, with no markup.
+	ResellerSelf bool
 	// ResellerMarkup / ResellerCostFactor are resolved by HandleGroupRatio and
 	// folded into GroupRatio so every billing engine path yields the customer
 	// charge; ResellerPricingErr fails billing closed when resolution failed.
@@ -626,8 +629,10 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),
 		ResellerId: common.GetContextKeyInt(c, constant.ContextKeyUserResellerId),
-		UserQuota:  common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
-		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
+		ResellerSelf: common.GetContextKeyInt(c, constant.ContextKeyUserRole) == common.RoleResellerUser &&
+			common.GetContextKeyInt(c, constant.ContextKeyUserResellerId) == 0,
+		UserQuota: common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
+		UserEmail: common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 
 		OriginModelName: originModelName,
 

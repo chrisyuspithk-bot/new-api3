@@ -221,3 +221,21 @@ func TestUserAuthVersionFenceAndCommittedFloorAreMonotonic(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "5", committed)
 }
+
+func TestUserCacheRoundTripsResellerBillingIdentity(t *testing.T) {
+	useUserCacheMiniRedis(t)
+
+	// Relay billing reads ResellerId and Role from the cached user to pick the
+	// customer dual-leg or reseller self-call path.
+	require.NoError(t, writeUserCache(&UserBase{Id: 7001, ResellerId: 42, Role: common.RoleCommonUser, Group: "default", AuthVersion: 1}, true))
+	require.NoError(t, writeUserCache(&UserBase{Id: 7002, Role: common.RoleResellerUser, Group: "default", AuthVersion: 1}, true))
+
+	customer, err := cacheGetUserBase(7001)
+	require.NoError(t, err)
+	assert.Equal(t, 42, customer.ResellerId)
+	assert.Equal(t, common.RoleCommonUser, customer.Role)
+	reseller, err := cacheGetUserBase(7002)
+	require.NoError(t, err)
+	assert.Equal(t, 0, reseller.ResellerId)
+	assert.Equal(t, common.RoleResellerUser, reseller.Role)
+}

@@ -635,6 +635,8 @@ func executeTaskSubmissionWith(
 		task.PrivateData.BillingContext.ResellerId = relayInfo.ResellerId
 		task.PrivateData.BillingContext.ResellerMarkup = relayInfo.ResellerMarkup
 		task.PrivateData.BillingContext.ResellerCostFactor = relayInfo.ResellerCostFactor
+	} else if relayInfo.ResellerSelf {
+		task.PrivateData.BillingContext.ResellerCostFactor = relayInfo.ResellerCostFactor
 	}
 	task.Quota = result.Quota
 	task.Data = result.TaskData

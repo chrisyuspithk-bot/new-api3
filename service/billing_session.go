@@ -505,6 +505,8 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		resellerMarkup = relayInfo.ResellerMarkup
 		// v1: customers of a reseller are wallet-only (no subscription x markup).
 		pref = "wallet_only"
+	} else if relayInfo.ResellerSelf && relayInfo.ResellerPricingErr != nil {
+		return nil, types.NewErrorWithStatusCode(relayInfo.ResellerPricingErr, types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 
 	// 钱包路径需要先检查用户额度
