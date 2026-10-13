@@ -107,11 +107,30 @@ type ledgerExportScope struct {
 	internal   bool
 }
 
-// writeLedgerExportCSV writes one month of the balance ledger as CSV: a
-// summary (credit increase/decrease over every kind, plus usage and fees from
-// the same log aggregation as monthly invoices), per-kind totals, then every
-// ledger row. Only the row listing honours the optional kind filter.
-func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
+// ledgerStatement is one month of the balance ledger for a scope: a summary
+// (credit increase/decrease over every kind, plus usage and fees from the same
+// log aggregation as monthly invoices), per-kind totals, then every ledger
+// row. Only the row listing honours the optional kind filter.
+type ledgerStatement struct {
+	scope      ledgerExportScope
+	period     string
+	rowFilter  string
+	kindTotals []model.LedgerKindTotal
+	usage      *model.Invoice
+	rows       []model.ResellerLedger
+	// increase/decrease are wallet credits; issued/refunded are redemption
+	// escrow moves, reported to internal scopes only.
+	increase, decrease, issued, refunded model.LedgerKindTotal
+}
+
+// writeLedgerExport answers a balance-ledger export as a localized PDF
+// statement, or as CSV with format=csv.
+func writeLedgerExport(c *gin.Context, scope ledgerExportScope) {
+	format := strings.TrimSpace(c.Query("format"))
+	if format != "" && format != "pdf" && format != "csv" {
+		common.ApiErrorMsg(c, "invalid format")
+		return
+	}
 	period := strings.TrimSpace(c.Query("period"))
 	from, toEx, err := model.ParseInvoicePeriod(period)
 	if err != nil {
@@ -144,27 +163,38 @@ func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
 	// customer_credit. Issuing and refunding codes only moves reseller funds
 	// into and out of prepaid codes (the reseller side of a transfer), so they
 	// are reported separately as redemption escrow.
-	var increase, decrease, issued, refunded model.LedgerKindTotal
+	ex := ledgerStatement{scope: scope, period: period, rowFilter: kind, kindTotals: kindTotals, usage: usage, rows: rows}
 	for _, kt := range kindTotals {
 		switch kt.Kind {
 		case model.ResellerLedgerRedemptionIssue:
-			issued.Entries += kt.Entries
-			issued.Quota -= kt.Quota
+			ex.issued.Entries += kt.Entries
+			ex.issued.Quota -= kt.Quota
 		case model.ResellerLedgerRedemptionRefund:
-			refunded.Entries += kt.Entries
-			refunded.Quota += kt.Quota
+			ex.refunded.Entries += kt.Entries
+			ex.refunded.Quota += kt.Quota
 		case model.ResellerLedgerAdminCredit, model.ResellerLedgerCustomerCredit, model.ResellerLedgerRedemptionRedeem:
-			increase.Entries += kt.Entries
-			increase.Quota += kt.Quota
-			increase.MoneyUsd += kt.MoneyUsd
+			ex.increase.Entries += kt.Entries
+			ex.increase.Quota += kt.Quota
+			ex.increase.MoneyUsd += kt.MoneyUsd
 		case model.ResellerLedgerAdminDebit, model.ResellerLedgerCustomerDebit:
 			// Debit rows store a negative quota_delta; report the magnitude.
-			decrease.Entries += kt.Entries
-			decrease.Quota -= kt.Quota
-			decrease.MoneyUsd += kt.MoneyUsd
+			ex.decrease.Entries += kt.Entries
+			ex.decrease.Quota -= kt.Quota
+			ex.decrease.MoneyUsd += kt.MoneyUsd
 		}
 	}
-	rowFilter := kind
+	if format == "csv" {
+		writeLedgerExportCSV(c, &ex)
+		return
+	}
+	writeLedgerExportPDF(c, &ex)
+}
+
+// writeLedgerExportCSV writes the export as machine-readable CSV sections.
+func writeLedgerExportCSV(c *gin.Context, ex *ledgerStatement) {
+	period, usage, scope := ex.period, ex.usage, ex.scope
+	increase, decrease, issued, refunded := ex.increase, ex.decrease, ex.issued, ex.refunded
+	rowFilter := ex.rowFilter
 	if rowFilter == "" {
 		rowFilter = "all"
 	}
@@ -217,7 +247,7 @@ func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
 	_ = w.Write(nil)
 	_ = w.Write([]string{"# LEDGER BY KIND"})
 	_ = w.Write([]string{"kind", "entries", "quota_delta", "money_usd"})
-	for _, kt := range kindTotals {
+	for _, kt := range ex.kindTotals {
 		_ = w.Write([]string{csvSafeText(kt.Kind), strconv.FormatInt(kt.Entries, 10), strconv.FormatInt(kt.Quota, 10), usdCell(kt.MoneyUsd)})
 	}
 
@@ -229,7 +259,7 @@ func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
 	}
 	_ = w.Write(header)
 	loc := model.InvoicePeriodLocation()
-	for _, row := range rows {
+	for _, row := range ex.rows {
 		money := ""
 		if row.MoneyUsd != nil {
 			money = usdCell(*row.MoneyUsd)
@@ -263,13 +293,13 @@ func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
 // reseller when reseller_id is set.
 func AdminExportResellerLedger(c *gin.Context) {
 	resellerId, _ := strconv.Atoi(c.Query("reseller_id"))
-	writeLedgerExportCSV(c, ledgerExportScope{resellerId: max(resellerId, 0), internal: true})
+	writeLedgerExport(c, ledgerExportScope{resellerId: max(resellerId, 0), internal: true})
 }
 
 // ResellerExportLedger exports the session reseller's month. Query
 // reseller_id / customer_id are ignored.
 func ResellerExportLedger(c *gin.Context) {
-	writeLedgerExportCSV(c, ledgerExportScope{resellerId: c.GetInt("id"), internal: true})
+	writeLedgerExport(c, ledgerExportScope{resellerId: c.GetInt("id"), internal: true})
 }
 
 // CustomerExportLedger exports the session customer's month without
@@ -285,7 +315,7 @@ func CustomerExportLedger(c *gin.Context) {
 		common.ApiErrorMsg(c, "forbidden")
 		return
 	}
-	writeLedgerExportCSV(c, ledgerExportScope{customerId: userId})
+	writeLedgerExport(c, ledgerExportScope{customerId: userId})
 }
 
 func invoiceDetailResponse(inv *model.Invoice) gin.H {

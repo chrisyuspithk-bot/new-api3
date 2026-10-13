@@ -20,11 +20,12 @@ import { api } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 /**
- * Downloads an invoice CSV through the authenticated API client.
+ * Downloads an invoice or ledger export (CSV or PDF) through the
+ * authenticated API client.
  *
  * Dashboard auth is a Bearer token held by the SPA, so a plain
  * `<a href>` navigation carries no Authorization header and the server
- * answers AUTH_UNAUTHORIZED. Fetch the CSV as a blob instead and save it.
+ * answers AUTH_UNAUTHORIZED. Fetch the file as a blob instead and save it.
  */
 export async function downloadInvoiceCsv(
   url: string,
@@ -35,7 +36,7 @@ export async function downloadInvoiceCsv(
   const data = res.data as Blob
   const blob =
     data instanceof Blob ? data : new Blob([String(data)], { type: 'text/csv' })
-  // Failures arrive as a JSON `{ success: false }` body, not a CSV.
+  // Failures arrive as a JSON `{ success: false }` body, not the file.
   if (blob.type.includes('json')) {
     requireServerSuccess(JSON.parse(await blob.text()) as unknown)
   }
@@ -46,8 +47,16 @@ export function invoiceCsvFilename(id: number, period?: string): string {
   return period ? `invoice-${id}-${period}.csv` : `invoice-${id}.csv`
 }
 
-export function ledgerExportFilename(period: string, kind?: string): string {
-  return kind ? `ledger-${period}-${kind}.csv` : `ledger-${period}.csv`
+export type LedgerExportFormat = 'pdf' | 'csv'
+
+export function ledgerExportFilename(
+  period: string,
+  kind?: string,
+  format: LedgerExportFormat = 'pdf'
+): string {
+  return kind
+    ? `ledger-${period}-${kind}.${format}`
+    : `ledger-${period}.${format}`
 }
 
 function saveBlobAsFile(blob: Blob, filename: string): void {

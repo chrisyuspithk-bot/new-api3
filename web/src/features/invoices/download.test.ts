@@ -53,9 +53,12 @@ describe('downloadInvoiceCsv', () => {
   it('builds filenames', () => {
     expect(invoiceCsvFilename(1, '2026-09')).toBe('invoice-1-2026-09.csv')
     expect(invoiceCsvFilename(2)).toBe('invoice-2.csv')
-    expect(ledgerExportFilename('2026-09')).toBe('ledger-2026-09.csv')
+    expect(ledgerExportFilename('2026-09')).toBe('ledger-2026-09.pdf')
     expect(ledgerExportFilename('2026-09', 'admin_debit')).toBe(
-      'ledger-2026-09-admin_debit.csv'
+      'ledger-2026-09-admin_debit.pdf'
+    )
+    expect(ledgerExportFilename('2026-09', undefined, 'csv')).toBe(
+      'ledger-2026-09.csv'
     )
   })
 })

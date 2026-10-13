@@ -28,6 +28,8 @@ Transitive dependencies should be audited before a final external release.
 | backend  | production  | Go        | `github.com/glebarez/sqlite`                          | `v1.9.0`                             | MIT                                                |
 | backend  | production  | Go        | `github.com/go-audio/aiff`                            | `v1.1.0`                             | Apache-2.0                                         |
 | backend  | production  | Go        | `github.com/go-audio/wav`                             | `v1.1.0`                             | Apache-2.0                                         |
+| backend  | production  | Go        | `github.com/go-pdf/fpdf`                              | `v0.9.0`                             | MIT                                                |
+| docker   | production  | Font      | `Noto Sans TC / Noto Sans SC` (Google Fonts)          | `v40 / v41`                          | OFL-1.1                                            |
 | backend  | production  | Go        | `github.com/go-playground/validator/v10`              | `v10.20.0`                           | MIT                                                |
 | backend  | production  | Go        | `github.com/go-redis/redis/v8`                        | `v8.11.5`                            | BSD-2-Clause                                       |
 | backend  | production  | Go        | `github.com/go-webauthn/webauthn`                     | `v0.14.0`                            | BSD-3-Clause                                       |
@@ -301,7 +303,7 @@ SOFTWARE.
 
 SIL Open Font License 1.1
 
-The font dependency listed under OFL-1.1 is licensed under the SIL Open Font
+The font dependencies listed under OFL-1.1 are licensed under the SIL Open Font
 License, Version 1.1. The full license text is available at:
 https://openfontlicense.org/open-font-license-official-text/
 

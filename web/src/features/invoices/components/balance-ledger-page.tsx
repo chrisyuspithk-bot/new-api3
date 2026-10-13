@@ -35,7 +35,11 @@ import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
-import { downloadInvoiceCsv, ledgerExportFilename } from '../download'
+import {
+  downloadInvoiceCsv,
+  ledgerExportFilename,
+  type LedgerExportFormat,
+} from '../download'
 import { ledgerKindLabel } from '../lib/ledger-kind'
 import type { LedgerPage, LedgerQuery, ResellerLedgerKind } from '../types'
 
@@ -93,14 +97,16 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
       }),
   })
 
-  const exportLedger = async () => {
+  const exportLedger = async (format: LedgerExportFormat) => {
     setExporting(true)
     try {
+      // The server answers a PDF statement by default, in the user's language.
       const params: Record<string, string> = { period }
       if (kind) params.kind = kind
+      if (format === 'csv') params.format = 'csv'
       await downloadInvoiceCsv(
         props.exportUrl,
-        ledgerExportFilename(period, kind),
+        ledgerExportFilename(period, kind, format),
         params
       )
     } catch (error) {
@@ -214,9 +220,17 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
           size='sm'
           variant='outline'
           disabled={!periodValid || exporting}
-          onClick={exportLedger}
+          onClick={() => exportLedger('pdf')}
         >
           {t('Export')}
+        </Button>
+        <Button
+          size='sm'
+          variant='ghost'
+          disabled={!periodValid || exporting}
+          onClick={() => exportLedger('csv')}
+        >
+          {t('Export CSV')}
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>

@@ -1,15 +1,18 @@
 package controller
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
@@ -458,7 +461,7 @@ func seedLedgerExportFixture(t *testing.T) (resellerID, customerID int) {
 func TestResellerExportLedgerSummarisesWholeMonthAndFiltersRowsByKind(t *testing.T) {
 	resellerID, customerID := seedLedgerExportFixture(t)
 
-	out := callLedgerExport(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export?period=2026-09&kind=customer_debit&reseller_id=9599")
+	out := callLedgerExport(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export?period=2026-09&kind=customer_debit&reseller_id=9599&format=csv")
 
 	assert.Equal(t, "reseller", out.summary["scope"])
 	assert.Equal(t, "customer_debit", out.summary["ledger_rows_kind_filter"])
@@ -480,7 +483,7 @@ func TestResellerExportLedgerSummarisesWholeMonthAndFiltersRowsByKind(t *testing
 func TestCustomerExportLedgerOnlyCoversCallerAndHidesInternalFields(t *testing.T) {
 	_, customerID := seedLedgerExportFixture(t)
 
-	out := callLedgerExport(t, CustomerExportLedger, customerID, "/api/user/ledger/export?period=2026-09&customer_id=9503")
+	out := callLedgerExport(t, CustomerExportLedger, customerID, "/api/user/ledger/export?period=2026-09&customer_id=9503&format=csv")
 
 	assert.Equal(t, "customer", out.summary["scope"])
 	assert.Equal(t, "10", out.summary["credit_increase_quota"])
@@ -499,7 +502,7 @@ func TestCustomerExportLedgerOnlyCoversCallerAndHidesInternalFields(t *testing.T
 func TestAdminExportResellerLedgerCoversEveryReseller(t *testing.T) {
 	seedLedgerExportFixture(t)
 
-	out := callLedgerExport(t, AdminExportResellerLedger, 1, "/api/admin/reseller_ledger/export?period=2026-09")
+	out := callLedgerExport(t, AdminExportResellerLedger, 1, "/api/admin/reseller_ledger/export?period=2026-09&format=csv")
 
 	assert.Equal(t, "admin_rollup", out.summary["scope"])
 	assert.Equal(t, "all", out.summary["ledger_rows_kind_filter"])
@@ -523,7 +526,7 @@ func TestResellerExportLedgerSeparatesRedemptionEscrowFromCredits(t *testing.T) 
 	}
 	require.NoError(t, model.DB.Create(&rows).Error)
 
-	out := callLedgerExport(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export?period=2026-09&kind=redemption_issue")
+	out := callLedgerExport(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export?period=2026-09&kind=redemption_issue&format=csv")
 
 	// 60 from the base fixture + 30 redeemed; issue/refund are escrow moves.
 	assert.Equal(t, "90", out.summary["credit_increase_quota"])
@@ -534,9 +537,75 @@ func TestResellerExportLedgerSeparatesRedemptionEscrowFromCredits(t *testing.T) 
 	assert.Equal(t, "30", out.summary["redemption_escrow_net_quota"])
 	require.Len(t, out.rows, 2)
 
-	customer := callLedgerExport(t, CustomerExportLedger, customerID, "/api/user/ledger/export?period=2026-09")
+	customer := callLedgerExport(t, CustomerExportLedger, customerID, "/api/user/ledger/export?period=2026-09&format=csv")
 	assert.Equal(t, "40", customer.summary["credit_increase_quota"])
 	assert.NotContains(t, customer.summary, "redemption_issue_quota")
+}
+
+// Without format=csv the export is a PDF statement in the reader's language;
+// customer statements leave out the internal columns and fee lines.
+func TestLedgerExportDefaultsToLocalizedPDF(t *testing.T) {
+	if _, _, err := ledgerPDFFont(i18n.LangZhTW); err != nil {
+		t.Skip(err.Error())
+	}
+	require.NoError(t, i18n.Init())
+	resellerID, customerID := seedLedgerExportFixture(t)
+
+	cases := []struct {
+		name     string
+		handler  gin.HandlerFunc
+		userID   int
+		url      string
+		lang     string
+		filename string
+		want     []string
+		absent   []string
+	}{
+		{
+			name: "reseller zh-HK", handler: ResellerExportLedger, userID: resellerID,
+			url: "/api/reseller/ledger/export?period=2026-09", lang: "zh-HK,zh;q=0.9",
+			filename: "ledger-2026-09-reseller.pdf",
+			want:     []string{"餘額流水", "代理商", "客戶扣款", "相關費用：利潤", "備註", "=cmd", "Asia/Hong_Kong"},
+		},
+		{
+			name: "customer en", handler: CustomerExportLedger, userID: customerID,
+			url: "/api/user/ledger/export?period=2026-09&format=pdf", lang: "en-US",
+			filename: "ledger-2026-09-customer.pdf",
+			want:     []string{"Balance Ledger", "Customer debit", "Related fees: charge"},
+			absent:   []string{"Remark", "Operator", "Related fees: cost", "Redemption escrow", "=cmd"},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Set("id", tc.userID)
+			ctx.Request = httptest.NewRequest(http.MethodGet, tc.url, nil)
+			ctx.Request.Header.Set("Accept-Language", tc.lang)
+			tc.handler(ctx)
+
+			require.Equal(t, "application/pdf", recorder.Header().Get("Content-Type"), recorder.Body.String())
+			assert.Contains(t, recorder.Header().Get("Content-Disposition"), tc.filename)
+			body := recorder.Body.Bytes()
+			require.True(t, bytes.HasPrefix(body, []byte("%PDF")))
+			assert.Greater(t, len(body), 2000)
+
+			pdftotext, err := exec.LookPath("pdftotext")
+			if err != nil {
+				t.Skip("pdftotext not installed; skipping label checks")
+			}
+			cmd := exec.Command(pdftotext, "-", "-")
+			cmd.Stdin = bytes.NewReader(body)
+			text, err := cmd.Output()
+			require.NoError(t, err)
+			for _, s := range tc.want {
+				assert.Contains(t, string(text), s)
+			}
+			for _, s := range tc.absent {
+				assert.NotContains(t, string(text), s)
+			}
+		})
+	}
 }
 
 func TestLedgerExportRejectsMissingPeriod(t *testing.T) {

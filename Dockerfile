@@ -35,6 +35,19 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && update-ca-certificates
 
+# Noto Sans TC/SC (regular, TrueType) for CJK text in balance-ledger PDF
+# exports. The PDF writer needs TrueType outlines, which the CFF-based
+# fonts-noto-cjk package lacks. Set PDF_FONT_DIR to load them from elsewhere.
+ARG NOTO_SANS_TC_URL=https://fonts.gstatic.com/s/notosanstc/v40/-nFuOG829Oofr2wohFbTp9ifNAn722rq0MXz76Cy_Co.ttf
+ARG NOTO_SANS_TC_SHA256=619662a0583f38311e92666927e5edbfd30f2a1fbe8593685660bd11bdd46a10
+ARG NOTO_SANS_SC_URL=https://fonts.gstatic.com/s/notosanssc/v41/k3kCo84MPvpLmixcA63oeAL7Iqp5IZJF9bmaG9_FnYw.ttf
+ARG NOTO_SANS_SC_SHA256=450625c8d46ab3df97b7904ded955ec2746d17ec76740cb1e91d1ba63a0f89af
+RUN mkdir -p /usr/share/fonts/truetype/noto \
+    && wget -q -O /usr/share/fonts/truetype/noto/NotoSansTC.ttf "$NOTO_SANS_TC_URL" \
+    && wget -q -O /usr/share/fonts/truetype/noto/NotoSansSC.ttf "$NOTO_SANS_SC_URL" \
+    && echo "$NOTO_SANS_TC_SHA256  /usr/share/fonts/truetype/noto/NotoSansTC.ttf" | sha256sum -c - \
+    && echo "$NOTO_SANS_SC_SHA256  /usr/share/fonts/truetype/noto/NotoSansSC.ttf" | sha256sum -c -
+
 COPY --from=builder2 /build/new-api /
 COPY LICENSE NOTICE THIRD-PARTY-LICENSES.md /licenses/
 EXPOSE 3000

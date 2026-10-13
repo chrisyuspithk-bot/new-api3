@@ -34,6 +34,10 @@ function ledgerResponse(
   return { data: { success: true, data: { items, total } } }
 }
 
+function pdfResponse() {
+  return { data: new Blob(['%PDF-1.3\n'], { type: 'application/pdf' }) }
+}
+
 function csvResponse() {
   return { data: new Blob(['# SUMMARY\n'], { type: 'text/csv' }) }
 }
@@ -65,7 +69,7 @@ describe('admin invoices page', () => {
     vi.spyOn(api, 'get').mockResolvedValue(ledgerResponse())
   })
 
-  it('exports the selected month and kind as an authenticated CSV download', async () => {
+  it('exports the selected month and kind as an authenticated PDF download', async () => {
     const { click } = stubFileSave()
     const user = userEvent.setup()
     renderPage(<AdminInvoicesPage />)
@@ -76,7 +80,7 @@ describe('admin invoices page', () => {
       screen.getByRole('combobox', { name: 'Kind' }),
       'admin_credit'
     )
-    vi.mocked(api.get).mockResolvedValueOnce(csvResponse())
+    vi.mocked(api.get).mockResolvedValueOnce(pdfResponse())
 
     await user.click(screen.getByRole('button', { name: 'Export' }))
 
@@ -85,6 +89,28 @@ describe('admin invoices page', () => {
       params: { period: '2026-08', kind: 'admin_credit' },
       responseType: 'blob',
     })
+    const link = click.mock.contexts[0] as HTMLAnchorElement
+    expect(link.download).toBe('ledger-2026-08-admin_credit.pdf')
+  })
+
+  it('exports CSV with format=csv when Export CSV is clicked', async () => {
+    const { click } = stubFileSave()
+    const user = userEvent.setup()
+    renderPage(<AdminInvoicesPage />)
+    const month = screen.getByRole('textbox', { name: 'Month' })
+    await user.clear(month)
+    await user.type(month, '2026-08')
+    vi.mocked(api.get).mockResolvedValueOnce(csvResponse())
+
+    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+
+    await waitFor(() => expect(click).toHaveBeenCalled())
+    expect(api.get).toHaveBeenCalledWith('/api/admin/reseller_ledger/export', {
+      params: { period: '2026-08', format: 'csv' },
+      responseType: 'blob',
+    })
+    const link = click.mock.contexts[0] as HTMLAnchorElement
+    expect(link.download).toBe('ledger-2026-08.csv')
   })
 
   it('disables export while the month is not a valid YYYY-MM period', async () => {
@@ -95,6 +121,7 @@ describe('admin invoices page', () => {
     await user.clear(month)
     await user.type(month, '2026')
     expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled()
   })
 
   it('loads the balance ledger for the current month and omits the invoice list and generate', async () => {
@@ -252,7 +279,7 @@ describe('role ledger pages', () => {
       const user = userEvent.setup()
       renderPage(<Page />)
       const month = screen.getByRole('textbox', { name: 'Month' })
-      vi.mocked(api.get).mockResolvedValue(csvResponse())
+      vi.mocked(api.get).mockResolvedValue(pdfResponse())
 
       await user.click(screen.getByRole('button', { name: 'Export' }))
 
