@@ -54,7 +54,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [tokenName, setTokenName] = useState('default')
-  const [tokenGroup, setTokenGroup] = useState('default')
+  const [tokenGroup, setTokenGroup] = useState('')
   const [modelName, setModelName] = useState('')
   const [modelMarkup, setModelMarkup] = useState('1.2')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
@@ -66,7 +66,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
     queryKey: ['reseller-customer', id],
     queryFn: async () => {
       const res = requireServerSuccess(await getCustomer(id))
-      return res.data!
+      return res.data ?? null
     },
   })
   const tokens = useQuery({
@@ -75,7 +75,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
       const res = requireServerSuccess(
         await listCustomerTokens(id, { page_size: 50 })
       )
-      return res.data!
+      return res.data ?? null
     },
   })
   const markups = useQuery({
@@ -150,10 +150,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                 <div className='space-y-1.5'>
                   <Label>{t('Markup override')}</Label>
                   <Input
-                    value={
-                      markup ??
-                      (c.markup != null ? String(c.markup) : '')
-                    }
+                    value={markup ?? (c.markup != null ? String(c.markup) : '')}
                     onChange={(e) => setMarkup(e.target.value)}
                     placeholder={t('Leave empty to inherit')}
                   />
@@ -209,6 +206,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                     <Label>{t('Group')}</Label>
                     <Input
                       value={tokenGroup}
+                      placeholder={t('Leave empty to use default')}
                       onChange={(e) => setTokenGroup(e.target.value)}
                     />
                   </div>
@@ -251,10 +249,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                                     await deleteCustomerToken(id, tok.id)
                                   )
                                   qc.invalidateQueries({
-                                    queryKey: [
-                                      'reseller-customer-tokens',
-                                      id,
-                                    ],
+                                    queryKey: ['reseller-customer-tokens', id],
                                   })
                                 } catch (error) {
                                   handleServerError(
@@ -353,10 +348,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                                     )
                                   )
                                   qc.invalidateQueries({
-                                    queryKey: [
-                                      'reseller-customer-markups',
-                                      id,
-                                    ],
+                                    queryKey: ['reseller-customer-markups', id],
                                   })
                                 } catch (error) {
                                   handleServerError(

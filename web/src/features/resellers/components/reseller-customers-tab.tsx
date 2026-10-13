@@ -21,6 +21,7 @@ import { Plus } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -48,8 +49,8 @@ import {
   UsersProvider,
   useUsers,
 } from '@/features/users/components/users-provider'
-import { handleServerError } from '@/lib/handle-server-error'
 import { formatQuota } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { createResellerCustomer, listResellerCustomers } from '../api'
@@ -67,7 +68,7 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
     username: '',
     password: '',
     display_name: '',
-    group: 'default',
+    group: '',
     markup: '',
   })
   const { open, setOpen, currentRow, setCurrentRow, refreshTrigger } =
@@ -101,7 +102,8 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
   ) => {
     try {
       const res = requireServerSuccess(await getUser(row.id))
-      setCurrentRow(res.data!)
+      if (!res.data) return
+      setCurrentRow(res.data)
       setOpen(dialog)
     } catch (error) {
       handleServerError(error, t('Failed to load user'))
@@ -123,7 +125,7 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
         username: '',
         password: '',
         display_name: '',
-        group: 'default',
+        group: '',
         markup: '',
       })
       qc.invalidateQueries({
@@ -276,10 +278,18 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
                 ] as const
               ).map(([key, label, required]) => (
                 <div key={key} className='space-y-1.5'>
-                  <Label>{label}</Label>
+                  <Label htmlFor={`admin-reseller-customer-${key}`}>
+                    {label}
+                  </Label>
                   <Input
+                    id={`admin-reseller-customer-${key}`}
                     type={key === 'password' ? 'password' : 'text'}
                     required={required}
+                    placeholder={
+                      key === 'group'
+                        ? t('Leave empty to use default')
+                        : undefined
+                    }
                     value={form[key]}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, [key]: e.target.value }))

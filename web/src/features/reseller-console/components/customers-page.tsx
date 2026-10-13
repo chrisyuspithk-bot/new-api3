@@ -68,7 +68,7 @@ export function ResellerCustomersPage() {
     username: '',
     password: '',
     display_name: '',
-    group: 'default',
+    group: '',
     markup: '',
   })
   const [creditUsd, setCreditUsd] = useState('')
@@ -79,7 +79,7 @@ export function ResellerCustomersPage() {
       const res = requireServerSuccess(
         await listCustomers({ p: page, page_size: 20, keyword })
       )
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -87,7 +87,7 @@ export function ResellerCustomersPage() {
     queryKey: ['reseller-self'],
     queryFn: async () => {
       const res = requireServerSuccess(await getResellerSelf())
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -124,7 +124,7 @@ export function ResellerCustomersPage() {
         username: '',
         password: '',
         display_name: '',
-        group: 'default',
+        group: '',
         markup: '',
       })
       refresh()
@@ -193,100 +193,102 @@ export function ResellerCustomersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {isLoading ? (
+                {isLoading && (
                   <TableRow>
                     <TableCell colSpan={7}>{t('Loading...')}</TableCell>
                   </TableRow>
-                ) : items.length === 0 ? (
+                )}
+                {!isLoading && items.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={7}>{t('No customers')}</TableCell>
                   </TableRow>
-                ) : (
-                  items.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.id}</TableCell>
-                      <TableCell>
-                        <Link
-                          to='/reseller/customers/$id'
-                          params={{ id: String(row.id) }}
-                          className='font-medium text-primary hover:underline'
-                        >
-                          {row.username}
-                        </Link>
-                        <div className='text-muted-foreground text-xs'>
-                          {row.display_name}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge
-                          variant={row.status === 1 ? 'success' : 'neutral'}
-                          label={
-                            row.status === 1 ? t('Enabled') : t('Disabled')
-                          }
-                          copyable={false}
-                        />
-                      </TableCell>
-                      <TableCell>{row.group}</TableCell>
-                      <TableCell>{formatQuota(row.quota)}</TableCell>
-                      <TableCell>
-                        {row.markup != null ? row.markup : t('Default')}
-                      </TableCell>
-                      <TableCell className='space-x-1'>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          onClick={() => setCreditOpen(row.id)}
-                        >
-                          {t('Credit')}
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          onClick={async () => {
-                            try {
-                              requireServerSuccess(
-                                await setCustomerStatus(
-                                  row.id,
-                                  row.status === 1 ? 2 : 1
-                                )
-                              )
-                              refresh()
-                            } catch (error) {
-                              handleServerError(error, t('Failed to update status'))
-                            }
-                          }}
-                        >
-                          {row.status === 1 ? t('Disable') : t('Enable')}
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='ghost'
-                          className='text-destructive'
-                          onClick={async () => {
-                            if (
-                              !window.confirm(
-                                t('Disable customer and revoke tokens?')
+                )}
+                {items.map((row) => (
+                  <TableRow key={row.id}>
+                    <TableCell>{row.id}</TableCell>
+                    <TableCell>
+                      <Link
+                        to='/reseller/customers/$id'
+                        params={{ id: String(row.id) }}
+                        className='text-primary font-medium hover:underline'
+                      >
+                        {row.username}
+                      </Link>
+                      <div className='text-muted-foreground text-xs'>
+                        {row.display_name}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge
+                        variant={row.status === 1 ? 'success' : 'neutral'}
+                        label={row.status === 1 ? t('Enabled') : t('Disabled')}
+                        copyable={false}
+                      />
+                    </TableCell>
+                    <TableCell>{row.group}</TableCell>
+                    <TableCell>{formatQuota(row.quota)}</TableCell>
+                    <TableCell>
+                      {row.markup != null ? row.markup : t('Default')}
+                    </TableCell>
+                    <TableCell className='space-x-1'>
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        onClick={() => setCreditOpen(row.id)}
+                      >
+                        {t('Credit')}
+                      </Button>
+                      <Button
+                        size='sm'
+                        variant='ghost'
+                        onClick={async () => {
+                          try {
+                            requireServerSuccess(
+                              await setCustomerStatus(
+                                row.id,
+                                row.status === 1 ? 2 : 1
                               )
                             )
-                              return
-                            try {
-                              requireServerSuccess(await deleteCustomer(row.id))
-                              toast.success(t('Customer deleted'))
-                              refresh()
-                            } catch (error) {
-                              handleServerError(
-                                error,
-                                t('Failed to delete customer')
-                              )
-                            }
-                          }}
-                        >
-                          {t('Delete')}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                            refresh()
+                          } catch (error) {
+                            handleServerError(
+                              error,
+                              t('Failed to update status')
+                            )
+                          }
+                        }}
+                      >
+                        {row.status === 1 ? t('Disable') : t('Enable')}
+                      </Button>
+                      <Button
+                        size='sm'
+                        variant='ghost'
+                        className='text-destructive'
+                        onClick={async () => {
+                          if (
+                            !window.confirm(
+                              t('Disable customer and revoke tokens?')
+                            )
+                          ) {
+                            return
+                          }
+                          try {
+                            requireServerSuccess(await deleteCustomer(row.id))
+                            toast.success(t('Customer deleted'))
+                            refresh()
+                          } catch (error) {
+                            handleServerError(
+                              error,
+                              t('Failed to delete customer')
+                            )
+                          }
+                        }}
+                      >
+                        {t('Delete')}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
@@ -336,10 +338,16 @@ export function ResellerCustomersPage() {
                 ] as const
               ).map(([key, label, required]) => (
                 <div key={key} className='space-y-1.5'>
-                  <Label>{label}</Label>
+                  <Label htmlFor={`reseller-customer-${key}`}>{label}</Label>
                   <Input
+                    id={`reseller-customer-${key}`}
                     type={key === 'password' ? 'password' : 'text'}
                     required={required}
+                    placeholder={
+                      key === 'group'
+                        ? t('Leave empty to use default')
+                        : undefined
+                    }
                     value={form[key]}
                     onChange={(e) =>
                       setForm((f) => ({ ...f, [key]: e.target.value }))
