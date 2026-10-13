@@ -43,11 +43,14 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getLedger, getResellerSelf, updateResellerMarkup } from './api'
 
+const LEDGER_PAGE_SIZE = 20
+
 export function ResellerOverview() {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const intlLocale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [markup, setMarkup] = useState<string | null>(null)
+  const [ledgerPage, setLedgerPage] = useState(1)
 
   const self = useQuery({
     queryKey: ['reseller-self'],
@@ -58,9 +61,11 @@ export function ResellerOverview() {
   })
 
   const ledger = useQuery({
-    queryKey: ['reseller-ledger'],
+    queryKey: ['reseller-ledger', ledgerPage],
     queryFn: async () => {
-      const res = requireServerSuccess(await getLedger({ p: 1, page_size: 20 }))
+      const res = requireServerSuccess(
+        await getLedger({ p: ledgerPage, page_size: LEDGER_PAGE_SIZE })
+      )
       return res.data ?? null
     },
   })
@@ -79,6 +84,11 @@ export function ResellerOverview() {
   }
 
   const ledgerRows = ledger.data?.items ?? []
+  const ledgerTotal = ledger.data?.total ?? 0
+  const ledgerTotalPages = Math.max(
+    1,
+    Math.ceil(ledgerTotal / LEDGER_PAGE_SIZE)
+  )
   let ledgerBody: ReactNode
   if (ledger.isLoading) {
     ledgerBody = (
@@ -189,19 +199,47 @@ export function ResellerOverview() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className='rounded-lg border'>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>{t('Time')}</TableHead>
-                        <TableHead>{t('Kind')}</TableHead>
-                        <TableHead>{t('Delta')}</TableHead>
-                        <TableHead>{t('Customer')}</TableHead>
-                        <TableHead>{t('Remark')}</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>{ledgerBody}</TableBody>
-                  </Table>
+                <div className='space-y-3'>
+                  <div className='rounded-lg border'>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>{t('Time')}</TableHead>
+                          <TableHead>{t('Kind')}</TableHead>
+                          <TableHead>{t('Delta')}</TableHead>
+                          <TableHead>{t('Customer')}</TableHead>
+                          <TableHead>{t('Remark')}</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>{ledgerBody}</TableBody>
+                    </Table>
+                  </div>
+                  <div className='text-muted-foreground flex items-center justify-between text-sm'>
+                    <span>
+                      {t('Total')}: {ledgerTotal}
+                    </span>
+                    <div className='flex items-center gap-2'>
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        disabled={ledgerPage <= 1}
+                        onClick={() => setLedgerPage((p) => p - 1)}
+                      >
+                        {t('Previous')}
+                      </Button>
+                      <span>
+                        {ledgerPage} / {ledgerTotalPages}
+                      </span>
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        disabled={ledgerPage >= ledgerTotalPages}
+                        onClick={() => setLedgerPage((p) => p + 1)}
+                      >
+                        {t('Next')}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

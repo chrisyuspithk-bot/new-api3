@@ -17,7 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -61,9 +62,27 @@ function renderOverview() {
 }
 
 beforeEach(() => {
-  vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+  vi.spyOn(api, 'get').mockImplementation(async (url: string, config?: { params?: { p?: number; page_size?: number } }) => {
     if (url === '/api/reseller/ledger') {
-      return { data: { success: true, data: { items: ledgerRows, total: 2 } } }
+      const page = config?.params?.p ?? 1
+      const pageSize = config?.params?.page_size ?? 20
+      // 25 total so paging is exercisable; page 1 returns fixture rows.
+      const items = page === 1 ? ledgerRows : [
+        {
+          id: 3,
+          kind: 'admin_debit',
+          quota_delta: -100,
+          customer_id: 0,
+          remark: 'page2',
+          created_at: 1791848000,
+        },
+      ]
+      return {
+        data: {
+          success: true,
+          data: { items, total: 25, page, page_size: pageSize },
+        },
+      }
     }
     return {
       data: {
@@ -140,5 +159,28 @@ describe('reseller overview recent ledger', () => {
     renderOverview()
     expect(await screen.findByText('Failed to load')).toBeVisible()
     expect(screen.queryByText('No ledger rows')).not.toBeInTheDocument()
+  })
+  it('pages the recent ledger with Total, Previous and Next', async () => {
+    const user = userEvent.setup()
+    renderOverview()
+    expect(await screen.findByText('Total: 25')).toBeVisible()
+    expect(screen.getByText('1 / 2')).toBeVisible()
+    const prev = screen.getByRole('button', { name: 'Previous' })
+    const next = screen.getByRole('button', { name: 'Next' })
+    expect(prev).toBeDisabled()
+    expect(next).toBeEnabled()
+
+    await user.click(next)
+    await waitFor(() => {
+      expect(api.get).toHaveBeenCalledWith(
+        '/api/reseller/ledger',
+        expect.objectContaining({
+          params: expect.objectContaining({ p: 2, page_size: 20 }),
+        })
+      )
+    })
+    expect(await screen.findByText('2 / 2')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    expect(screen.getByText('page2')).toBeVisible()
   })
 })
