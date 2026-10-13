@@ -92,6 +92,7 @@ export function ResellersTable() {
               <TableHead>{t('Status')}</TableHead>
               <TableHead>{t('Balance')}</TableHead>
               <TableHead>{t('Default markup (Reseller→Customer)')}</TableHead>
+              <TableHead>{t('Default costFactor (Admin→Reseller)')}</TableHead>
               <TableHead>{t('Customers')}</TableHead>
               <TableHead>{t('Groups')}</TableHead>
               <TableHead className='w-12' />
@@ -100,12 +101,12 @@ export function ResellersTable() {
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={9}>{t('Loading...')}</TableCell>
+                <TableCell colSpan={10}>{t('Loading...')}</TableCell>
               </TableRow>
             )}
             {!isLoading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9}>{t('No resellers yet')}</TableCell>
+                <TableCell colSpan={10}>{t('No resellers yet')}</TableCell>
               </TableRow>
             )}
             {items.map((row) => (
@@ -136,6 +137,9 @@ export function ResellersTable() {
                 <TableCell>{formatQuota(row.quota)}</TableCell>
                 <TableCell>
                   {row.profile?.default_markup?.toFixed?.(4) ?? '—'}
+                </TableCell>
+                <TableCell>
+                  {row.profile?.default_cost_factor?.toFixed?.(4) ?? '—'}
                 </TableCell>
                 <TableCell>{row.customer_count ?? 0}</TableCell>
                 <TableCell className='max-w-[160px] truncate text-xs'>

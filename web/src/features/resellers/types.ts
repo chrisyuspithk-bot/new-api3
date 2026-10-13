@@ -25,6 +25,7 @@ export interface ApiResponse<T = unknown> {
 export interface ResellerProfile {
   user_id: number
   default_markup: number
+  default_cost_factor: number
   max_customers: number
   allow_redemption: boolean
   display_name: string
@@ -74,6 +75,7 @@ export interface ResellerFormData {
   group?: string
   groups?: string[]
   default_markup?: number
+  default_cost_factor?: number
   max_customers?: number
   allow_redemption?: boolean
   brand_name?: string

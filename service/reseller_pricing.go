@@ -17,6 +17,7 @@ import (
 // cost   = base x costFactor
 // charge = cost x markup
 //
+// costFactor precedence: admin per-model override, reseller default_cost_factor.
 // Markup precedence: customer x model, customer, reseller x model, reseller default.
 func ResolveResellerFactors(customerId, resellerId int, modelName string) (costFactor float64, markup float64, err error) {
 	cfg, err := model.GetResellerPricingConfig(resellerId)
@@ -26,9 +27,9 @@ func ResolveResellerFactors(customerId, resellerId int, modelName string) (costF
 	if cfg.Role != common.RoleResellerUser || cfg.Status != common.UserStatusEnabled {
 		return 0, 0, model.ErrResellerDisabled
 	}
-	costFactor = 1
+	costFactor = cfg.DefaultCostFactor
 	if override, ok := cfg.ModelPrices[modelName]; ok {
-		costFactor = resellerCostFactor(override, modelName)
+		costFactor = resellerCostFactor(override, modelName, cfg.DefaultCostFactor)
 	}
 	if !model.ValidCostFactor(costFactor) {
 		return 0, 0, model.ErrInvalidCostFactor
@@ -58,8 +59,10 @@ func ResolveResellerFactors(customerId, resellerId int, modelName string) (costF
 // base quota. Phase 1 only re-scales the base engine result, so tiered/expression
 // billing is supported through cost_multiplier and the ratio/price overrides
 // apply as ratio-of-ratios. completion_ratio overrides are applied separately by
-// ResellerCompletionRatio (ratio-billed, non-tiered models only).
-func resellerCostFactor(override model.ResellerModelPrice, modelName string) float64 {
+// ResellerCompletionRatio (ratio-billed, non-tiered models only). An override
+// that yields no factor (completion_ratio only, or no base price/ratio) keeps
+// fallback, the reseller default_cost_factor.
+func resellerCostFactor(override model.ResellerModelPrice, modelName string, fallback float64) float64 {
 	if override.CostMultiplier != nil {
 		return *override.CostMultiplier
 	}
@@ -73,7 +76,7 @@ func resellerCostFactor(override model.ResellerModelPrice, modelName string) flo
 			return *override.ModelRatio / base
 		}
 	}
-	return 1
+	return fallback
 }
 
 // ApplyResellerPricing folds reseller cost factor and markup into the group
@@ -171,9 +174,9 @@ func ResellerPriceFactor(customerId, resellerId int, modelName string) (factor f
 	if err != nil || cfg.Status != common.UserStatusEnabled {
 		return 0, nil, false
 	}
-	costFactor := 1.0
+	costFactor := cfg.DefaultCostFactor
 	if override, exists := cfg.ModelPrices[modelName]; exists {
-		costFactor = resellerCostFactor(override, modelName)
+		costFactor = resellerCostFactor(override, modelName, cfg.DefaultCostFactor)
 		completionRatio = override.CompletionRatio
 	}
 	if customerId <= 0 {

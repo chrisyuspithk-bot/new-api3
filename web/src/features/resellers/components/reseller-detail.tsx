@@ -172,13 +172,17 @@ export function ResellerDetail({ id }: { id: number }) {
             </TabsList>
 
             <TabsContent value='overview' className='mt-4'>
-              <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
+              <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-5'>
                 {[
                   [t('Balance'), formatQuota(reseller.quota)],
                   [t('Used'), formatQuota(reseller.used_quota)],
                   [
                     t('Default markup (Reseller→Customer)'),
                     String(reseller.profile?.default_markup ?? '—'),
+                  ],
+                  [
+                    t('Default costFactor (Admin→Reseller)'),
+                    String(reseller.profile?.default_cost_factor ?? '—'),
                   ],
                   [t('Customers'), String(reseller.customer_count ?? 0)],
                 ].map(([label, value]) => (

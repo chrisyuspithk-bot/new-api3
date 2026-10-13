@@ -67,6 +67,7 @@ export function ResellersMutateDrawer({
   const [group, setGroup] = useState('default')
   const [groups, setGroups] = useState('default')
   const [markup, setMarkup] = useState('1.2')
+  const [costFactor, setCostFactor] = useState('1')
   const [maxCustomers, setMaxCustomers] = useState('0')
   const [allowRedemption, setAllowRedemption] = useState(false)
   const [status, setStatus] = useState(1)
@@ -81,6 +82,7 @@ export function ResellersMutateDrawer({
       setGroup(currentRow.group || 'default')
       setGroups((currentRow.groups ?? []).join(', '))
       setMarkup(String(currentRow.profile?.default_markup ?? 1))
+      setCostFactor(String(currentRow.profile?.default_cost_factor ?? 1))
       setMaxCustomers(String(currentRow.profile?.max_customers ?? 0))
       setAllowRedemption(currentRow.profile?.allow_redemption ?? false)
       setStatus(currentRow.status)
@@ -92,6 +94,7 @@ export function ResellersMutateDrawer({
       setGroup('default')
       setGroups('default')
       setMarkup('1.2')
+      setCostFactor('1')
       setMaxCustomers('0')
       setAllowRedemption(false)
       setStatus(1)
@@ -116,6 +119,7 @@ export function ResellersMutateDrawer({
         group,
         groups: groupList,
         default_markup: Number(markup),
+        default_cost_factor: Number(costFactor),
         max_customers: Number(maxCustomers),
         allow_redemption: allowRedemption,
         brand_name: brandName || displayName || username,
@@ -161,16 +165,18 @@ export function ResellersMutateDrawer({
             {!isUpdate && (
               <>
                 <div className='space-y-2'>
-                  <Label>{t('Username')}</Label>
+                  <Label htmlFor='reseller-username'>{t('Username')}</Label>
                   <Input
+                    id='reseller-username'
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     required
                   />
                 </div>
                 <div className='space-y-2'>
-                  <Label>{t('Password')}</Label>
+                  <Label htmlFor='reseller-password'>{t('Password')}</Label>
                   <Input
+                    id='reseller-password'
                     type='password'
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -223,8 +229,11 @@ export function ResellersMutateDrawer({
             </div>
             <div className='grid grid-cols-2 gap-3'>
               <div className='space-y-2'>
-                <Label>{t('Default Markup')}</Label>
+                <Label htmlFor='reseller-default-markup'>
+                  {t('Default Markup')}
+                </Label>
                 <Input
+                  id='reseller-default-markup'
                   type='number'
                   step='0.0001'
                   min='0.0001'
@@ -233,6 +242,27 @@ export function ResellersMutateDrawer({
                   required
                 />
               </div>
+              <div className='space-y-2'>
+                <Label htmlFor='reseller-default-cost-factor'>
+                  {t('Default Cost Factor')}
+                </Label>
+                <Input
+                  id='reseller-default-cost-factor'
+                  type='number'
+                  step='0.0001'
+                  min='0.0001'
+                  value={costFactor}
+                  onChange={(e) => setCostFactor(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <p className='text-muted-foreground text-xs'>
+              {t(
+                'Default Cost Factor (Admin→Reseller) applies to models without a per-model costFactor override.'
+              )}
+            </p>
+            <div className='grid grid-cols-2 gap-3'>
               <div className='space-y-2'>
                 <Label>{t('Max Customers')}</Label>
                 <Input

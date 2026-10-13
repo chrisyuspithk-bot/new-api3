@@ -138,17 +138,19 @@ func validateGroupsExist(groups []string) error {
 // ---------------------------------------------------------------------------
 
 type adminResellerRequest struct {
-	Username        string   `json:"username"`
-	Password        string   `json:"password"`
-	DisplayName     string   `json:"display_name"`
-	UserId          int      `json:"user_id"` // upgrade an existing direct common user
-	Group           string   `json:"group"`
-	Groups          []string `json:"groups"`
-	DefaultMarkup   *float64 `json:"default_markup"`
-	MaxCustomers    *int     `json:"max_customers"`
-	AllowRedemption *bool    `json:"allow_redemption"`
-	BrandName       *string  `json:"brand_name"`
-	Status          *int     `json:"status"`
+	Username      string   `json:"username"`
+	Password      string   `json:"password"`
+	DisplayName   string   `json:"display_name"`
+	UserId        int      `json:"user_id"` // upgrade an existing direct common user
+	Group         string   `json:"group"`
+	Groups        []string `json:"groups"`
+	DefaultMarkup *float64 `json:"default_markup"`
+	// DefaultCostFactor is Admin→Reseller only; ResellerUpdateMarkup never sets it.
+	DefaultCostFactor *float64 `json:"default_cost_factor"`
+	MaxCustomers      *int     `json:"max_customers"`
+	AllowRedemption   *bool    `json:"allow_redemption"`
+	BrandName         *string  `json:"brand_name"`
+	Status            *int     `json:"status"`
 }
 
 func applyResellerProfile(id int, req adminResellerRequest) error {
@@ -159,6 +161,9 @@ func applyResellerProfile(id int, req adminResellerRequest) error {
 	profile.UserId = id
 	if req.DefaultMarkup != nil {
 		profile.DefaultMarkup = *req.DefaultMarkup
+	}
+	if req.DefaultCostFactor != nil {
+		profile.DefaultCostFactor = *req.DefaultCostFactor
 	}
 	if req.MaxCustomers != nil {
 		profile.MaxCustomers = max(*req.MaxCustomers, 0)
@@ -250,6 +255,10 @@ func AdminCreateReseller(c *gin.Context) {
 		common.ApiError(c, model.ErrInvalidMarkup)
 		return
 	}
+	if req.DefaultCostFactor != nil && !model.ValidCostFactor(*req.DefaultCostFactor) {
+		common.ApiError(c, model.ErrInvalidCostFactor)
+		return
+	}
 	if err := validateGroupsExist(req.Groups); err != nil {
 		common.ApiError(c, err)
 		return
@@ -334,6 +343,10 @@ func AdminUpdateReseller(c *gin.Context) {
 	}
 	if req.DefaultMarkup != nil && !model.ValidMarkup(*req.DefaultMarkup) {
 		common.ApiError(c, model.ErrInvalidMarkup)
+		return
+	}
+	if req.DefaultCostFactor != nil && !model.ValidCostFactor(*req.DefaultCostFactor) {
+		common.ApiError(c, model.ErrInvalidCostFactor)
 		return
 	}
 	if err := applyResellerProfile(id, req); err != nil {

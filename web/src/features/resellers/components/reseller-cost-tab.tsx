@@ -126,7 +126,7 @@ export function ResellerCostTab(props: { resellerId: number }) {
         </p>
         <p>
           {t(
-            'Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use costFactor 1.'
+            'Customer charge = reseller cost × markup. Markup (Reseller→Customer) is set separately and is not a costFactor. Models without a row use the reseller Default Cost Factor (1 if unset).'
           )}
         </p>
       </div>

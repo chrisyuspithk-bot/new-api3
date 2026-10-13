@@ -273,4 +273,5 @@ func TestGetResellerProfileDefaultsRedemptionOff(t *testing.T) {
 	profile, err := GetResellerProfile(9699)
 	require.NoError(t, err)
 	assert.False(t, profile.AllowRedemption)
+	assert.InDelta(t, 1.0, profile.DefaultCostFactor, 1e-9)
 }

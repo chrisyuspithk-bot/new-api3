@@ -39,7 +39,7 @@ const reseller = {
   group: 'default',
   quota: 0,
   used_quota: 0,
-  profile: { default_markup: 1.5 },
+  profile: { default_markup: 1.5, default_cost_factor: 1.25 },
 }
 
 const priceRow = {
@@ -96,6 +96,14 @@ describe('admin reseller detail costFactor tab', () => {
       await screen.findByText('Default markup (Reseller→Customer)')
     ).toBeVisible()
     expect(screen.queryByText('Markup')).not.toBeInTheDocument()
+  })
+
+  it('shows the profile default_cost_factor on the overview as Admin→Reseller costFactor', async () => {
+    renderDetail()
+
+    const label = await screen.findByText('Default costFactor (Admin→Reseller)')
+    expect(label).toBeVisible()
+    expect(screen.getByText('1.25')).toBeVisible()
   })
 
   it('saves the costFactor as cost_multiplier and resets the form', async () => {

@@ -15,13 +15,16 @@ import (
 
 // ResellerProfile holds per-reseller commercial settings (1:1 with a role=5 user).
 type ResellerProfile struct {
-	UserId          int     `json:"user_id" gorm:"primaryKey;autoIncrement:false"`
-	DefaultMarkup   float64 `json:"default_markup" gorm:"type:decimal(18,6);not null;default:1"`
-	MaxCustomers    int     `json:"max_customers" gorm:"not null;default:0"`
-	AllowRedemption bool    `json:"allow_redemption"`
-	DisplayName     string  `json:"display_name" gorm:"type:varchar(64);default:''"`
-	CreatedAt       int64   `json:"created_at" gorm:"bigint;not null;default:0"`
-	UpdatedAt       int64   `json:"updated_at" gorm:"bigint;not null;default:0"`
+	UserId        int     `json:"user_id" gorm:"primaryKey;autoIncrement:false"`
+	DefaultMarkup float64 `json:"default_markup" gorm:"type:decimal(18,6);not null;default:1"`
+	// DefaultCostFactor is the Admin→Reseller cost factor for models without
+	// a ResellerModelPrice override.
+	DefaultCostFactor float64 `json:"default_cost_factor" gorm:"type:decimal(18,6);not null;default:1"`
+	MaxCustomers      int     `json:"max_customers" gorm:"not null;default:0"`
+	AllowRedemption   bool    `json:"allow_redemption"`
+	DisplayName       string  `json:"display_name" gorm:"type:varchar(64);default:''"`
+	CreatedAt         int64   `json:"created_at" gorm:"bigint;not null;default:0"`
+	UpdatedAt         int64   `json:"updated_at" gorm:"bigint;not null;default:0"`
 }
 
 // ResellerGroup whitelists a group a reseller may hand out to its customers.
@@ -122,13 +125,14 @@ func ValidCostFactor(f float64) bool {
 
 // ResellerPricingConfig is the cached snapshot used on the relay hot path.
 type ResellerPricingConfig struct {
-	ResellerId    int
-	Status        int
-	Role          int
-	DefaultMarkup float64
-	Groups        []string
-	ModelPrices   map[string]ResellerModelPrice
-	ModelMarkups  map[string]float64
+	ResellerId        int
+	Status            int
+	Role              int
+	DefaultMarkup     float64
+	DefaultCostFactor float64
+	Groups            []string
+	ModelPrices       map[string]ResellerModelPrice
+	ModelMarkups      map[string]float64
 }
 
 // AllowsGroup reports whether customers of this reseller may use group.
@@ -181,12 +185,13 @@ func GetResellerPricingConfig(resellerId int) (*ResellerPricingConfig, error) {
 		return nil, err
 	}
 	cfg := &ResellerPricingConfig{
-		ResellerId:    resellerId,
-		Status:        user.Status,
-		Role:          user.Role,
-		DefaultMarkup: 1,
-		ModelPrices:   map[string]ResellerModelPrice{},
-		ModelMarkups:  map[string]float64{},
+		ResellerId:        resellerId,
+		Status:            user.Status,
+		Role:              user.Role,
+		DefaultMarkup:     1,
+		DefaultCostFactor: 1,
+		ModelPrices:       map[string]ResellerModelPrice{},
+		ModelMarkups:      map[string]float64{},
 	}
 	var profile ResellerProfile
 	if err := DB.Where("user_id = ?", resellerId).Limit(1).Find(&profile).Error; err != nil {
@@ -194,6 +199,9 @@ func GetResellerPricingConfig(resellerId int) (*ResellerPricingConfig, error) {
 	}
 	if profile.UserId == resellerId && ValidMarkup(profile.DefaultMarkup) {
 		cfg.DefaultMarkup = profile.DefaultMarkup
+	}
+	if profile.UserId == resellerId && ValidCostFactor(profile.DefaultCostFactor) {
+		cfg.DefaultCostFactor = profile.DefaultCostFactor
 	}
 	groups, err := GetResellerGroups(resellerId)
 	if err != nil {
@@ -298,7 +306,7 @@ func SetResellerGroups(resellerId int, groups []string, fallbackGroup string) er
 
 // GetResellerProfile returns the profile, or a default one if missing.
 func GetResellerProfile(resellerId int) (*ResellerProfile, error) {
-	profile := &ResellerProfile{UserId: resellerId, DefaultMarkup: 1}
+	profile := &ResellerProfile{UserId: resellerId, DefaultMarkup: 1, DefaultCostFactor: 1}
 	var rows []ResellerProfile
 	if err := DB.Where("user_id = ?", resellerId).Limit(1).Find(&rows).Error; err != nil {
 		return nil, err
@@ -314,6 +322,9 @@ func SaveResellerProfile(profile *ResellerProfile) error {
 	if !ValidMarkup(profile.DefaultMarkup) {
 		return ErrInvalidMarkup
 	}
+	if !ValidCostFactor(profile.DefaultCostFactor) {
+		return ErrInvalidCostFactor
+	}
 	now := common.GetTimestamp()
 	if profile.CreatedAt == 0 {
 		profile.CreatedAt = now
@@ -321,7 +332,7 @@ func SaveResellerProfile(profile *ResellerProfile) error {
 	profile.UpdatedAt = now
 	err := DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "user_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"default_markup", "max_customers", "allow_redemption", "display_name", "updated_at"}),
+		DoUpdates: clause.AssignmentColumns([]string{"default_markup", "default_cost_factor", "max_customers", "allow_redemption", "display_name", "updated_at"}),
 	}).Create(profile).Error
 	if err != nil {
 		return err

@@ -167,6 +167,55 @@ func TestResellerMarkupPrecedenceAndCostOverride(t *testing.T) {
 	}
 }
 
+func TestResellerDefaultCostFactorPrecedence(t *testing.T) {
+	seedResellerLine(t, 1000, 10000, 1.5, common.UserStatusEnabled)
+	model.DB.Exec("DELETE FROM reseller_profiles")
+	model.InvalidateResellerCache(b2bResellerId)
+	costFactor, _, err := ResolveResellerFactors(b2bCustomerId, b2bResellerId, "b2b-model")
+	require.NoError(t, err)
+	assert.InDelta(t, 1.0, costFactor, 1e-9, "missing profile falls back to 1")
+
+	profile, err := model.GetResellerProfile(b2bResellerId)
+	require.NoError(t, err)
+	for _, v := range []float64{0, -1, math.Inf(1), math.NaN()} {
+		profile.DefaultCostFactor = v
+		assert.ErrorIs(t, model.SaveResellerProfile(profile), model.ErrInvalidCostFactor, "%v", v)
+	}
+	profile.DefaultMarkup, profile.DefaultCostFactor = 1.5, 1.2
+	require.NoError(t, model.SaveResellerProfile(profile))
+	saved, err := model.GetResellerProfile(b2bResellerId)
+	require.NoError(t, err)
+	assert.InDelta(t, 1.2, saved.DefaultCostFactor, 1e-9)
+
+	multiplier, completion := 0.8, 2.0
+	require.NoError(t, model.UpsertResellerModelPrice(&model.ResellerModelPrice{ResellerId: b2bResellerId, ModelName: "override-model", CostMultiplier: &multiplier}))
+	require.NoError(t, model.UpsertResellerModelPrice(&model.ResellerModelPrice{ResellerId: b2bResellerId, ModelName: "completion-only", CompletionRatio: &completion}))
+	cases := []struct {
+		model      string
+		costFactor float64
+	}{
+		{"b2b-model", 1.2},       // no row: profile default
+		{"override-model", 0.8},  // per-model override wins
+		{"completion-only", 1.2}, // row without a cost factor keeps the default
+	}
+	for _, tc := range cases {
+		costFactor, markup, err := ResolveResellerFactors(b2bCustomerId, b2bResellerId, tc.model)
+		require.NoError(t, err, tc.model)
+		assert.InDelta(t, tc.costFactor, costFactor, 1e-9, tc.model)
+		assert.InDelta(t, 1.5, markup, 1e-9, tc.model)
+
+		factor, _, ok := ResellerPriceFactor(0, b2bResellerId, tc.model)
+		require.True(t, ok, tc.model)
+		assert.InDelta(t, tc.costFactor, factor, 1e-9, tc.model)
+
+		self := &relaycommon.RelayInfo{UserId: b2bResellerId, ResellerSelf: true, OriginModelName: tc.model, UsingGroup: "default"}
+		selfRatio := hosttypes.GroupRatioInfo{GroupRatio: 1}
+		ApplyResellerPricing(self, &selfRatio)
+		require.NoError(t, self.ResellerPricingErr, tc.model)
+		assert.InDelta(t, tc.costFactor, selfRatio.GroupRatio, 1e-9, tc.model)
+	}
+}
+
 func TestResellerCostFromChargeRoundsUp(t *testing.T) {
 	assert.Equal(t, 0, ResellerCostFromCharge(0, 2))
 	assert.Equal(t, 1, ResellerCostFromCharge(1, 2))
