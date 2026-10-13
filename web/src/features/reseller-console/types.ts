@@ -117,6 +117,7 @@ export interface LedgerRow {
   kind: string
   quota_delta: number
   customer_id: number
+  customer_username?: string
   money_usd?: number | null
   remark?: string
   created_at: number

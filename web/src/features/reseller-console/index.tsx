@@ -50,7 +50,7 @@ export function ResellerOverview() {
     queryKey: ['reseller-self'],
     queryFn: async () => {
       const res = requireServerSuccess(await getResellerSelf())
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -58,7 +58,7 @@ export function ResellerOverview() {
     queryKey: ['reseller-ledger'],
     queryFn: async () => {
       const res = requireServerSuccess(await getLedger({ p: 1, page_size: 20 }))
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -77,9 +77,13 @@ export function ResellerOverview() {
 
   return (
     <SectionPageLayout>
-      <SectionPageLayout.Title>{t('Reseller Overview')}</SectionPageLayout.Title>
+      <SectionPageLayout.Title>
+        {t('Reseller Overview')}
+      </SectionPageLayout.Title>
       <SectionPageLayout.Actions>
-        <Button render={<Link to='/wallet' />}>{t('Top up cost balance')}</Button>
+        <Button render={<Link to='/wallet' />}>
+          {t('Top up cost balance')}
+        </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         {!data ? (
@@ -111,7 +115,9 @@ export function ResellerOverview() {
 
             <Card>
               <CardHeader>
-                <CardTitle className='text-base'>{t('Default Markup')}</CardTitle>
+                <CardTitle className='text-base'>
+                  {t('Default Markup')}
+                </CardTitle>
               </CardHeader>
               <CardContent className='flex flex-wrap items-end gap-3'>
                 <div className='space-y-1.5'>
@@ -135,7 +141,9 @@ export function ResellerOverview() {
 
             <Card>
               <CardHeader>
-                <CardTitle className='text-base'>{t('Recent Ledger')}</CardTitle>
+                <CardTitle className='text-base'>
+                  {t('Recent Ledger')}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className='rounded-lg border'>
@@ -152,7 +160,9 @@ export function ResellerOverview() {
                     <TableBody>
                       {(ledger.data?.items ?? []).length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5}>{t('No ledger rows')}</TableCell>
+                          <TableCell colSpan={5}>
+                            {t('No ledger rows')}
+                          </TableCell>
                         </TableRow>
                       ) : (
                         (ledger.data?.items ?? []).map((row) => (
@@ -168,7 +178,11 @@ export function ResellerOverview() {
                             <TableCell>
                               {formatQuota(row.quota_delta)}
                             </TableCell>
-                            <TableCell>{row.customer_id || '—'}</TableCell>
+                            <TableCell>
+                              {row.customer_id
+                                ? row.customer_username || `#${row.customer_id}`
+                                : '—'}
+                            </TableCell>
                             <TableCell>{row.remark || '—'}</TableCell>
                           </TableRow>
                         ))
