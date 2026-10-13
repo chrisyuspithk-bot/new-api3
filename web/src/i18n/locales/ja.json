@@ -7269,6 +7269,12 @@
     "costFactor must be a number greater than 0": "costFactor は 0 より大きい数値である必要があります",
     "costFactor saved": "costFactor を保存しました",
     "Failed to save costFactor": "costFactor の保存に失敗しました",
-    "No costFactor overrides": "costFactor の上書きはありません"
+    "No costFactor overrides": "costFactor の上書きはありません",
+    "Redemption code issued": "引き換えコード発行",
+    "Redemption code refund": "引き換えコード返金",
+    "Redemption code redeemed": "引き換えコード使用",
+    "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.": "合計 {{amount}} が今すぐ残高から差し引かれます。未使用のコードを削除すると返金されます。",
+    "The quota of a reseller-issued redemption code cannot be changed": "リセラーが発行した引き換えコードの額度は変更できません",
+    "cost_multiplier, model_ratio and model_price must be greater than 0": "cost_multiplier、model_ratio、model_price は 0 より大きくする必要があります"
   }
 }

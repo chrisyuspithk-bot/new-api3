@@ -264,6 +264,47 @@ describe('role ledger pages', () => {
     }
   )
 
+  it('labels redemption ledger rows and offers escrow kinds only to resellers', async () => {
+    vi.mocked(api.get).mockResolvedValue(
+      ledgerResponse([
+        {
+          id: 1,
+          reseller_id: 7,
+          customer_id: 0,
+          kind: 'redemption_issue',
+          quota_delta: -500000,
+          operator_id: 7,
+          created_at: 1788000000,
+        },
+      ])
+    )
+    renderPage(<ResellerInvoicesPage />)
+    const resellerKinds = screen.getByRole('combobox', { name: 'Kind' })
+    for (const name of [
+      'Redemption code issued',
+      'Redemption code refund',
+      'Redemption code redeemed',
+    ]) {
+      expect(
+        within(resellerKinds).getByRole('option', { name })
+      ).toBeInTheDocument()
+    }
+    expect(
+      await screen.findByRole('cell', { name: 'Redemption code issued' })
+    ).toBeVisible()
+  })
+
+  it('offers the customer only the redeemed-code kind among redemption kinds', () => {
+    renderPage(<CustomerInvoicesPage />)
+    const kinds = screen.getByRole('combobox', { name: 'Kind' })
+    expect(
+      within(kinds).getByRole('option', { name: 'Redemption code redeemed' })
+    ).toBeInTheDocument()
+    expect(
+      within(kinds).queryByRole('option', { name: 'Redemption code issued' })
+    ).not.toBeInTheDocument()
+  })
+
   it('loads only the signed-in customer ledger and hides other customers', async () => {
     renderPage(<CustomerInvoicesPage />)
     const kinds = screen.getByRole('combobox', { name: 'Kind' })

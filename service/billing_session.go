@@ -496,7 +496,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 	resellerMarkup := 0.0
 	if relayInfo.ResellerId > 0 {
-		if relayInfo.ResellerPricingErr != nil || !model.ValidMarkup(relayInfo.ResellerMarkup) {
+		if relayInfo.ResellerPricingErr != nil || !model.ValidMarkup(relayInfo.ResellerMarkup) || !model.ValidCostFactor(relayInfo.ResellerCostFactor) {
 			if errors.Is(relayInfo.ResellerPricingErr, model.ErrResellerDisabled) {
 				return nil, types.NewErrorWithStatusCode(model.ErrResellerDisabled, types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 			}
@@ -505,8 +505,12 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		resellerMarkup = relayInfo.ResellerMarkup
 		// v1: customers of a reseller are wallet-only (no subscription x markup).
 		pref = "wallet_only"
-	} else if relayInfo.ResellerSelf && relayInfo.ResellerPricingErr != nil {
-		return nil, types.NewErrorWithStatusCode(relayInfo.ResellerPricingErr, types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+	} else if relayInfo.ResellerSelf && (relayInfo.ResellerPricingErr != nil || !model.ValidCostFactor(relayInfo.ResellerCostFactor)) {
+		pricingErr := relayInfo.ResellerPricingErr
+		if pricingErr == nil {
+			pricingErr = model.ErrInvalidCostFactor
+		}
+		return nil, types.NewErrorWithStatusCode(pricingErr, types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 
 	// 钱包路径需要先检查用户额度

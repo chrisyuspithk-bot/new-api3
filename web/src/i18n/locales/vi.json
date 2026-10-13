@@ -7269,6 +7269,12 @@
     "costFactor must be a number greater than 0": "costFactor phải là số lớn hơn 0",
     "costFactor saved": "Đã lưu costFactor",
     "Failed to save costFactor": "Lưu costFactor thất bại",
-    "No costFactor overrides": "Chưa có ghi đè costFactor"
+    "No costFactor overrides": "Chưa có ghi đè costFactor",
+    "Redemption code issued": "Phát hành mã đổi thưởng",
+    "Redemption code refund": "Hoàn tiền mã đổi thưởng",
+    "Redemption code redeemed": "Đã đổi mã đổi thưởng",
+    "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.": "Tổng {{amount}} sẽ được trừ khỏi số dư của bạn ngay bây giờ. Xóa mã chưa sử dụng sẽ được hoàn lại.",
+    "The quota of a reseller-issued redemption code cannot be changed": "Không thể thay đổi hạn mức của mã đổi thưởng do đại lý phát hành",
+    "cost_multiplier, model_ratio and model_price must be greater than 0": "cost_multiplier, model_ratio và model_price phải lớn hơn 0"
   }
 }

@@ -7269,6 +7269,12 @@
     "costFactor must be a number greater than 0": "costFactor должен быть числом больше 0",
     "costFactor saved": "costFactor сохранён",
     "Failed to save costFactor": "Не удалось сохранить costFactor",
-    "No costFactor overrides": "Нет переопределений costFactor"
+    "No costFactor overrides": "Нет переопределений costFactor",
+    "Redemption code issued": "Выпуск кода активации",
+    "Redemption code refund": "Возврат за код активации",
+    "Redemption code redeemed": "Код активации использован",
+    "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.": "Сумма {{amount}} списывается с вашего баланса сейчас. Удаление неиспользованного кода возвращает её.",
+    "The quota of a reseller-issued redemption code cannot be changed": "Квоту кода активации, выпущенного реселлером, изменить нельзя",
+    "cost_multiplier, model_ratio and model_price must be greater than 0": "cost_multiplier, model_ratio и model_price должны быть больше 0"
   }
 }

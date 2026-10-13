@@ -30,6 +30,9 @@ func ResolveResellerFactors(customerId, resellerId int, modelName string) (costF
 	if override, ok := cfg.ModelPrices[modelName]; ok {
 		costFactor = resellerCostFactor(override, modelName)
 	}
+	if !model.ValidCostFactor(costFactor) {
+		return 0, 0, model.ErrInvalidCostFactor
+	}
 
 	markup = cfg.DefaultMarkup
 	if m, ok := cfg.ModelMarkups[modelName]; ok && model.ValidMarkup(m) {
@@ -83,8 +86,12 @@ func ApplyResellerPricing(info *relaycommon.RelayInfo, groupRatioInfo *hosttypes
 	}
 	if info.ResellerSelf && info.ResellerId <= 0 {
 		costFactor, _, ok := ResellerPriceFactor(0, info.UserId, info.GetBillingModelName())
-		if !ok || costFactor <= 0 {
+		if !ok {
 			info.ResellerPricingErr = model.ErrResellerDisabled
+			return
+		}
+		if !model.ValidCostFactor(costFactor) {
+			info.ResellerPricingErr = model.ErrInvalidCostFactor
 			return
 		}
 		info.ResellerPricingErr = nil

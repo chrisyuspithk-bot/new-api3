@@ -135,7 +135,7 @@ func TestDeleteRedemptionBatch(t *testing.T) {
 					assert.Equal(t, "redemption.delete_batch", events[0].Action)
 				})
 			}
-			_, err = model.BatchDeleteRedemptions(nil)
+			_, err = model.BatchDeleteRedemptions(nil, 0)
 			require.Error(t, err)
 			requestedIDs := make([]int, 0, 17)
 			for _, code := range codes[:15] {

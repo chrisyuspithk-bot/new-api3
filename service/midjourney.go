@@ -71,7 +71,12 @@ func CheckMidjourneyResellerBilling(relayInfo *relaycommon.RelayInfo, quota int)
 		// A reseller's own call is single-leg; only fail closed when its cost
 		// factor could not be resolved.
 		if relayInfo.ResellerSelf {
-			return relayInfo.ResellerPricingErr
+			if relayInfo.ResellerPricingErr != nil {
+				return relayInfo.ResellerPricingErr
+			}
+			if !model.ValidCostFactor(relayInfo.ResellerCostFactor) {
+				return model.ErrInvalidCostFactor
+			}
 		}
 		return nil
 	}
@@ -80,6 +85,9 @@ func CheckMidjourneyResellerBilling(relayInfo *relaycommon.RelayInfo, quota int)
 	}
 	if !model.ValidMarkup(relayInfo.ResellerMarkup) {
 		return model.ErrInvalidMarkup
+	}
+	if !model.ValidCostFactor(relayInfo.ResellerCostFactor) {
+		return model.ErrInvalidCostFactor
 	}
 	balance, err := model.GetUserQuota(relayInfo.ResellerId, false)
 	if err != nil {

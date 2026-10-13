@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+	"math"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -10,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -244,4 +247,59 @@ func TestDisabledResellerSelfCallFailsClosed(t *testing.T) {
 	require.NotNil(t, apiErr)
 	assert.Equal(t, 403, apiErr.StatusCode)
 	assert.Equal(t, 1000, quotaOf(t, b2bResellerId))
+}
+
+func TestResellerPriceOverridesMustBePositive(t *testing.T) {
+	seedResellerLine(t, 1000, 10000, 1.2, common.UserStatusEnabled)
+	for _, v := range []float64{0, -1, math.Inf(1), math.NaN()} {
+		for name, row := range map[string]model.ResellerModelPrice{
+			"cost_multiplier": {CostMultiplier: &v},
+			"model_ratio":     {ModelRatio: &v},
+			"model_price":     {ModelPrice: &v},
+		} {
+			row.ResellerId, row.ModelName = b2bResellerId, "b2b-model"
+			assert.ErrorIs(t, model.UpsertResellerModelPrice(&row), model.ErrInvalidResellerPrice, "%s=%v", name, v)
+		}
+	}
+	zero := 0.0
+	require.NoError(t, model.UpsertResellerModelPrice(&model.ResellerModelPrice{ResellerId: b2bResellerId, ModelName: "b2b-model", CompletionRatio: &zero}))
+}
+
+func TestZeroCostFactorFailsClosedOnEveryPath(t *testing.T) {
+	seedResellerLine(t, 1000, 10000, 1.2, common.UserStatusEnabled)
+	// A legacy row written before the > 0 validation existed.
+	zero := 0.0
+	require.NoError(t, model.DB.Create(&model.ResellerModelPrice{ResellerId: b2bResellerId, ModelName: "b2b-model", CostMultiplier: &zero}).Error)
+	model.InvalidateResellerCache(b2bResellerId)
+
+	ctx, info := newResellerRelayInfo(t)
+	require.ErrorIs(t, info.ResellerPricingErr, model.ErrInvalidCostFactor)
+	apiErr := PreConsumeBilling(ctx, 100, info)
+	require.NotNil(t, apiErr)
+	assert.Equal(t, 403, apiErr.StatusCode)
+	assert.Error(t, CheckMidjourneyResellerBilling(info, 100))
+
+	self := &relaycommon.RelayInfo{UserId: b2bResellerId, ResellerSelf: true, OriginModelName: "b2b-model", UsingGroup: "default"}
+	selfRatio := hosttypes.GroupRatioInfo{GroupRatio: 1}
+	ApplyResellerPricing(self, &selfRatio)
+	require.ErrorIs(t, self.ResellerPricingErr, model.ErrInvalidCostFactor)
+	assert.NotNil(t, PreConsumeBilling(ctx, 100, self))
+	assert.Error(t, CheckMidjourneyResellerBilling(self, 100))
+
+	// Paths that read the resolved factor directly must not treat 0 as 1 or as free.
+	forged := &relaycommon.RelayInfo{UserId: b2bCustomerId, ResellerId: b2bResellerId, ResellerMarkup: 1.2, TokenKey: "b2b-token", OriginModelName: "b2b-model", UsingGroup: "default"}
+	assert.Error(t, PreWssConsumeQuota(ctx, forged, &dto.RealtimeUsage{TotalTokens: 10}))
+	assert.ErrorIs(t, CheckMidjourneyResellerBilling(forged, 100), model.ErrInvalidCostFactor)
+	_, forgedErr := NewBillingSession(ctx, forged, 100)
+	assert.NotNil(t, forgedErr)
+
+	previousRatios := ratio_setting.ModelRatio2JSONString()
+	t.Cleanup(func() { _ = ratio_setting.UpdateModelRatioByJSONString(previousRatios) })
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"b2b-model":2}`))
+	task := &model.Task{UserId: b2bCustomerId, Group: "default", Quota: 500}
+	task.PrivateData.BillingContext = &model.TaskBillingContext{ResellerId: b2bResellerId, ResellerMarkup: 1.2, OriginModelName: "b2b-model"}
+	assert.False(t, RecalculateTaskQuotaByTokens(context.Background(), task, 1000), "task recalculation must keep the pre-consumed quota")
+
+	assert.Equal(t, 1000, quotaOf(t, b2bResellerId))
+	assert.Equal(t, 10000, quotaOf(t, b2bCustomerId))
 }

@@ -29,6 +29,12 @@ export function ledgerKindLabel(kind: string, t: TFunction): string {
       return t('Customer credit')
     case 'customer_debit':
       return t('Customer debit')
+    case 'redemption_issue':
+      return t('Redemption code issued')
+    case 'redemption_refund':
+      return t('Redemption code refund')
+    case 'redemption_redeem':
+      return t('Redemption code redeemed')
     default:
       return kind
   }

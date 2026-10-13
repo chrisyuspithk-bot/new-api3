@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -1005,22 +1006,24 @@ func ResellerCreateRedemptions(c *gin.Context) {
 		common.ApiErrorMsg(c, "count must be between 1 and 100")
 		return
 	}
-	keys := make([]string, 0, req.Count)
-	for range req.Count {
-		redemption := model.Redemption{
-			UserId:      resellerId,
-			Name:        req.Name,
-			Key:         common.GetUUID(),
-			CreatedTime: common.GetTimestamp(),
-			Quota:       req.Quota,
-			ExpiredTime: req.ExpiredTime,
-			ResellerId:  resellerId,
-		}
-		if err := redemption.Insert(); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-		keys = append(keys, redemption.Key)
+	if n := utf8.RuneCountInString(req.Name); n == 0 || n > 20 {
+		common.ApiErrorT(c, "Redemption code name length must be between 1-20")
+		return
+	}
+	if err := validateExpiredTime(req.ExpiredTime); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// The face value of every code is debited from the reseller wallet up
+	// front; insufficient balance creates nothing.
+	codes, err := model.CreateResellerRedemptions(resellerId, resellerId, req.Name, req.Quota, req.Count, req.ExpiredTime)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	keys := make([]string, 0, len(codes))
+	for _, code := range codes {
+		keys = append(keys, code.Key)
 	}
 	common.ApiSuccess(c, keys)
 }
@@ -1030,12 +1033,13 @@ func ResellerDeleteRedemption(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result := model.DB.Where("id = ? AND reseller_id = ?", id, c.GetInt("id")).Delete(&model.Redemption{})
-	if result.Error != nil {
-		common.ApiError(c, result.Error)
+	resellerId := c.GetInt("id")
+	deleted, err := model.DeleteResellerRedemption(resellerId, id, resellerId)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
-	if result.RowsAffected == 0 {
+	if !deleted {
 		c.JSON(http.StatusNotFound, gin.H{"success": false, "message": "redemption not found"})
 		return
 	}

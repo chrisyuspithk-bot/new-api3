@@ -120,16 +120,12 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 		actualGroupRatio = userGroupRatio
 	}
 	if relayInfo.ResellerId > 0 {
-		if relayInfo.ResellerPricingErr != nil || !model.ValidMarkup(relayInfo.ResellerMarkup) {
+		if relayInfo.ResellerPricingErr != nil || !model.ValidMarkup(relayInfo.ResellerMarkup) || !model.ValidCostFactor(relayInfo.ResellerCostFactor) {
 			return fmt.Errorf("reseller pricing unavailable: %v", relayInfo.ResellerPricingErr)
 		}
-		costFactor := relayInfo.ResellerCostFactor
-		if costFactor <= 0 {
-			costFactor = 1
-		}
-		actualGroupRatio = actualGroupRatio * costFactor * relayInfo.ResellerMarkup
+		actualGroupRatio = actualGroupRatio * relayInfo.ResellerCostFactor * relayInfo.ResellerMarkup
 	} else if relayInfo.ResellerSelf {
-		if relayInfo.ResellerPricingErr != nil || relayInfo.ResellerCostFactor <= 0 {
+		if relayInfo.ResellerPricingErr != nil || !model.ValidCostFactor(relayInfo.ResellerCostFactor) {
 			return fmt.Errorf("reseller pricing unavailable: %v", relayInfo.ResellerPricingErr)
 		}
 		actualGroupRatio = actualGroupRatio * relayInfo.ResellerCostFactor

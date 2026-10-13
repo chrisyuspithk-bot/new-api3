@@ -7269,6 +7269,12 @@
     "costFactor must be a number greater than 0": "Le costFactor doit être un nombre supérieur à 0",
     "costFactor saved": "costFactor enregistré",
     "Failed to save costFactor": "Échec de l'enregistrement du costFactor",
-    "No costFactor overrides": "Aucune surcharge de costFactor"
+    "No costFactor overrides": "Aucune surcharge de costFactor",
+    "Redemption code issued": "Code d'échange émis",
+    "Redemption code refund": "Remboursement de code d'échange",
+    "Redemption code redeemed": "Code d'échange utilisé",
+    "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.": "Un total de {{amount}} est déduit de votre solde maintenant. Supprimer un code inutilisé le rembourse.",
+    "The quota of a reseller-issued redemption code cannot be changed": "Le quota d'un code d'échange émis par un revendeur ne peut pas être modifié",
+    "cost_multiplier, model_ratio and model_price must be greater than 0": "cost_multiplier, model_ratio et model_price doivent être supérieurs à 0"
   }
 }

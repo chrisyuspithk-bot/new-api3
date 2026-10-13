@@ -68,7 +68,7 @@ export function ResellersMutateDrawer({
   const [groups, setGroups] = useState('default')
   const [markup, setMarkup] = useState('1.2')
   const [maxCustomers, setMaxCustomers] = useState('0')
-  const [allowRedemption, setAllowRedemption] = useState(true)
+  const [allowRedemption, setAllowRedemption] = useState(false)
   const [status, setStatus] = useState(1)
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function ResellersMutateDrawer({
       setGroups((currentRow.groups ?? []).join(', '))
       setMarkup(String(currentRow.profile?.default_markup ?? 1))
       setMaxCustomers(String(currentRow.profile?.max_customers ?? 0))
-      setAllowRedemption(currentRow.profile?.allow_redemption ?? true)
+      setAllowRedemption(currentRow.profile?.allow_redemption ?? false)
       setStatus(currentRow.status)
     } else {
       setUsername('')
@@ -93,7 +93,7 @@ export function ResellersMutateDrawer({
       setGroups('default')
       setMarkup('1.2')
       setMaxCustomers('0')
-      setAllowRedemption(true)
+      setAllowRedemption(false)
       setStatus(1)
     }
   }, [open, currentRow])
@@ -106,6 +106,11 @@ export function ResellersMutateDrawer({
         .split(',')
         .map((g) => g.trim())
         .filter(Boolean)
+      let credentials: { username?: string; password?: string } = {
+        username,
+        password,
+      }
+      if (isUpdate) credentials = password ? { password } : {}
       const payload = {
         display_name: displayName || username,
         group,
@@ -115,11 +120,7 @@ export function ResellersMutateDrawer({
         allow_redemption: allowRedemption,
         brand_name: brandName || displayName || username,
         status,
-        ...(isUpdate
-          ? password
-            ? { password }
-            : {}
-          : { username, password }),
+        ...credentials,
       }
       if (isUpdate && currentRow) {
         requireServerSuccess(await updateReseller(currentRow.id, payload))
@@ -133,7 +134,9 @@ export function ResellersMutateDrawer({
     } catch (error) {
       handleServerError(
         error,
-        isUpdate ? t('Failed to update reseller') : t('Failed to create reseller')
+        isUpdate
+          ? t('Failed to update reseller')
+          : t('Failed to create reseller')
       )
     } finally {
       setSubmitting(false)
@@ -178,7 +181,9 @@ export function ResellersMutateDrawer({
             )}
             {isUpdate && (
               <div className='space-y-2'>
-                <Label>{t('New Password')} ({t('optional')})</Label>
+                <Label>
+                  {t('New Password')} ({t('optional')})
+                </Label>
                 <Input
                   type='password'
                   value={password}

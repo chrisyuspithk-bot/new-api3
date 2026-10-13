@@ -151,11 +151,7 @@ func taskResellerLeg(task *model.Task) (resellerId int, markup float64, costFact
 	if bc == nil || bc.ResellerId <= 0 || !model.ValidMarkup(bc.ResellerMarkup) {
 		return 0, 0, 0
 	}
-	costFactor = bc.ResellerCostFactor
-	if costFactor <= 0 {
-		costFactor = 1
-	}
-	return bc.ResellerId, bc.ResellerMarkup, costFactor
+	return bc.ResellerId, bc.ResellerMarkup, bc.ResellerCostFactor
 }
 
 // taskResellerSelfCostFactor returns the cost factor frozen for a reseller's
@@ -492,6 +488,12 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 	// B2B2C: re-apply the frozen reseller cost factor and markup so the
 	// recalculated quota stays the customer charge.
 	if _, markup, costFactor := taskResellerLeg(task); markup > 0 {
+		// Fail closed: without a valid frozen cost factor the recalculated
+		// charge would be free (0) or unpriced, so keep the pre-consumed quota.
+		if !model.ValidCostFactor(costFactor) {
+			logger.LogError(ctx, common.LogText("reseller task has invalid cost factor %v, skipping token recalculation (task=%s)", costFactor, task.TaskID))
+			return false
+		}
 		finalGroupRatio = finalGroupRatio * costFactor * markup
 	} else if costFactor := taskResellerSelfCostFactor(task); costFactor > 0 {
 		finalGroupRatio = finalGroupRatio * costFactor

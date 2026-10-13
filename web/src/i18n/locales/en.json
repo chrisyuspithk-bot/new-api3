@@ -7380,6 +7380,12 @@
     "costFactor must be a number greater than 0": "costFactor must be a number greater than 0",
     "costFactor saved": "costFactor saved",
     "Failed to save costFactor": "Failed to save costFactor",
-    "No costFactor overrides": "No costFactor overrides"
+    "No costFactor overrides": "No costFactor overrides",
+    "Redemption code issued": "Redemption code issued",
+    "Redemption code refund": "Redemption code refund",
+    "Redemption code redeemed": "Redemption code redeemed",
+    "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.": "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.",
+    "The quota of a reseller-issued redemption code cannot be changed": "The quota of a reseller-issued redemption code cannot be changed",
+    "cost_multiplier, model_ratio and model_price must be greater than 0": "cost_multiplier, model_ratio and model_price must be greater than 0"
   }
 }

@@ -94,6 +94,9 @@ var resellerLedgerKinds = []string{
 	model.ResellerLedgerAdminDebit,
 	model.ResellerLedgerCustomerCredit,
 	model.ResellerLedgerCustomerDebit,
+	model.ResellerLedgerRedemptionIssue,
+	model.ResellerLedgerRedemptionRefund,
+	model.ResellerLedgerRedemptionRedeem,
 }
 
 // ledgerExportScope is the role scope of a balance-ledger export.
@@ -136,10 +139,21 @@ func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
 		return
 	}
 
-	var increase, decrease model.LedgerKindTotal
+	// Credit increase/decrease count wallet credits granted to the scope's
+	// account holders. A redeemed reseller code credits the customer like
+	// customer_credit. Issuing and refunding codes only moves reseller funds
+	// into and out of prepaid codes (the reseller side of a transfer), so they
+	// are reported separately as redemption escrow.
+	var increase, decrease, issued, refunded model.LedgerKindTotal
 	for _, kt := range kindTotals {
 		switch kt.Kind {
-		case model.ResellerLedgerAdminCredit, model.ResellerLedgerCustomerCredit:
+		case model.ResellerLedgerRedemptionIssue:
+			issued.Entries += kt.Entries
+			issued.Quota -= kt.Quota
+		case model.ResellerLedgerRedemptionRefund:
+			refunded.Entries += kt.Entries
+			refunded.Quota += kt.Quota
+		case model.ResellerLedgerAdminCredit, model.ResellerLedgerCustomerCredit, model.ResellerLedgerRedemptionRedeem:
 			increase.Entries += kt.Entries
 			increase.Quota += kt.Quota
 			increase.MoneyUsd += kt.MoneyUsd
@@ -185,6 +199,13 @@ func writeLedgerExportCSV(c *gin.Context, scope ledgerExportScope) {
 	}
 	if scope.internal {
 		summary = append(summary,
+			[]string{"redemption_issue_entries", strconv.FormatInt(issued.Entries, 10)},
+			[]string{"redemption_issue_quota", strconv.FormatInt(issued.Quota, 10)},
+			[]string{"redemption_issue_quota_usd", usdCell(model.QuotaToUsd(issued.Quota))},
+			[]string{"redemption_refund_entries", strconv.FormatInt(refunded.Entries, 10)},
+			[]string{"redemption_refund_quota", strconv.FormatInt(refunded.Quota, 10)},
+			[]string{"redemption_refund_quota_usd", usdCell(model.QuotaToUsd(refunded.Quota))},
+			[]string{"redemption_escrow_net_quota", strconv.FormatInt(issued.Quota-refunded.Quota, 10)},
 			[]string{"related_fee_cost_quota", strconv.FormatInt(usage.CostQuota, 10)},
 			[]string{"related_fee_cost_usd", usdCell(usage.CostUsd)},
 			[]string{"related_fee_profit_quota", strconv.FormatInt(usage.ProfitQuota, 10)},

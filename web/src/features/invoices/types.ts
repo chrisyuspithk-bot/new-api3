@@ -72,17 +72,24 @@ export type ResellerLedgerKind =
   | 'admin_debit'
   | 'customer_credit'
   | 'customer_debit'
+  | 'redemption_issue'
+  | 'redemption_refund'
+  | 'redemption_redeem'
 
 export const RESELLER_LEDGER_KINDS: ResellerLedgerKind[] = [
   'admin_credit',
   'admin_debit',
   'customer_credit',
   'customer_debit',
+  'redemption_issue',
+  'redemption_refund',
+  'redemption_redeem',
 ]
 
 export const CUSTOMER_LEDGER_KINDS: ResellerLedgerKind[] = [
   'customer_credit',
   'customer_debit',
+  'redemption_redeem',
 ]
 
 export interface ResellerLedgerRow {

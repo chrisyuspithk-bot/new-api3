@@ -2,6 +2,7 @@ package model
 
 import (
 	"errors"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -68,6 +69,14 @@ const (
 	ResellerLedgerAdminDebit     = "admin_debit"
 	ResellerLedgerCustomerCredit = "customer_credit"
 	ResellerLedgerCustomerDebit  = "customer_debit"
+	// Reseller-issued redemption codes are prepaid: issuing moves the face
+	// value from the reseller wallet into the code (negative delta, no
+	// customer), voiding an unused code moves it back (positive delta, no
+	// customer), and redeeming credits the customer from the code without
+	// touching the reseller wallet again.
+	ResellerLedgerRedemptionIssue  = "redemption_issue"
+	ResellerLedgerRedemptionRefund = "redemption_refund"
+	ResellerLedgerRedemptionRedeem = "redemption_redeem"
 )
 
 // ResellerLedger is the audit trail of manual balance movements. Consumption is
@@ -96,11 +105,19 @@ var (
 	ErrInsufficientQuota            = errors.New("insufficient quota")
 	ErrAmountExceedsResellerBalance = errors.New("amount exceeds available cost balance")
 	ErrCustomerLimitReached         = errors.New("reseller customer limit reached")
+	ErrInvalidCostFactor            = errors.New("reseller cost factor must be greater than 0")
+	ErrInvalidResellerPrice         = common.NewMessage("cost_multiplier, model_ratio and model_price must be greater than 0")
 )
 
 // ValidMarkup reports whether m is an acceptable markup (0, +Inf).
 func ValidMarkup(m float64) bool {
 	return m > 0 && m < 1e6
+}
+
+// ValidCostFactor reports whether f is a billable reseller cost factor (0, +Inf).
+// A zero factor would make every call free, so pricing fails closed on it.
+func ValidCostFactor(f float64) bool {
+	return f > 0 && !math.IsInf(f, 1)
 }
 
 // ResellerPricingConfig is the cached snapshot used on the relay hot path.
@@ -281,7 +298,7 @@ func SetResellerGroups(resellerId int, groups []string, fallbackGroup string) er
 
 // GetResellerProfile returns the profile, or a default one if missing.
 func GetResellerProfile(resellerId int) (*ResellerProfile, error) {
-	profile := &ResellerProfile{UserId: resellerId, DefaultMarkup: 1, AllowRedemption: true}
+	profile := &ResellerProfile{UserId: resellerId, DefaultMarkup: 1}
 	var rows []ResellerProfile
 	if err := DB.Where("user_id = ?", resellerId).Limit(1).Find(&rows).Error; err != nil {
 		return nil, err
@@ -318,10 +335,13 @@ func UpsertResellerModelPrice(price *ResellerModelPrice) error {
 	if price.CostMultiplier != nil && (price.ModelRatio != nil || price.ModelPrice != nil || price.CompletionRatio != nil) {
 		return errors.New("cost_multiplier is mutually exclusive with model_ratio/model_price/completion_ratio")
 	}
-	for _, v := range []*float64{price.CostMultiplier, price.ModelRatio, price.ModelPrice, price.CompletionRatio} {
-		if v != nil && !(*v >= 0) {
-			return errors.New("price values must be non-negative")
+	for _, v := range []*float64{price.CostMultiplier, price.ModelRatio, price.ModelPrice} {
+		if v != nil && !ValidCostFactor(*v) {
+			return ErrInvalidResellerPrice
 		}
+	}
+	if v := price.CompletionRatio; v != nil && !(*v >= 0 && !math.IsInf(*v, 1)) {
+		return errors.New("completion_ratio must be non-negative")
 	}
 	price.UpdatedAt = common.GetTimestamp()
 	err := DB.Clauses(clause.OnConflict{

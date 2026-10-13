@@ -511,6 +511,34 @@ func TestAdminExportResellerLedgerCoversEveryReseller(t *testing.T) {
 	assert.Len(t, out.rows, 4)
 }
 
+func TestResellerExportLedgerSeparatesRedemptionEscrowFromCredits(t *testing.T) {
+	resellerID, customerID := seedLedgerExportFixture(t)
+	from, _, err := model.ParseInvoicePeriod("2026-09")
+	require.NoError(t, err)
+	rows := []model.ResellerLedger{
+		{ResellerId: resellerID, Kind: model.ResellerLedgerRedemptionIssue, QuotaDelta: -30, RefId: "redemption:1", CreatedAt: from + 6},
+		{ResellerId: resellerID, Kind: model.ResellerLedgerRedemptionIssue, QuotaDelta: -30, RefId: "redemption:2", CreatedAt: from + 6},
+		{ResellerId: resellerID, Kind: model.ResellerLedgerRedemptionRefund, QuotaDelta: 30, RefId: "redemption:2", CreatedAt: from + 7},
+		{ResellerId: resellerID, CustomerId: customerID, Kind: model.ResellerLedgerRedemptionRedeem, QuotaDelta: 30, RefId: "redemption:1", CreatedAt: from + 8},
+	}
+	require.NoError(t, model.DB.Create(&rows).Error)
+
+	out := callLedgerExport(t, ResellerExportLedger, resellerID, "/api/reseller/ledger/export?period=2026-09&kind=redemption_issue")
+
+	// 60 from the base fixture + 30 redeemed; issue/refund are escrow moves.
+	assert.Equal(t, "90", out.summary["credit_increase_quota"])
+	assert.Equal(t, "4", out.summary["credit_decrease_quota"])
+	assert.Equal(t, "2", out.summary["redemption_issue_entries"])
+	assert.Equal(t, "60", out.summary["redemption_issue_quota"])
+	assert.Equal(t, "30", out.summary["redemption_refund_quota"])
+	assert.Equal(t, "30", out.summary["redemption_escrow_net_quota"])
+	require.Len(t, out.rows, 2)
+
+	customer := callLedgerExport(t, CustomerExportLedger, customerID, "/api/user/ledger/export?period=2026-09")
+	assert.Equal(t, "40", customer.summary["credit_increase_quota"])
+	assert.NotContains(t, customer.summary, "redemption_issue_quota")
+}
+
 func TestLedgerExportRejectsMissingPeriod(t *testing.T) {
 	setupResellerCreditCustomerDB(t)
 	resellerID, _ := seedResellerCreditFixture(t, 0)

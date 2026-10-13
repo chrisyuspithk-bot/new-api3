@@ -56,13 +56,22 @@ export function ResellerRedemptionsPage() {
   const [count, setCount] = useState('1')
   const [created, setCreated] = useState<string[] | null>(null)
 
+  // Issuing debits and deleting an unused code refunds the reseller wallet.
+  const invalidateWallet = () => {
+    qc.invalidateQueries({ queryKey: ['reseller-redemptions'] })
+    qc.invalidateQueries({ queryKey: ['reseller-self'] })
+    qc.invalidateQueries({ queryKey: ['reseller-ledger'] })
+  }
+  const totalQuota =
+    parseQuotaFromDollars(Number(usd) || 0) * (Number(count) || 0)
+
   const { data } = useQuery({
     queryKey: ['reseller-redemptions', page],
     queryFn: async () => {
       const res = requireServerSuccess(
         await listRedemptions({ p: page, page_size: 20 })
       )
-      return res.data!
+      return res.data ?? null
     },
   })
 
@@ -118,9 +127,7 @@ export function ResellerRedemptionsPage() {
                               requireServerSuccess(
                                 await deleteRedemption(row.id)
                               )
-                              qc.invalidateQueries({
-                                queryKey: ['reseller-redemptions'],
-                              })
+                              invalidateWallet()
                             } catch (error) {
                               handleServerError(error, t('Failed to delete'))
                             }
@@ -154,7 +161,7 @@ export function ResellerRedemptionsPage() {
                 setCreated(res.data ?? [])
                 toast.success(t('Codes created'))
                 setOpen(false)
-                qc.invalidateQueries({ queryKey: ['reseller-redemptions'] })
+                invalidateWallet()
               } catch (error) {
                 handleServerError(error, t('Failed to create codes'))
               }
@@ -168,6 +175,7 @@ export function ResellerRedemptionsPage() {
                 <Label>{t('Name')}</Label>
                 <Input
                   value={name}
+                  maxLength={20}
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
@@ -188,11 +196,18 @@ export function ResellerRedemptionsPage() {
                 <Input
                   type='number'
                   min='1'
+                  max='100'
                   value={count}
                   onChange={(e) => setCount(e.target.value)}
                   required
                 />
               </div>
+              <p className='text-muted-foreground text-sm'>
+                {t(
+                  'Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.',
+                  { amount: formatQuota(totalQuota) }
+                )}
+              </p>
             </div>
             <DialogFooter>
               <Button type='submit'>{t('Create')}</Button>

@@ -7380,6 +7380,12 @@
     "costFactor must be a number greater than 0": "costFactor 必须是大于 0 的数字",
     "costFactor saved": "costFactor 已保存",
     "Failed to save costFactor": "保存 costFactor 失败",
-    "No costFactor overrides": "暂无 costFactor 覆盖"
+    "No costFactor overrides": "暂无 costFactor 覆盖",
+    "Redemption code issued": "发放兑换码",
+    "Redemption code refund": "兑换码退款",
+    "Redemption code redeemed": "兑换码充值",
+    "Total {{amount}} is deducted from your balance now. Deleting an unused code refunds it.": "共 {{amount}} 将立即从您的余额中扣除。删除未使用的兑换码会退回对应金额。",
+    "The quota of a reseller-issued redemption code cannot be changed": "经销商发放的兑换码额度不可修改",
+    "cost_multiplier, model_ratio and model_price must be greater than 0": "cost_multiplier、model_ratio 和 model_price 必须大于 0"
   }
 }

@@ -130,7 +130,7 @@ func AddRedemption(c *gin.Context) {
 
 func DeleteRedemption(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
-	err := model.DeleteRedemptionById(id)
+	err := model.DeleteRedemptionById(id, c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -168,6 +168,12 @@ func UpdateRedemption(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
+		// A reseller code's quota was escrowed from the reseller wallet at
+		// issue; changing it would mint or strand balance.
+		if cleanRedemption.ResellerId > 0 && redemption.Quota != cleanRedemption.Quota {
+			common.ApiErrorT(c, "The quota of a reseller-issued redemption code cannot be changed")
+			return
+		}
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
@@ -190,7 +196,7 @@ func UpdateRedemption(c *gin.Context) {
 }
 
 func DeleteInvalidRedemption(c *gin.Context) {
-	rows, err := model.DeleteInvalidRedemptions()
+	rows, err := model.DeleteInvalidRedemptions(c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -218,7 +224,7 @@ func DeleteRedemptionBatch(c *gin.Context) {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
-	count, err := model.BatchDeleteRedemptions(request.Ids)
+	count, err := model.BatchDeleteRedemptions(request.Ids, c.GetInt("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
