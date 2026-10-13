@@ -94,4 +94,32 @@ describe('reseller customers page', () => {
       )
     )
   })
+
+  it('credits the named customer with the entered amount and remark', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Credit' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/demodemo3/)).toBeVisible()
+    await user.type(
+      within(dialog).getByRole('spinbutton', { name: 'Amount (USD)' }),
+      '5'
+    )
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Remark' }),
+      'October top-up'
+    )
+
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/reseller/customers/7/credit',
+        {
+          money_usd: 5,
+          remark: 'October top-up',
+        }
+      )
+    )
+  })
 })

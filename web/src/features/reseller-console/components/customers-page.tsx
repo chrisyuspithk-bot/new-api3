@@ -29,6 +29,7 @@ import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -56,6 +57,7 @@ import {
   listCustomers,
   setCustomerStatus,
 } from '../api'
+import type { Customer } from '../types'
 
 export function ResellerCustomersPage() {
   const { t } = useTranslation()
@@ -63,7 +65,7 @@ export function ResellerCustomersPage() {
   const [page, setPage] = useState(1)
   const [keyword, setKeyword] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
-  const [creditOpen, setCreditOpen] = useState<number | null>(null)
+  const [creditTarget, setCreditTarget] = useState<Customer | null>(null)
   const [form, setForm] = useState({
     username: '',
     password: '',
@@ -72,6 +74,7 @@ export function ResellerCustomersPage() {
     markup: '',
   })
   const [creditUsd, setCreditUsd] = useState('')
+  const [creditRemark, setCreditRemark] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['reseller-customers', page, keyword],
@@ -135,18 +138,22 @@ export function ResellerCustomersPage() {
 
   const onCredit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!creditOpen) return
+    if (!creditTarget) return
     if (creditExceedsBalance) {
       toast.error(t('Amount exceeds available cost balance'))
       return
     }
     try {
       requireServerSuccess(
-        await creditCustomer(creditOpen, { money_usd: Number(creditUsd) })
+        await creditCustomer(creditTarget.id, {
+          money_usd: Number(creditUsd),
+          remark: creditRemark,
+        })
       )
       toast.success(t('Customer credited'))
-      setCreditOpen(null)
+      setCreditTarget(null)
       setCreditUsd('')
+      setCreditRemark('')
       refresh()
     } catch (error) {
       handleServerError(error, t('Failed to credit customer'))
@@ -234,7 +241,7 @@ export function ResellerCustomersPage() {
                       <Button
                         size='sm'
                         variant='outline'
-                        onClick={() => setCreditOpen(row.id)}
+                        onClick={() => setCreditTarget(row)}
                       >
                         {t('Credit')}
                       </Button>
@@ -364,17 +371,21 @@ export function ResellerCustomersPage() {
       </Dialog>
 
       <Dialog
-        open={creditOpen != null}
-        onOpenChange={(o) => !o && setCreditOpen(null)}
+        open={creditTarget != null}
+        onOpenChange={(o) => !o && setCreditTarget(null)}
       >
         <DialogContent>
           <form onSubmit={onCredit}>
             <DialogHeader>
               <DialogTitle>{t('Credit Customer')}</DialogTitle>
+              <DialogDescription>{creditTarget?.username}</DialogDescription>
             </DialogHeader>
             <div className='space-y-2 py-4'>
-              <Label>{t('Amount (USD)')}</Label>
+              <Label htmlFor='reseller-credit-amount'>
+                {t('Amount (USD)')}
+              </Label>
               <Input
+                id='reseller-credit-amount'
                 type='number'
                 step='0.000001'
                 min='0.000001'
@@ -391,6 +402,12 @@ export function ResellerCustomersPage() {
                   {t('Amount exceeds available cost balance')}
                 </p>
               ) : null}
+              <Label htmlFor='reseller-credit-remark'>{t('Remark')}</Label>
+              <Input
+                id='reseller-credit-remark'
+                value={creditRemark}
+                onChange={(e) => setCreditRemark(e.target.value)}
+              />
             </div>
             <DialogFooter>
               <Button type='submit' disabled={creditExceedsBalance}>
