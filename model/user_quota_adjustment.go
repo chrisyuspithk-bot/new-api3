@@ -22,7 +22,7 @@ type UserQuotaAdjustment struct {
 	After    int
 }
 
-func AdjustUserQuota(userID, operatorRole int, mode string, value int) (*UserQuotaAdjustment, error) {
+func AdjustUserQuota(userID, operatorID, operatorRole int, mode string, value int) (*UserQuotaAdjustment, error) {
 	if userID <= 0 || (mode != "add" && mode != "subtract" && mode != "override") {
 		return nil, ErrInvalidUserQuotaAdjustment
 	}
@@ -65,6 +65,24 @@ func AdjustUserQuota(userID, operatorRole int, mode string, value int) (*UserQuo
 			}
 			if result.RowsAffected != 1 {
 				return gorm.ErrRecordNotFound
+			}
+			// B2B2C wallets must be traceable in reseller_ledger. A forced
+			// admin change to a customer does not move the reseller's wallet.
+			entry := ResellerLedger{CustomerId: user.Id, QuotaDelta: int64(after) - int64(user.Quota), OperatorId: operatorID, CreatedAt: common.GetTimestamp()}
+			switch {
+			case user.Role == common.RoleResellerUser:
+				entry.ResellerId, entry.CustomerId = user.Id, 0
+			case user.ResellerId > 0:
+				entry.ResellerId = user.ResellerId
+			}
+			if entry.ResellerId > 0 {
+				entry.Kind = ResellerLedgerAdminCredit
+				if entry.QuotaDelta < 0 {
+					entry.Kind = ResellerLedgerAdminDebit
+				}
+				if err := tx.Create(&entry).Error; err != nil {
+					return err
+				}
 			}
 		}
 		adjustment = UserQuotaAdjustment{UserID: user.Id, Username: user.Username, Before: user.Quota, After: after}

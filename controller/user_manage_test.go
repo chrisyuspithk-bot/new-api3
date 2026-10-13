@@ -68,7 +68,7 @@ func setupManageUserTestDB(t *testing.T) *gorm.DB {
 			}
 		}
 	})
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.AuthFlow{}, &model.TwoFA{}, &model.PasskeyCredential{}, &model.UserAccessToken{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.UserSession{}, &model.CasbinRule{}, &model.AuthzRole{}, &model.AuthFlow{}, &model.TwoFA{}, &model.PasskeyCredential{}, &model.UserAccessToken{}, &model.ResellerLedger{}))
 	require.NoError(t, logDB.AutoMigrate(&model.Log{}, &model.AuditLog{}))
 	versionQuery := "SELECT version()"
 	if dialect == "sqlite" {
@@ -314,6 +314,77 @@ func TestManageUserQuotaRecordsTopupAndAudit(t *testing.T) {
 	}
 }
 
+func TestManageUserQuotaForcesResellerLedger(t *testing.T) {
+	for _, tc := range []struct {
+		name, target, mode string
+		value, wantQuota   int
+		wantKind           string
+		failLedger         bool
+	}{
+		{name: "reseller_add", target: "reseller", mode: "add", value: 500, wantQuota: 1500, wantKind: model.ResellerLedgerAdminCredit},
+		{name: "reseller_subtract", target: "reseller", mode: "subtract", value: 500, wantQuota: 500, wantKind: model.ResellerLedgerAdminDebit},
+		{name: "reseller_override_negative", target: "reseller", mode: "override", value: -1, wantQuota: -1, wantKind: model.ResellerLedgerAdminDebit},
+		{name: "customer_add", target: "customer", mode: "add", value: 500, wantQuota: 1500, wantKind: model.ResellerLedgerAdminCredit},
+		{name: "customer_subtract", target: "customer", mode: "subtract", value: 1500, wantQuota: -500, wantKind: model.ResellerLedgerAdminDebit},
+		{name: "customer_override_up", target: "customer", mode: "override", value: 2000, wantQuota: 2000, wantKind: model.ResellerLedgerAdminCredit},
+		{name: "plain_add", target: "plain", mode: "add", value: 500, wantQuota: 1500},
+		{name: "reseller_override_unchanged", target: "reseller", mode: "override", value: 1000, wantQuota: 1000},
+		{name: "customer_zero_add_rejected", target: "customer", mode: "add", value: 0, wantQuota: 1000},
+		{name: "ledger_error_rolls_back", target: "reseller", mode: "add", value: 500, wantQuota: 1000, failLedger: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			createQuotaTestOperator(t, db, common.RoleRootUser)
+			reseller := model.User{Username: "ledger-reseller", Role: common.RoleResellerUser, Quota: 1000, AffCode: "ledger-reseller-aff"}
+			require.NoError(t, db.Create(&reseller).Error)
+			target := reseller
+			if tc.target != "reseller" {
+				target = model.User{Username: "ledger-target", Role: common.RoleCommonUser, Quota: 1000, AffCode: "ledger-target-aff"}
+				if tc.target == "customer" {
+					target.ResellerId = reseller.Id
+				}
+				require.NoError(t, db.Create(&target).Error)
+			}
+			if tc.failLedger {
+				require.NoError(t, db.Callback().Create().Before("gorm:create").Register("test:fail_reseller_ledger", func(tx *gorm.DB) {
+					if tx.Statement.Table == "reseller_ledger" {
+						tx.AddError(errors.New("ledger unavailable"))
+					}
+				}))
+			}
+
+			recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"add_quota","mode":%q,"value":%d}`, target.Id, tc.mode, tc.value))
+			wantSuccess := tc.value != 0 && !tc.failLedger
+			assert.Contains(t, recorder.Body.String(), fmt.Sprintf(`"success":%v`, wantSuccess))
+			require.NoError(t, db.First(&target, target.Id).Error)
+			assert.Equal(t, tc.wantQuota, target.Quota)
+			if tc.target == "customer" {
+				require.NoError(t, db.First(&reseller, reseller.Id).Error)
+				assert.Equal(t, 1000, reseller.Quota, "forced admin adjustment must not move the reseller wallet")
+			}
+
+			var entries []model.ResellerLedger
+			require.NoError(t, db.Find(&entries).Error)
+			if tc.wantKind == "" {
+				assert.Empty(t, entries)
+				return
+			}
+			require.Len(t, entries, 1)
+			wantCustomerID := 0
+			if tc.target == "customer" {
+				wantCustomerID = target.Id
+			}
+			assert.Equal(t, reseller.Id, entries[0].ResellerId)
+			assert.Equal(t, wantCustomerID, entries[0].CustomerId)
+			assert.Equal(t, tc.wantKind, entries[0].Kind)
+			assert.EqualValues(t, tc.wantQuota-1000, entries[0].QuotaDelta)
+			assert.Equal(t, 9999, entries[0].OperatorId)
+			assert.Nil(t, entries[0].MoneyUsd)
+			assert.NotZero(t, entries[0].CreatedAt)
+		})
+	}
+}
+
 func TestManageUserQuotaFailuresDoNotRecordTopup(t *testing.T) {
 	for _, tc := range []struct {
 		name, mode string
@@ -541,7 +612,7 @@ func TestManageUserQuotaConcurrentSnapshots(t *testing.T) {
 	results := make(chan result, 2)
 	for _, value := range []int{10, 20} {
 		go func(value int) {
-			adjustment, err := model.AdjustUserQuota(user.Id, common.RoleRootUser, "add", value)
+			adjustment, err := model.AdjustUserQuota(user.Id, 9999, common.RoleRootUser, "add", value)
 			results <- result{adjustment, err, value}
 		}(value)
 	}
