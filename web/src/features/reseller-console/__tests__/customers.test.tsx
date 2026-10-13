@@ -122,4 +122,35 @@ describe('reseller customers page', () => {
       )
     )
   })
+
+  it('deletes a customer only after confirming in the dialog', async () => {
+    vi.spyOn(api, 'delete').mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('alertdialog')
+    expect(within(dialog).getByText('demodemo3')).toBeVisible()
+    expect(api.delete).not.toHaveBeenCalled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('/api/reseller/customers/7')
+    )
+  })
+
+  it('keeps the customer when the delete confirmation is cancelled', async () => {
+    vi.spyOn(api, 'delete').mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('alertdialog')
+
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() =>
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    )
+    expect(api.delete).not.toHaveBeenCalled()
+  })
 })

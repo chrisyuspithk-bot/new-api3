@@ -23,6 +23,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SectionPageLayout } from '@/components/layout'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -75,6 +76,8 @@ export function ResellerCustomersPage() {
   })
   const [creditUsd, setCreditUsd] = useState('')
   const [creditRemark, setCreditRemark] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['reseller-customers', page, keyword],
@@ -157,6 +160,21 @@ export function ResellerCustomersPage() {
       refresh()
     } catch (error) {
       handleServerError(error, t('Failed to credit customer'))
+    }
+  }
+
+  const onDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      requireServerSuccess(await deleteCustomer(deleteTarget.id))
+      toast.success(t('Customer deleted'))
+      setDeleteTarget(null)
+      refresh()
+    } catch (error) {
+      handleServerError(error, t('Failed to delete customer'))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -271,25 +289,7 @@ export function ResellerCustomersPage() {
                         size='sm'
                         variant='ghost'
                         className='text-destructive'
-                        onClick={async () => {
-                          if (
-                            !window.confirm(
-                              t('Disable customer and revoke tokens?')
-                            )
-                          ) {
-                            return
-                          }
-                          try {
-                            requireServerSuccess(await deleteCustomer(row.id))
-                            toast.success(t('Customer deleted'))
-                            refresh()
-                          } catch (error) {
-                            handleServerError(
-                              error,
-                              t('Failed to delete customer')
-                            )
-                          }
-                        }}
+                        onClick={() => setDeleteTarget(row)}
                       >
                         {t('Delete')}
                       </Button>
@@ -417,6 +417,17 @@ export function ResellerCustomersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        onOpenChange={(o) => !o && setDeleteTarget(null)}
+        title={t('Disable customer and revoke tokens?')}
+        desc={<span className='font-semibold'>{deleteTarget?.username}</span>}
+        confirmText={t('Delete')}
+        destructive
+        isLoading={deleting}
+        handleConfirm={onDelete}
+      />
     </>
   )
 }

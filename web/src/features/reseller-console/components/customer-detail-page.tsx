@@ -22,6 +22,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { SectionPageLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -61,6 +62,8 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [group, setGroup] = useState<string | null>(null)
   const [markup, setMarkup] = useState<string | null>(null)
+  const [deleteTokenId, setDeleteTokenId] = useState<number | null>(null)
+  const [deletingToken, setDeletingToken] = useState(false)
 
   const customer = useQuery({
     queryKey: ['reseller-customer', id],
@@ -106,6 +109,20 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
       qc.invalidateQueries({ queryKey: ['reseller-customer', id] })
     } catch (error) {
       handleServerError(error, t('Failed to update customer'))
+    }
+  }
+
+  const onDeleteToken = async () => {
+    if (deleteTokenId == null) return
+    setDeletingToken(true)
+    try {
+      requireServerSuccess(await deleteCustomerToken(id, deleteTokenId))
+      setDeleteTokenId(null)
+      qc.invalidateQueries({ queryKey: ['reseller-customer-tokens', id] })
+    } catch (error) {
+      handleServerError(error, t('Failed to delete token'))
+    } finally {
+      setDeletingToken(false)
     }
   }
 
@@ -243,21 +260,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                             <Button
                               size='sm'
                               variant='ghost'
-                              onClick={async () => {
-                                try {
-                                  requireServerSuccess(
-                                    await deleteCustomerToken(id, tok.id)
-                                  )
-                                  qc.invalidateQueries({
-                                    queryKey: ['reseller-customer-tokens', id],
-                                  })
-                                } catch (error) {
-                                  handleServerError(
-                                    error,
-                                    t('Failed to delete token')
-                                  )
-                                }
-                              }}
+                              onClick={() => setDeleteTokenId(tok.id)}
                             >
                               {t('Delete')}
                             </Button>
@@ -370,6 +373,18 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
             </Card>
           </div>
         )}
+        <ConfirmDialog
+          open={deleteTokenId != null}
+          onOpenChange={(o) => !o && setDeleteTokenId(null)}
+          title={t('Are you sure?')}
+          desc={t(
+            'Are you sure you want to delete this key? This action cannot be undone.'
+          )}
+          confirmText={t('Delete')}
+          destructive
+          isLoading={deletingToken}
+          handleConfirm={onDeleteToken}
+        />
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )
