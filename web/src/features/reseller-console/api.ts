@@ -159,6 +159,17 @@ export async function deleteCustomerToken(
   return res.data
 }
 
+/** Fetch the full (unmasked) customer token key. List responses stay masked. */
+export async function fetchCustomerTokenKey(
+  customerId: number,
+  tokenId: number
+): Promise<ApiResponse<{ key: string }>> {
+  const res = await api.post(
+    `/api/reseller/customers/${customerId}/tokens/${tokenId}/key`
+  )
+  return res.data
+}
+
 export async function listModelMarkups(): Promise<ApiResponse<ModelMarkup[]>> {
   const res = await api.get('/api/reseller/model_markups')
   return res.data

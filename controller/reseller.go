@@ -1363,6 +1363,17 @@ func ResellerDeleteCustomerToken(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"id": token.Id})
 }
 
+// ResellerGetCustomerTokenKey returns the full API key for a customer token owned
+// by the session reseller. List/update responses stay masked; this endpoint is
+// rate-limited and must not be logged with the key value.
+func ResellerGetCustomerTokenKey(c *gin.Context) {
+	_, token, ok := loadCustomerToken(c)
+	if !ok {
+		return
+	}
+	common.ApiSuccess(c, gin.H{"key": token.GetFullKey()})
+}
+
 // AdminReconcileResellers lists (read-only) negative reseller balances and
 // consume logs with an inconsistent reseller leg. ?from=<unix> limits the log scan.
 func AdminReconcileResellers(c *gin.Context) {

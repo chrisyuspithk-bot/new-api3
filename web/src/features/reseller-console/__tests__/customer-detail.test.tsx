@@ -44,7 +44,13 @@ function renderPage() {
 beforeEach(() => {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/reseller/customers/7/tokens') {
-      const token = { id: 31, name: 'prod-key', status: 1, group: 'vip' }
+      const token = {
+        id: 31,
+        name: 'prod-key',
+        status: 1,
+        group: 'vip',
+        key: 'abcd**********wxyz',
+      }
       return { data: { success: true, data: { items: [token], total: 1 } } }
     }
     if (url === '/api/reseller/customers/7/model_markups') {
@@ -65,6 +71,9 @@ beforeEach(() => {
     }
   })
   vi.spyOn(api, 'delete').mockResolvedValue({ data: { success: true } })
+  vi.spyOn(api, 'post').mockResolvedValue({
+    data: { success: true, data: { key: 'abcdFULLKEYwxyzONLY' } },
+  })
 })
 
 afterEach(() => {
@@ -87,6 +96,31 @@ describe('reseller customer detail API keys', () => {
       expect(api.delete).toHaveBeenCalledWith(
         '/api/reseller/customers/7/tokens/31'
       )
+    )
+  })
+
+  it('shows a masked API key and copies the full key via the secure endpoint', async () => {
+    const user = userEvent.setup()
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+
+    renderPage()
+    expect(await screen.findByText('sk-abcd**********wxyz')).toBeTruthy()
+
+    const row = (await screen.findByText('prod-key')).closest('tr')
+    if (!row) throw new Error('token row not rendered')
+    await user.click(within(row).getByRole('button', { name: 'Copy API key' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/reseller/customers/7/tokens/31/key'
+      )
+    )
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith('sk-abcdFULLKEYwxyzONLY')
     )
   })
 })

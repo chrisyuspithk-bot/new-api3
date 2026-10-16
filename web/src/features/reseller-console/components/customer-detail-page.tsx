@@ -18,7 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { Check, Copy, Loader2 } from 'lucide-react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -36,6 +37,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
@@ -44,12 +51,18 @@ import {
   createCustomerToken,
   deleteCustomerModelMarkup,
   deleteCustomerToken,
+  fetchCustomerTokenKey,
   getCustomer,
   listCustomerModelMarkups,
   listCustomerTokens,
   updateCustomer,
   upsertCustomerModelMarkup,
 } from '../api'
+
+function formatApiKey(raw?: string | null) {
+  if (!raw) return ''
+  return raw.startsWith('sk-') ? raw : `sk-${raw}`
+}
 
 export function ResellerCustomerDetailPage({ id }: { id: number }) {
   const { t } = useTranslation()
@@ -64,6 +77,8 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
   const [markup, setMarkup] = useState<string | null>(null)
   const [deleteTokenId, setDeleteTokenId] = useState<number | null>(null)
   const [deletingToken, setDeletingToken] = useState(false)
+  const [copyingTokenId, setCopyingTokenId] = useState<number | null>(null)
+  const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null)
 
   const customer = useQuery({
     queryKey: ['reseller-customer', id],
@@ -125,6 +140,37 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
       setDeletingToken(false)
     }
   }
+
+  const onCopyTokenKey = useCallback(
+    async (tokenId: number) => {
+      setCopyingTokenId(tokenId)
+      try {
+        const res = requireServerSuccess(
+          await fetchCustomerTokenKey(id, tokenId)
+        )
+        const fullKey = formatApiKey(res.data?.key)
+        if (!fullKey) {
+          toast.error(t('Failed to copy'))
+          return
+        }
+        const ok = await copyToClipboard(fullKey)
+        if (ok) {
+          setCopiedTokenId(tokenId)
+          toast.success(t('Copied!'))
+          window.setTimeout(() => {
+            setCopiedTokenId((cur) => (cur === tokenId ? null : cur))
+          }, 2000)
+        } else {
+          toast.error(t('Failed to copy'))
+        }
+      } catch (error) {
+        handleServerError(error, t('Failed to copy'))
+      } finally {
+        setCopyingTokenId((cur) => (cur === tokenId ? null : cur))
+      }
+    },
+    [id, t]
+  )
 
   return (
     <SectionPageLayout>
@@ -201,7 +247,9 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                           unlimited_quota: true,
                         })
                       )
-                      setCreatedKey(res.data?.key || null)
+                      setCreatedKey(
+                        res.data?.key ? formatApiKey(res.data.key) : null
+                      )
                       toast.success(t('Token created'))
                       qc.invalidateQueries({
                         queryKey: ['reseller-customer-tokens', id],
@@ -232,8 +280,24 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                   </Button>
                 </form>
                 {createdKey && (
-                  <div className='bg-muted rounded-md p-3 text-sm break-all'>
-                    {t('Copy this key now')}: {createdKey}
+                  <div className='bg-muted flex items-start gap-2 rounded-md p-3 text-sm'>
+                    <div className='min-w-0 flex-1 break-all'>
+                      {t('Copy this key now')}: {createdKey}
+                    </div>
+                    <Button
+                      type='button'
+                      size='icon'
+                      variant='ghost'
+                      className='size-7 shrink-0'
+                      aria-label={t('Copy API key')}
+                      onClick={async () => {
+                        const ok = await copyToClipboard(createdKey)
+                        if (ok) toast.success(t('Copied!'))
+                        else toast.error(t('Failed to copy'))
+                      }}
+                    >
+                      <Copy className='size-3.5' />
+                    </Button>
                   </div>
                 )}
                 <div className='rounded-lg border'>
@@ -242,31 +306,76 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                       <TableRow>
                         <TableHead>{t('ID')}</TableHead>
                         <TableHead>{t('Name')}</TableHead>
+                        <TableHead>{t('Key')}</TableHead>
                         <TableHead>{t('Group')}</TableHead>
                         <TableHead>{t('Status')}</TableHead>
                         <TableHead />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(tokens.data?.items ?? []).map((tok) => (
-                        <TableRow key={tok.id}>
-                          <TableCell>{tok.id}</TableCell>
-                          <TableCell>{tok.name}</TableCell>
-                          <TableCell>{tok.group}</TableCell>
-                          <TableCell>
-                            {tok.status === 1 ? t('Enabled') : t('Disabled')}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size='sm'
-                              variant='ghost'
-                              onClick={() => setDeleteTokenId(tok.id)}
-                            >
-                              {t('Delete')}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {(tokens.data?.items ?? []).map((tok) => {
+                        const maskedKey = formatApiKey(tok.key)
+                        const isCopying = copyingTokenId === tok.id
+                        const isCopied = copiedTokenId === tok.id
+                        return (
+                          <TableRow key={tok.id}>
+                            <TableCell>{tok.id}</TableCell>
+                            <TableCell>{tok.name}</TableCell>
+                            <TableCell>
+                              <div className='flex max-w-full min-w-0 items-center gap-1'>
+                                <code className='truncate font-mono text-xs'>
+                                  {maskedKey || '—'}
+                                </code>
+                                {tok.key ? (
+                                  <Tooltip>
+                                    <TooltipTrigger
+                                      render={
+                                        <Button
+                                          type='button'
+                                          size='icon'
+                                          variant='ghost'
+                                          className='size-7 shrink-0'
+                                          disabled={isCopying}
+                                          aria-label={t('Copy API key')}
+                                          onClick={() => onCopyTokenKey(tok.id)}
+                                        />
+                                      }
+                                    >
+                                      {isCopying ? (
+                                        <Loader2 className='size-3.5 animate-spin' />
+                                      ) : isCopied ? (
+                                        <Check className='size-3.5 text-green-600' />
+                                      ) : (
+                                        <Copy className='size-3.5' />
+                                      )}
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      {isCopying
+                                        ? t('Loading...')
+                                        : isCopied
+                                          ? t('Copied!')
+                                          : t('Copy API key')}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell>{tok.group}</TableCell>
+                            <TableCell>
+                              {tok.status === 1 ? t('Enabled') : t('Disabled')}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size='sm'
+                                variant='ghost'
+                                onClick={() => setDeleteTokenId(tok.id)}
+                              >
+                                {t('Delete')}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
                     </TableBody>
                   </Table>
                 </div>

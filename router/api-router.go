@@ -225,6 +225,7 @@ func SetApiRouter(router *gin.Engine) {
 			resellerRoute.POST("/customers/:id/tokens", controller.ResellerCreateCustomerToken)
 			resellerRoute.PUT("/customers/:id/tokens/:token_id", controller.ResellerUpdateCustomerToken)
 			resellerRoute.DELETE("/customers/:id/tokens/:token_id", controller.ResellerDeleteCustomerToken)
+			resellerRoute.POST("/customers/:id/tokens/:token_id/key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.ResellerGetCustomerTokenKey)
 			resellerRoute.POST("/customers/:id/credit", controller.ResellerCreditCustomer)
 			resellerRoute.POST("/customers/:id/debit", controller.ResellerDebitCustomer)
 			resellerRoute.GET("/customers/:id/model_markups", controller.ResellerListCustomerModelMarkups)
