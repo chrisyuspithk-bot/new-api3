@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import axios from 'axios'
 
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
+import { suppressSessionExpiredNotice } from '@/lib/auth-session'
 import { AuthOperationError } from '@/lib/secure-verification'
 import {
   getServerErrorMessageKey,
@@ -130,6 +131,10 @@ export async function executeLogout(
 
 // User logout
 export async function logout(): Promise<ApiResponse> {
+  // In-flight requests may 401 after the session is revoked; suppress the
+  // generic "Session expired!" toast so intentional sign-out only shows
+  // "Signed out" (or a silent redirect).
+  suppressSessionExpiredNotice()
   return executeLogout({
     getExpectedSID: () => useAuthStore.getState().auth.session?.sid,
     request: async (sid) => {

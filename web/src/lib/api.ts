@@ -29,8 +29,11 @@ export {
   getCommonHeaders,
   getFreshAuthHeaders,
   isAuthBundle,
+  isSessionExpiredNoticeSuppressed,
   refreshAuthentication,
   resolveAuthentication,
+  suppressSessionExpiredNotice,
+  clearSessionExpiredNoticeSuppression,
   AuthRotationError,
 } from '@/lib/auth-session'
 export type { AuthTokenRotation, RefreshOutcome } from '@/lib/auth-session'

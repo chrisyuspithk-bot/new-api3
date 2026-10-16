@@ -23,6 +23,7 @@ import {
   applyAuthRotation,
   clearAuthentication,
   getFreshAuthHeaders,
+  isSessionExpiredNoticeSuppressed,
   refreshAuthentication,
 } from '@/lib/auth-session'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -83,6 +84,18 @@ function redirectToSignIn(): void {
   }
 }
 
+function notifySessionExpired(
+  error: unknown,
+  skipErrorHandler?: boolean
+): void {
+  if (skipErrorHandler || isSessionExpiredNoticeSuppressed()) return
+  handleServerError({
+    message: t('Session expired!'),
+    [safeServerErrorMessage]: true,
+    cause: error,
+  })
+}
+
 api.interceptors.response.use(
   (response) => {
     if (response.config.acceptAuthRotation && response.data?.success === true) {
@@ -112,31 +125,15 @@ api.interceptors.response.use(
         }
 
         if (outcome.kind === 'anonymous' || outcome.kind === 'out_of_sync') {
-          if (!skipErrorHandler) {
-            handleServerError({
-              message: t('Session expired!'),
-              [safeServerErrorMessage]: true,
-              cause: error,
-            })
-          }
+          notifySessionExpired(error, skipErrorHandler)
           redirectToSignIn()
         }
       } else if (config?.authRetry) {
         clearAuthentication(false)
-        if (!skipErrorHandler) {
-          handleServerError({
-            message: t('Session expired!'),
-            [safeServerErrorMessage]: true,
-            cause: error,
-          })
-        }
+        notifySessionExpired(error, skipErrorHandler)
         redirectToSignIn()
-      } else if (!skipErrorHandler) {
-        handleServerError({
-          message: t('Session expired!'),
-          [safeServerErrorMessage]: true,
-          cause: error,
-        })
+      } else {
+        notifySessionExpired(error, skipErrorHandler)
       }
     }
     if (axios.isAxiosError(error)) error.message = getServerErrorMessage(error)

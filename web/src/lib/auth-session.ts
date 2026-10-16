@@ -147,6 +147,24 @@ function isAuthTokenRotation(value: unknown): value is AuthTokenRotation {
   )
 }
 
+/** While true, 401 interceptor must not toast "Session expired!" (intentional sign-out). */
+let sessionExpiredNoticeSuppressedUntil = 0
+
+export function suppressSessionExpiredNotice(durationMs = 15_000): void {
+  sessionExpiredNoticeSuppressedUntil = Math.max(
+    sessionExpiredNoticeSuppressedUntil,
+    Date.now() + durationMs
+  )
+}
+
+export function clearSessionExpiredNoticeSuppression(): void {
+  sessionExpiredNoticeSuppressedUntil = 0
+}
+
+export function isSessionExpiredNoticeSuppressed(): boolean {
+  return Date.now() < sessionExpiredNoticeSuppressedUntil
+}
+
 export function applyAuthBundle(
   bundle: AuthBundle,
   synchronizeTabs = true
@@ -154,6 +172,7 @@ export function applyAuthBundle(
   const previousSID = useAuthStore.getState().auth.session?.sid
   authEpoch += 1
   useAuthStore.getState().auth.setBundle(bundle)
+  clearSessionExpiredNoticeSuppression()
   if (synchronizeTabs && previousSID !== bundle.session.sid) {
     publishAuthSessionEvent('authenticated', bundle.session.sid)
   }
@@ -200,6 +219,7 @@ export function clearAuthenticatedClientState(
   queryClient: QueryClient,
   synchronizeTabs = true
 ): void {
+  suppressSessionExpiredNotice()
   queryClient.clear()
   clearAuthentication(synchronizeTabs)
 }
@@ -445,6 +465,9 @@ export async function getFreshAuthHeaders(): Promise<Record<string, string>> {
 
   if (outcome.kind === 'transient_error') {
     throw new Error(t('Request failed'), { cause: outcome.error })
+  }
+  if (isSessionExpiredNoticeSuppressed()) {
+    throw new Error(t('Request failed'))
   }
   throw new Error(t('Session expired!'))
 }

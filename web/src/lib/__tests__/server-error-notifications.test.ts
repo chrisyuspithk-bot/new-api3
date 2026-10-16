@@ -30,6 +30,10 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import { saveModelPricing } from '@/features/model-pricing/api'
 import { useUpdateOption } from '@/features/system-settings/hooks/use-update-option'
+import {
+  clearSessionExpiredNoticeSuppression,
+  suppressSessionExpiredNotice,
+} from '@/lib/auth-session'
 import { handleServerError } from '@/lib/handle-server-error'
 import { api } from '@/lib/http-client'
 import { createAppQueryClient } from '@/lib/query-client'
@@ -46,6 +50,7 @@ afterEach(() => {
   api.defaults.adapter = originalAdapter
   vi.restoreAllMocks()
   useAuthStore.getState().auth.reset()
+  clearSessionExpiredNoticeSuppression()
   window.history.replaceState({}, '', '/')
 })
 
@@ -367,6 +372,57 @@ it.each([200, 401])(
     client.clear()
   }
 )
+
+it('does not toast Session expired! after an intentional sign-out', async () => {
+  // Already on sign-in so redirectToSignIn is a no-op (same as the refresh test).
+  window.history.replaceState({}, '', '/sign-in')
+  useAuthStore.getState().auth.setBundle({
+    access_token: 'expired-access',
+    token_type: 'Bearer',
+    access_expires_at: 1,
+    user: { id: 1, username: 'test-user', role: 1 },
+    session: {
+      sid: 'test-session',
+      current: true,
+      login_method: 'password',
+      ip: '',
+      user_agent: '',
+      created_at: 1,
+      last_active_at: 1,
+      expires_at: 2_000_000_000,
+    },
+  })
+  suppressSessionExpiredNotice()
+  vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(
+    function (this: XMLHttpRequest) {
+      Object.defineProperties(this, {
+        status: { value: 401, configurable: true },
+        statusText: { value: 'Unauthorized', configurable: true },
+        responseText: {
+          value: JSON.stringify({ success: false }),
+          configurable: true,
+        },
+        readyState: { value: 4, configurable: true },
+      })
+      this.onloadend?.(new ProgressEvent('loadend'))
+    }
+  )
+  api.defaults.adapter = async (config) => {
+    throw new AxiosError('HTTP 401', 'ERR_BAD_REQUEST', config, undefined, {
+      data: { message: 'Access token expired' },
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: {},
+      config,
+    })
+  }
+  const notify = vi.spyOn(toast, 'error').mockReturnValue('error')
+  await api.get('/protected').catch(() => undefined)
+  expect(notify.mock.calls.map(([message]) => message)).not.toContain(
+    'Session expired!'
+  )
+  expect(useAuthStore.getState().auth.accessToken).toBeNull()
+})
 
 it('never refreshes or replays a failed single-use authorization request', async () => {
   useAuthStore.getState().auth.setBundle({
