@@ -298,6 +298,31 @@ func TestAdvancedCustomValidateDuplicateIncomingPathRequiresCatchAllLast(t *test
 	assert.Contains(t, err.Error(), "catch-all route must be last")
 }
 
+func TestAdvancedCustomMatchPathNormalizesPlaygroundPath(t *testing.T) {
+	config := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{IncomingPath: "/v1/chat/completions", UpstreamPath: "/v1/chat/completions", Converter: "none"},
+		},
+	}
+	route, ok := config.MatchPath("/pg/chat/completions")
+	if !ok {
+		t.Fatalf("expected /pg/chat/completions to match /v1/chat/completions route")
+	}
+	if route.IncomingPath != "/v1/chat/completions" {
+		t.Fatalf("unexpected route: %+v", route)
+	}
+	route, ok = config.MatchPathForModel("/pg/chat/completions", "gemini-3.8-flash")
+	if !ok {
+		t.Fatalf("expected MatchPathForModel playground path to succeed")
+	}
+	if !config.SupportsPathForModel("/pg/chat/completions", "gemini-3.8-flash") {
+		t.Fatalf("expected SupportsPathForModel playground path to succeed")
+	}
+	if route.UpstreamPath != "/v1/chat/completions" {
+		t.Fatalf("unexpected upstream: %s", route.UpstreamPath)
+	}
+}
+
 func TestAdvancedCustomMatchPathForModel(t *testing.T) {
 	config := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

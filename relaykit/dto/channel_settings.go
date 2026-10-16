@@ -235,6 +235,19 @@ func (r AdvancedCustomRoute) IsNative() bool {
 	return converter == "" || converter == advancedCustomConverterNone
 }
 
+// normalizeAdvancedCustomRequestPath maps playground UI paths onto the
+// equivalent /v1 API paths. Playground (/pg/...) is a UI alias of the public
+// OpenAI-compatible surface; Advanced Custom routes are configured against
+// /v1/..., so distributor path filters and relay matching must treat them as
+// the same endpoint.
+func normalizeAdvancedCustomRequestPath(requestPath string) string {
+	requestPath = strings.TrimSpace(requestPath)
+	if strings.HasPrefix(requestPath, "/pg/") {
+		return "/v1/" + strings.TrimPrefix(requestPath, "/pg/")
+	}
+	return requestPath
+}
+
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
 // :generateContent <-> :streamGenerateContent equivalence.
@@ -242,6 +255,7 @@ func (c *AdvancedCustomConfig) MatchPath(requestPath string) (AdvancedCustomRout
 	if c == nil {
 		return AdvancedCustomRoute{}, false
 	}
+	requestPath = normalizeAdvancedCustomRequestPath(requestPath)
 	for _, route := range c.Routes {
 		if matchAdvancedCustomIncomingPath(strings.TrimSpace(route.IncomingPath), requestPath) {
 			return route, true
@@ -256,6 +270,7 @@ func (c *AdvancedCustomConfig) MatchPathForModel(requestPath string, model strin
 	if c == nil {
 		return AdvancedCustomRoute{}, false
 	}
+	requestPath = normalizeAdvancedCustomRequestPath(requestPath)
 	model = strings.TrimSpace(model)
 	for _, route := range c.Routes {
 		if matchAdvancedCustomIncomingPath(strings.TrimSpace(route.IncomingPath), requestPath) &&
