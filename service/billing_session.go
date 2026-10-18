@@ -17,7 +17,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
 
@@ -98,6 +97,10 @@ func (s *BillingSession) settleResellerLeg(actualQuota int) error {
 	}
 	s.resellerSettled = true
 	s.resellerCostQuota = cost
+	// The reseller's own usage counters reflect what its customers consumed.
+	if cost > 0 {
+		model.UpdateUserUsedQuotaAndRequestCount(s.resellerId, cost)
+	}
 	s.relayInfo.ResellerCostQuota = cost
 	return nil
 }
@@ -158,7 +161,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 	return tokenErr
 }
 
-// Refund 退还所有预扣费，幂等安全，异步执行。
+// Refund 退还所有预扣费，幂等安全，同步执行（带重试）。
 func (s *BillingSession) Refund(c *gin.Context) {
 	s.mu.Lock()
 	if s.settled || s.refunded || !s.needsRefundLocked() {
@@ -188,29 +191,70 @@ func (s *BillingSession) Refund(c *gin.Context) {
 		resellerReserved = s.resellerPreConsumed
 	}
 
-	gopool.Go(func() {
-		// 0) 退还 Reseller 腿
-		if resellerId > 0 && resellerReserved > 0 {
-			if err := model.IncreaseUserQuota(resellerId, resellerReserved, false); err != nil {
-				common.SysLog(common.LogText("error refunding reseller reserve: %s", err.Error()))
-			}
+	// A per-refund nonce: retries inside this refund share the key (no double
+	// credit), while a later session of the same request gets its own key.
+	requestId := s.relayInfo.RequestId
+	if requestId != "" {
+		requestId += ":" + common.NewRequestId()
+	}
+	userId := s.relayInfo.UserId
+
+	// Refunds run synchronously (no goroutine) so the caller's response is
+	// sent only after both wallets are whole again. Wallet credits use an
+	// idempotent journal keyed by request, so retries can never double-credit.
+	// 0) 退还 Reseller 腿
+	if resellerId > 0 && resellerReserved > 0 {
+		if err := refundWalletOnce(resellerId, resellerReserved, requestId, "reseller"); err != nil {
+			common.SysError(common.LogText("error refunding reseller reserve after retries (resellerId=%d, amount=%d): %s", resellerId, resellerReserved, err.Error()))
 		}
-		// 1) 退还资金来源
-		if err := funding.Refund(); err != nil {
-			common.SysLog(common.LogText("error refunding billing source: %s", err.Error()))
+	}
+	// 1) 退还资金来源
+	if wf, ok := funding.(*WalletFunding); ok && wf.consumed > 0 && requestId != "" {
+		if err := refundWalletOnce(wf.userId, wf.consumed, requestId, "wallet"); err != nil {
+			common.SysError(common.LogText("error refunding wallet pre-consume after retries (userId=%d, amount=%d): %s", userId, wf.consumed, err.Error()))
+		} else {
+			wf.consumed = 0
 		}
-		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
-			if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
-				common.SysLog(common.LogText("error refunding subscription extra reserved quota: %s", err.Error()))
-			}
+	} else if err := funding.Refund(); err != nil {
+		common.SysLog(common.LogText("error refunding billing source: %s", err.Error()))
+	}
+	if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
+		if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
+			common.SysLog(common.LogText("error refunding subscription extra reserved quota: %s", err.Error()))
 		}
-		// 2) 退还令牌额度
-		if tokenConsumed > 0 && !isPlayground {
-			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
-				common.SysLog(common.LogText("error refunding token quota: %s", err.Error()))
-			}
+	}
+	// 2) 退还令牌额度
+	if tokenConsumed > 0 && !isPlayground {
+		if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
+			common.SysLog(common.LogText("error refunding token quota: %s", err.Error()))
 		}
-	})
+	}
+}
+
+// refundWalletOnce credits a wallet idempotently with retries. Without a
+// request id it falls back to a single non-idempotent credit.
+func refundWalletOnce(userId, amount int, requestId, leg string) error {
+	if amount <= 0 {
+		return nil
+	}
+	if requestId == "" {
+		return model.IncreaseUserQuota(userId, amount, false)
+	}
+	key := "refund:" + requestId + ":" + leg
+	err := refundWithRetry(func() error { return model.RefundUserQuotaOnce(userId, amount, key) })
+	if err == nil {
+		return nil
+	}
+	// The journal itself is unusable (e.g. schema not migrated): if it can
+	// prove the key was NOT applied, fall back to a plain credit rather than
+	// leaving the wallet short. A committed-but-unacknowledged refund is
+	// detected by the lookup and never credited twice.
+	applied, lookupErr := model.RefundKeyApplied(key)
+	if lookupErr == nil && applied {
+		return nil
+	}
+	common.SysError(common.LogText("idempotent refund failed (%s), falling back to direct credit: %v", key, err))
+	return model.IncreaseUserQuota(userId, amount, true)
 }
 
 // NeedsRefund 返回是否存在需要退还的预扣状态。

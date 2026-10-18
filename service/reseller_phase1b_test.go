@@ -90,10 +90,9 @@ func TestResellerCompletionRatioOverride(t *testing.T) {
 }
 
 // The engine computes charge = round(x*markup) with x = base*costFactor, and
-// the reseller cost is derived as ceil(charge/markup). Versus the design order
-// (cost = round(x), charge = ceil(cost*markup)) the cost leg is off by at most
-// +1 quota, never below the true cost, and the reseller never loses money
-// (charge >= cost for markup >= 1).
+// the reseller cost is derived as round_half_up(charge/markup) = round(x) up to
+// the charge rounding: off by at most one quota unit either way (unbiased), and
+// the reseller never loses money (charge >= cost for markup >= 1).
 func TestResellerCostDerivationMaxError(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 	for i := 0; i < 200000; i++ {
@@ -107,7 +106,9 @@ func TestResellerCostDerivationMaxError(t *testing.T) {
 		designCost := int(math.Round(x))
 		diff := cost - designCost
 		if markup >= 1 {
-			assert.True(t, diff >= 0 && diff <= 1, "x=%v m=%v charge=%d cost=%d design=%d", x, markup, charge, cost, designCost)
+			// round(round(x*m)/m) vs round(x): at most one quota unit apart,
+			// in either direction (no systematic bias), except the 1-quota floor.
+			assert.True(t, (diff >= -1 && diff <= 1) || (designCost == 0 && cost == 1), "x=%v m=%v charge=%d cost=%d design=%d", x, markup, charge, cost, designCost)
 			assert.GreaterOrEqual(t, charge, cost)
 		} else {
 			// markup < 1 (selling below cost): error bounded by 0.5/markup + 1.5

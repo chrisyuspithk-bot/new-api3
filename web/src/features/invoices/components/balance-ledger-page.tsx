@@ -56,6 +56,8 @@ type BalanceLedgerPageProps = {
   showCustomer?: boolean
   /** When false, hide Operator/Remark (customer-facing). Default true. */
   showInternal?: boolean
+  /** Rendered first in the action bar (e.g. the Invoices tab switch). */
+  extraActions?: ReactNode
 }
 
 function usd(n: number) {
@@ -182,6 +184,7 @@ export function BalanceLedgerPage(props: BalanceLedgerPageProps) {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Invoices')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
+        {props.extraActions}
         <Input
           className='h-8 w-28'
           placeholder={t('YYYY-MM')}

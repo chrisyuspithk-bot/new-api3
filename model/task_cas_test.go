@@ -62,6 +62,9 @@ func TestMain(m *testing.M) {
 		&UserAccessToken{},
 		&Invoice{},
 		&ResellerProfile{},
+		&RevenueRecord{},
+		&RevenueMonthlySnapshot{},
+		&QuotaRefundJournal{},
 		&ResellerLedger{},
 	); err != nil {
 		panic("failed to migrate: " + err.Error())

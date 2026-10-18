@@ -205,6 +205,8 @@ func SetApiRouter(router *gin.Engine) {
 			resellerAdminRoute.GET("/invoices", controller.AdminListInvoices)
 			resellerAdminRoute.GET("/invoices/:id", controller.AdminGetInvoice)
 			resellerAdminRoute.POST("/invoices/generate", controller.AdminGenerateInvoices)
+			resellerAdminRoute.GET("/revenue/statement", controller.AdminRevenueStatement)
+			resellerAdminRoute.POST("/revenue/reconcile", controller.AdminRevenueReconcile)
 		}
 
 		// B2B2C reseller APIs; every handler scopes queries to reseller_id = me.
@@ -243,6 +245,7 @@ func SetApiRouter(router *gin.Engine) {
 			resellerRoute.GET("/reports/gross_profit", controller.ResellerGrossProfitReport)
 			resellerRoute.GET("/invoices", controller.ResellerListInvoices)
 			resellerRoute.GET("/invoices/:id", controller.ResellerGetInvoice)
+			resellerRoute.GET("/revenue/statement", controller.ResellerRevenueStatement)
 		}
 
 		subscriptionRoute := apiRouter.Group("/subscription")

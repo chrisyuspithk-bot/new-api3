@@ -128,7 +128,11 @@ describe('admin invoices page', () => {
     renderPage(<AdminInvoicesPage />)
     const month = screen.getByRole('textbox', { name: 'Month' })
     expect(screen.getByRole('heading', { name: 'Invoices' })).toBeVisible()
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
+    // Only the Balance ledger / Revenue switch; no legacy invoice-list tab.
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Balance ledger',
+      'Revenue',
+    ])
     expect(
       screen.queryByRole('button', { name: 'Generate' })
     ).not.toBeInTheDocument()

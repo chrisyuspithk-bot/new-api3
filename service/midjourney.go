@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -138,6 +139,9 @@ func SettleMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.M
 	// B2B2C reseller leg: charged after the customer leg (upstream already
 	// accepted the job, so it may take the reseller below zero once).
 	task.ResellerId, task.ResellerCostQuota = 0, 0
+	if rcJSON, err := json.Marshal(RevenueContextFromRelayInfo(relayInfo)); err == nil {
+		task.Revenue = string(rcJSON)
+	}
 	if relayInfo.ResellerId > 0 && model.ValidMarkup(relayInfo.ResellerMarkup) {
 		cost := ResellerCostFromCharge(task.Quota, relayInfo.ResellerMarkup)
 		if cost > 0 {
@@ -146,6 +150,7 @@ func SettleMidjourneyTaskBilling(relayInfo *relaycommon.RelayInfo, task *model.M
 			} else {
 				task.ResellerId, task.ResellerCostQuota = relayInfo.ResellerId, cost
 				relayInfo.ResellerCostQuota = cost
+				model.UpdateUserUsedQuotaAndRequestCount(relayInfo.ResellerId, cost)
 			}
 		}
 	}
@@ -183,6 +188,7 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 			resellerCost = 0
 		} else {
 			task.ResellerCostQuota = 0
+			model.UpdateUserUsedQuota(resellerId, -resellerCost)
 		}
 	}
 
@@ -203,6 +209,7 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 
 		ResellerId:        resellerId,
 		ResellerCostQuota: resellerCost,
+		Revenue:           midjourneyRevenueContext(task),
 	})
 
 	task.Quota = 0

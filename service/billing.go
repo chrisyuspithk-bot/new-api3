@@ -74,6 +74,7 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 		}
 
 		err := relayInfo.Billing.Settle(actualQuota)
+		SetRevenueContextFromRelayInfo(ctx, relayInfo)
 		if relayInfo.ResellerId > 0 {
 			ctx.Set(model.ContextKeyLogResellerId, relayInfo.ResellerId)
 			ctx.Set(model.ContextKeyLogResellerCostQuota, relayInfo.ResellerCostQuota)
@@ -94,6 +95,13 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	}
 
 	// 回退：无 BillingSession 时使用旧路径
+	// (e.g. realtime/WSS: the reseller leg was already moved per response by
+	// PreWssConsumeQuota and accumulated on relayInfo.ResellerCostQuota).
+	SetRevenueContextFromRelayInfo(ctx, relayInfo)
+	if relayInfo.ResellerId > 0 {
+		ctx.Set(model.ContextKeyLogResellerId, relayInfo.ResellerId)
+		ctx.Set(model.ContextKeyLogResellerCostQuota, relayInfo.ResellerCostQuota)
+	}
 	quotaDelta := actualQuota - relayInfo.FinalPreConsumedQuota
 	if quotaDelta != 0 {
 		return PostConsumeQuota(relayInfo, quotaDelta, relayInfo.FinalPreConsumedQuota, true)

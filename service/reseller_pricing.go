@@ -124,7 +124,10 @@ func ApplyResellerPricing(info *relaycommon.RelayInfo, groupRatioInfo *hosttypes
 }
 
 // ResellerCostFromCharge derives the reseller cost leg from the customer charge:
-// cost = ceil(charge / markup). A zero charge costs nothing.
+// cost = round_half_up(charge / markup). Because charge = base x costFactor x
+// markup, this is base x costFactor rounded to the nearest quota unit, with no
+// systematic bias against the reseller (the old ceil always rounded up).
+// A zero charge costs nothing.
 func ResellerCostFromCharge(charge int, markup float64) int {
 	if charge <= 0 {
 		return 0
@@ -132,7 +135,12 @@ func ResellerCostFromCharge(charge int, markup float64) int {
 	if !model.ValidMarkup(markup) {
 		return charge
 	}
-	return common.QuotaFromDecimal(decimal.NewFromInt(int64(charge)).Div(decimal.NewFromFloat(markup)).Ceil())
+	cost := common.QuotaFromDecimal(decimal.NewFromInt(int64(charge)).Div(decimal.NewFromFloat(markup)).Round(0))
+	if cost < 1 {
+		// Fail closed: a billed call never costs the reseller nothing.
+		cost = 1
+	}
+	return cost
 }
 
 // ErrResellerInsufficient is returned when the reseller cost balance cannot

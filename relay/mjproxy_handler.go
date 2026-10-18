@@ -291,6 +291,7 @@ func RelaySwapFace(c *gin.Context, info *relaycommon.RelayInfo) *dto.MidjourneyR
 		other := service.GenerateMjOtherInfo(info, priceData)
 		service.AppendRelayLogAdminInfo(c, info, other)
 		service.SetResellerLogContext(c, midjourneyTask.ResellerId, midjourneyTask.ResellerCostQuota)
+		service.SetMidjourneyRevenueContext(c, midjourneyTask)
 		model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 			ChannelId: billingChannelId,
 			ModelName: modelName,
@@ -679,6 +680,7 @@ func RelayMidjourneySubmit(c *gin.Context, relayInfo *relaycommon.RelayInfo) *dt
 		other := service.GenerateMjOtherInfo(relayInfo, priceData)
 		service.AppendRelayLogAdminInfo(c, relayInfo, other)
 		service.SetResellerLogContext(c, midjourneyTask.ResellerId, midjourneyTask.ResellerCostQuota)
+		service.SetMidjourneyRevenueContext(c, midjourneyTask)
 		model.RecordConsumeLog(c, relayInfo.UserId, model.RecordConsumeLogParams{
 			ChannelId: billingChannelId,
 			ModelName: modelName,

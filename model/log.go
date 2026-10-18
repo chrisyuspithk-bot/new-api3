@@ -353,7 +353,21 @@ const (
 )
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
+	var revenueCtx *RevenueContext
+	if rc, ok := GetRevenueContext(c); ok {
+		revenueCtx = &rc
+	}
 	if !common.LogConsumeEnabled {
+		// Logging is off, but the revenue record of a billed call is not optional.
+		if revenueCtx != nil {
+			createLogWithRevenue(&Log{
+				UserId: userId, CreatedAt: common.GetTimestamp(), Type: LogTypeConsume,
+				ModelName: params.ModelName, Quota: params.Quota,
+				RequestId:         c.GetString(common.RequestIdKey),
+				ResellerId:        c.GetInt(ContextKeyLogResellerId),
+				ResellerCostQuota: c.GetInt(ContextKeyLogResellerCostQuota),
+			}, revenueCtx, false)
+		}
 		return
 	}
 	logger.LogInfo(c, common.LogText("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
@@ -362,6 +376,10 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	other := params.Other
+	if other == nil && revenueCtx != nil {
+		other = NewLogOther()
+	}
+	attachRevenueToOther(other, revenueCtx)
 	content := other.setContent(params.Content)
 	otherStr := other.JSONString()
 	// 判断是否需要记录 IP
@@ -399,10 +417,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		ResellerId:        c.GetInt(ContextKeyLogResellerId),
 		ResellerCostQuota: c.GetInt(ContextKeyLogResellerCostQuota),
 	}
-	err := createLog(log)
-	if err != nil {
-		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
-	}
+	createLogWithRevenue(log, revenueCtx, true)
 	if common.DataExportEnabled {
 		LogQuotaData(QuotaDataLogParams{
 			UserID:    userId,
@@ -433,10 +448,19 @@ type RecordTaskBillingLogParams struct {
 	// B2B2C: reseller leg moved by this log (always >= 0, same sign as Quota).
 	ResellerId        int
 	ResellerCostQuota int
+	// Revenue is the pricing snapshot frozen at submit; nil = no revenue row.
+	Revenue *RevenueContext
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	if params.LogType == LogTypeConsume && !common.LogConsumeEnabled {
+		if params.Revenue != nil {
+			createLogWithRevenue(&Log{
+				UserId: params.UserId, CreatedAt: common.GetTimestamp(), Type: params.LogType,
+				ModelName: params.ModelName, Quota: params.Quota,
+				ResellerId: params.ResellerId, ResellerCostQuota: params.ResellerCostQuota,
+			}, params.Revenue, false)
+		}
 		return
 	}
 	username, _ := GetUsernameById(params.UserId, false)
@@ -448,6 +472,10 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 	createdAt := common.GetTimestamp()
 	other := params.Other
+	if other == nil && params.Revenue != nil {
+		other = NewLogOther()
+	}
+	attachRevenueToOther(other, params.Revenue)
 	log := &Log{
 		UserId:    params.UserId,
 		Username:  username,
@@ -465,10 +493,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		ResellerId:        params.ResellerId,
 		ResellerCostQuota: params.ResellerCostQuota,
 	}
-	err := createLog(log)
-	if err != nil {
-		common.SysLog(common.LogText("failed to record task billing log: %s", err.Error()))
-	}
+	createLogWithRevenue(log, params.Revenue, true)
 	if params.LogType == LogTypeConsume && common.DataExportEnabled {
 		nodeName := params.NodeName
 		if nodeName == "" {

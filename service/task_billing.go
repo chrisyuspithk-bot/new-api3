@@ -79,6 +79,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 	}
 	appendTaskLogInfo(task, other)
 	attachQuotaSaturation(c, info, other)
+	SetRevenueContextFromRelayInfo(c, info)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
 		ModelName: info.OriginModelName,
@@ -187,6 +188,7 @@ func taskAdjustResellerLeg(ctx context.Context, task *model.Task, oldCharge, new
 		logger.LogError(ctx, common.LogText("failed to adjust reseller leg (reseller=%d, delta=%d, task=%s): %s", resellerId, delta, task.TaskID, err.Error()))
 		return 0
 	}
+	model.UpdateUserUsedQuota(resellerId, delta)
 	return delta
 }
 
@@ -355,6 +357,7 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 
 		ResellerId:        resellerId,
 		ResellerCostQuota: resellerCostRefund,
+		Revenue:           taskRevenueContext(task),
 	})
 
 	// 5. 资金退款完成后再清除持久化标记。
@@ -443,6 +446,7 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 
 		ResellerId:        resellerId,
 		ResellerCostQuota: absInt(resellerCostDelta),
+		Revenue:           taskRevenueContext(task),
 	})
 }
 

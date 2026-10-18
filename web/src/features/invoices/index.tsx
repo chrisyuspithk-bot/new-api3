@@ -20,6 +20,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { adminListResellerLedger } from './api'
 import { BalanceLedgerPage } from './components/balance-ledger-page'
+import { InvoicesTabsPage } from './components/invoices-tabs'
 import {
   RESELLER_LEDGER_KINDS,
   type LedgerPage,
@@ -44,13 +45,19 @@ async function loadAdminLedger(query: LedgerQuery): Promise<LedgerPage> {
 
 export function AdminInvoicesPage() {
   return (
-    <BalanceLedgerPage
-      queryKey='admin-reseller-ledger-range'
-      loadRows={loadAdminLedger}
-      exportUrl='/api/admin/reseller_ledger/export'
-      kinds={RESELLER_LEDGER_KINDS}
-      showReseller
-      showCustomer
+    <InvoicesTabsPage
+      scope='admin'
+      renderLedger={(tabSwitch) => (
+        <BalanceLedgerPage
+          queryKey='admin-reseller-ledger-range'
+          loadRows={loadAdminLedger}
+          exportUrl='/api/admin/reseller_ledger/export'
+          kinds={RESELLER_LEDGER_KINDS}
+          showReseller
+          showCustomer
+          extraActions={tabSwitch}
+        />
+      )}
     />
   )
 }

@@ -78,6 +78,9 @@ func assertB2B2C() error {
 		"reseller_model_markups",
 		"customer_model_markups",
 		"reseller_ledger",
+		"revenue_records",
+		"revenue_monthly_snapshots",
+		"quota_refund_journal",
 	}
 	for _, t := range requiredTables {
 		if !db.Migrator().HasTable(t) {

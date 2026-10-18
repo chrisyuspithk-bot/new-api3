@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { BalanceLedgerPage } from '@/features/invoices/components/balance-ledger-page'
+import { InvoicesTabsPage } from '@/features/invoices/components/invoices-tabs'
 import {
   RESELLER_LEDGER_KINDS,
   type LedgerPage,
@@ -44,12 +45,18 @@ async function loadResellerLedger(query: LedgerQuery): Promise<LedgerPage> {
 
 export function ResellerInvoicesPage() {
   return (
-    <BalanceLedgerPage
-      queryKey='reseller-ledger-range'
-      loadRows={loadResellerLedger}
-      exportUrl='/api/reseller/ledger/export'
-      kinds={RESELLER_LEDGER_KINDS}
-      showCustomer
+    <InvoicesTabsPage
+      scope='reseller'
+      renderLedger={(tabSwitch) => (
+        <BalanceLedgerPage
+          queryKey='reseller-ledger-range'
+          loadRows={loadResellerLedger}
+          exportUrl='/api/reseller/ledger/export'
+          kinds={RESELLER_LEDGER_KINDS}
+          showCustomer
+          extraActions={tabSwitch}
+        />
+      )}
     />
   )
 }

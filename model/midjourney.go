@@ -29,6 +29,8 @@ type Midjourney struct {
 	// B2B2C reseller leg actually charged for this task (refunded on failure).
 	ResellerId        int `json:"-" gorm:"default:0"`
 	ResellerCostQuota int `json:"-" gorm:"default:0"`
+	// Revenue is the JSON RevenueContext frozen at billing (payer, factors).
+	Revenue string `json:"-" gorm:"type:varchar(255);default:''"`
 }
 
 // TaskQueryParams 用于包含所有搜索条件的结构体，可以根据需求添加更多字段
@@ -178,7 +180,7 @@ func (midjourney *Midjourney) Update() error {
 
 func (midjourney *Midjourney) UpdateBillingState() error {
 	return DB.Model(midjourney).
-		Select("quota", "token_id", "billing_channel_id", "reseller_id", "reseller_cost_quota").
+		Select("quota", "token_id", "billing_channel_id", "reseller_id", "reseller_cost_quota", "revenue").
 		Updates(midjourney).Error
 }
 

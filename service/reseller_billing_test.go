@@ -216,10 +216,14 @@ func TestResellerDefaultCostFactorPrecedence(t *testing.T) {
 	}
 }
 
-func TestResellerCostFromChargeRoundsUp(t *testing.T) {
+func TestResellerCostFromChargeRoundsHalfUp(t *testing.T) {
 	assert.Equal(t, 0, ResellerCostFromCharge(0, 2))
-	assert.Equal(t, 1, ResellerCostFromCharge(1, 2))
-	assert.Equal(t, 34, ResellerCostFromCharge(100, 3))
+	assert.Equal(t, 1, ResellerCostFromCharge(1, 2), "0.5 rounds half up")
+	assert.Equal(t, 1, ResellerCostFromCharge(1, 3), "a billed call never costs the reseller 0")
+	assert.Equal(t, 3, ResellerCostFromCharge(5, 2), "2.5 rounds half up")
+	assert.Equal(t, 33, ResellerCostFromCharge(100, 3), "33.33 rounds to nearest, not up (old ceil gave 34)")
+	assert.Equal(t, 68, ResellerCostFromCharge(81, 1.2), "live audit sample: 67.5 -> 68")
+	assert.Equal(t, 67, ResellerCostFromCharge(80, 1.2), "66.67 -> 67")
 	assert.Equal(t, 200, ResellerCostFromCharge(100, 0.5), "markup below 1 sells at a loss")
 }
 
