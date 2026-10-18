@@ -896,3 +896,7 @@ func PingDB() error {
 	common.SysLog(common.LogText("Database pinged successfully"))
 	return nil
 }
+
+// InitColumnNames (re)derives dialect-specific quoted column names from the
+// configured database types. Used by tests that set up DB directly.
+func InitColumnNames() { initCol() }

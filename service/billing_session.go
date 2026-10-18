@@ -655,3 +655,51 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		return session, nil
 	}
 }
+
+// ConsumeIncrement charges an incremental, already-incurred usage chunk
+// (realtime/WSS) through this session, so the final Settle only charges the
+// difference between the actual total and everything already taken. Each leg
+// (reseller cost, funding source, token) is moved exactly once:
+//   - reseller leg: tops up to ResellerCostFromCharge(cumulative charge),
+//     so the cumulative reseller cost never drifts from the single-shot price;
+//   - funding: atomic, fails without debt when the wallet is short;
+//   - token: atomic pre-consume.
+//
+// On failure nothing from this chunk stays moved; the usage is still reported
+// to the final Settle (and charged there, like any post-paid delta).
+func (s *BillingSession) ConsumeIncrement(quota int) error {
+	if quota <= 0 {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settled || s.refunded {
+		return errors.New("billing session already closed")
+	}
+	target := s.preConsumedQuota + quota
+	resellerDelta := 0
+	if s.resellerId > 0 {
+		resellerDelta = ResellerCostFromCharge(target, s.resellerMarkup) - s.resellerPreConsumed
+		if resellerDelta > 0 {
+			if err := s.reserveResellerLeg(resellerDelta); err != nil {
+				return err
+			}
+		} else {
+			resellerDelta = 0
+		}
+	}
+	if err := s.reserveFunding(quota, true); err != nil {
+		s.releaseResellerLeg(resellerDelta)
+		return err
+	}
+	if err := s.reserveToken(quota); err != nil {
+		s.rollbackFundingReserve(quota)
+		s.releaseResellerLeg(resellerDelta)
+		return err
+	}
+	s.preConsumedQuota = target
+	s.tokenConsumed += quota
+	s.extraReserved += quota
+	s.syncRelayInfo()
+	return nil
+}

@@ -97,6 +97,31 @@ func SettleBilling(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, actualQuo
 	// 回退：无 BillingSession 时使用旧路径
 	// (e.g. realtime/WSS: the reseller leg was already moved per response by
 	// PreWssConsumeQuota and accumulated on relayInfo.ResellerCostQuota).
+	// Reseller leg: true up to the single-shot cost of the actual total, so the
+	// reseller is charged exactly once (chunks + this delta).
+	// Scoped to realtime: other session-less paths never charged the reseller
+	// leg here and keep their existing behaviour.
+	if relayInfo.ResellerId > 0 && relayInfo.RelayFormat == types.RelayFormatOpenAIRealtime {
+		target := ResellerCostFromCharge(actualQuota, relayInfo.ResellerMarkup)
+		if actualQuota <= 0 {
+			target = 0
+		}
+		rdelta := target - relayInfo.ResellerCostQuota
+		var rerr error
+		if rdelta > 0 {
+			rerr = model.DecreaseUserQuota(relayInfo.ResellerId, rdelta, false)
+		} else if rdelta < 0 {
+			rerr = model.IncreaseUserQuota(relayInfo.ResellerId, -rdelta, false)
+		}
+		if rerr != nil {
+			common.SysError(common.LogText("error settling reseller leg (fallback, resellerId=%d): %s", relayInfo.ResellerId, rerr.Error()))
+		} else {
+			relayInfo.ResellerCostQuota = target
+			if target > 0 {
+				model.UpdateUserUsedQuotaAndRequestCount(relayInfo.ResellerId, target)
+			}
+		}
+	}
 	SetRevenueContextFromRelayInfo(ctx, relayInfo)
 	if relayInfo.ResellerId > 0 {
 		ctx.Set(model.ContextKeyLogResellerId, relayInfo.ResellerId)

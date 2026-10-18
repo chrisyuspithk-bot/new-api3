@@ -89,15 +89,6 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if relayInfo.UsePrice {
 		return nil
 	}
-	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
-	if err != nil {
-		return err
-	}
-
-	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
-	if err != nil {
-		return err
-	}
 
 	modelName := relayInfo.OriginModelName
 	textInputTokens := usage.InputTokenDetails.TextTokens
@@ -149,6 +140,28 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	quota, clamp := calculateAudioQuota(quotaInfo)
 	noteQuotaClamp(relayInfo, clamp)
 
+	// Charge-once: with a BillingSession the chunk goes through the session, so
+	// the final SettleBilling only charges/refunds the difference between the
+	// actual total and everything already taken (customer, token and reseller
+	// legs alike). Without a session (legacy) the chunk is charged directly and
+	// accounted on FinalPreConsumedQuota / ResellerCostQuota so the fallback
+	// settle also only charges the difference.
+	if bs, ok := relayInfo.Billing.(*BillingSession); ok && bs != nil {
+		if err := bs.ConsumeIncrement(quota); err != nil {
+			return err
+		}
+		logger.LogInfo(ctx, common.LogText("realtime streaming consume quota success, quota: %d", quota))
+		return nil
+	}
+
+	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+	if err != nil {
+		return err
+	}
+	token, err := model.GetTokenByKey(strings.TrimPrefix(relayInfo.TokenKey, "sk-"), false)
+	if err != nil {
+		return err
+	}
 	if userQuota < quota {
 		return fmt.Errorf("user quota is not enough, user quota: %s, need quota: %s", logger.FormatQuota(userQuota), logger.FormatQuota(quota))
 	}
@@ -160,7 +173,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	// B2B2C: reserve the reseller cost leg atomically before the customer leg.
 	resellerCost := 0
 	if relayInfo.ResellerId > 0 {
-		resellerCost = ResellerCostFromCharge(quota, relayInfo.ResellerMarkup)
+		resellerCost = ResellerCostFromCharge(relayInfo.FinalPreConsumedQuota+quota, relayInfo.ResellerMarkup) - relayInfo.ResellerCostQuota
 		if resellerCost > 0 {
 			ok, reserveErr := model.TryReserveUserQuota(relayInfo.ResellerId, resellerCost)
 			if reserveErr != nil {
@@ -169,16 +182,25 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 			if !ok {
 				return ErrResellerInsufficient
 			}
+		} else {
+			resellerCost = 0
 		}
 	}
-	err = PostConsumeQuota(relayInfo, quota, 0, false)
-	if err != nil {
+	result, err := postConsumeQuotaWithResult(relayInfo, quota, 0, false)
+	if err != nil && !result.FundingApplied {
+		// Nothing moved on the customer side: release the reseller reservation.
 		if resellerCost > 0 {
 			_ = model.IncreaseUserQuota(relayInfo.ResellerId, resellerCost, false)
 		}
 		return err
 	}
+	// The funding leg moved (even if a later token step failed): account it so
+	// the fallback settle does not charge this chunk again.
+	relayInfo.FinalPreConsumedQuota += quota
 	relayInfo.ResellerCostQuota += resellerCost
+	if err != nil {
+		return err
+	}
 	logger.LogInfo(ctx, common.LogText("realtime streaming consume quota success, quota: %d", quota))
 	return nil
 }

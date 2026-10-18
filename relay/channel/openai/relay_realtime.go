@@ -2,6 +2,7 @@ package openai
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -15,6 +16,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
+
+// preWssConsume is the per-chunk charge hook (overridable in tests).
+var preWssConsume = service.PreWssConsumeQuota
 
 func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
 	if info == nil || info.ClientWs == nil || info.TargetWs == nil {
@@ -34,6 +38,24 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	usage := &dto.RealtimeUsage{}
 	localUsage := &dto.RealtimeUsage{}
 	sumUsage := &dto.RealtimeUsage{}
+
+	// Charge-once bookkeeping: every usage mutation and chunk charge happens
+	// under billMu. A chunk is moved into sumUsage exactly once (its buffer is
+	// cleared before the charge is attempted), so a failed chunk charge is not
+	// re-added at the end; the final settle bills sumUsage once. After the
+	// relay loop ends, billingClosed stops late reader goroutines from
+	// touching the totals while PostWssConsumeQuota settles them.
+	var billMu sync.Mutex
+	billingClosed := false
+	consume := func(u *dto.RealtimeUsage) error { // caller holds billMu
+		if billingClosed || u.TotalTokens == 0 {
+			*u = dto.RealtimeUsage{}
+			return nil
+		}
+		chunk := *u
+		*u = dto.RealtimeUsage{}
+		return preConsumeUsage(c, info, &chunk, sumUsage)
+	}
 
 	gopool.Go(func() {
 		defer func() {
@@ -76,10 +98,14 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 					return
 				}
 				logger.LogInfo(c, common.LogText("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
-				localUsage.TotalTokens += textToken + audioToken
-				localUsage.InputTokens += textToken + audioToken
-				localUsage.InputTokenDetails.TextTokens += textToken
-				localUsage.InputTokenDetails.AudioTokens += audioToken
+				billMu.Lock()
+				if !billingClosed {
+					localUsage.TotalTokens += textToken + audioToken
+					localUsage.InputTokens += textToken + audioToken
+					localUsage.InputTokenDetails.TextTokens += textToken
+					localUsage.InputTokenDetails.AudioTokens += audioToken
+				}
+				billMu.Unlock()
 
 				err = helper.WssString(c, targetConn, string(message))
 				if err != nil {
@@ -125,6 +151,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 				if realtimeEvent.Type == dto.RealtimeEventTypeResponseDone {
 					realtimeUsage := realtimeEvent.Response.Usage
 					if realtimeUsage != nil {
+						billMu.Lock()
 						usage.TotalTokens += realtimeUsage.TotalTokens
 						usage.InputTokens += realtimeUsage.InputTokens
 						usage.OutputTokens += realtimeUsage.OutputTokens
@@ -133,15 +160,14 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						usage.InputTokenDetails.TextTokens += realtimeUsage.InputTokenDetails.TextTokens
 						usage.OutputTokenDetails.AudioTokens += realtimeUsage.OutputTokenDetails.AudioTokens
 						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
-						err := preConsumeUsage(c, info, usage, sumUsage)
+						// Upstream usage supersedes the local estimate for this turn.
+						*localUsage = dto.RealtimeUsage{}
+						err := consume(usage)
+						billMu.Unlock()
 						if err != nil {
 							errChan <- fmt.Errorf("error consume usage: %v", err)
 							return
 						}
-						// 本次计费完成，清除
-						usage = &dto.RealtimeUsage{}
-
-						localUsage = &dto.RealtimeUsage{}
 					} else {
 						textToken, audioToken, err := service.CountTokenRealtime(info, *realtimeEvent, info.UpstreamModelName)
 						if err != nil {
@@ -149,23 +175,24 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 							return
 						}
 						logger.LogInfo(c, common.LogText("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
+						billMu.Lock()
 						localUsage.TotalTokens += textToken + audioToken
 						info.IsFirstRequest = false
 						localUsage.InputTokens += textToken + audioToken
 						localUsage.InputTokenDetails.TextTokens += textToken
 						localUsage.InputTokenDetails.AudioTokens += audioToken
-						err = preConsumeUsage(c, info, localUsage, sumUsage)
+						err = consume(localUsage)
+						billMu.Unlock()
 						if err != nil {
 							errChan <- fmt.Errorf("error consume usage: %v", err)
 							return
 						}
-						// 本次计费完成，清除
-						localUsage = &dto.RealtimeUsage{}
 						// print now usage
 					}
+					billMu.Lock()
 					logger.LogInfo(c, common.LogText("realtime streaming sumUsage: %v", sumUsage))
 					logger.LogInfo(c, common.LogText("realtime streaming localUsage: %v", localUsage))
-					logger.LogInfo(c, common.LogText("realtime streaming localUsage: %v", localUsage))
+					billMu.Unlock()
 
 				} else if realtimeEvent.Type == dto.RealtimeEventTypeSessionUpdated || realtimeEvent.Type == dto.RealtimeEventTypeSessionCreated {
 					realtimeSession := realtimeEvent.Session
@@ -181,10 +208,14 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						return
 					}
 					logger.LogInfo(c, common.LogText("type: %s, textToken: %d, audioToken: %d", realtimeEvent.Type, textToken, audioToken))
-					localUsage.TotalTokens += textToken + audioToken
-					localUsage.OutputTokens += textToken + audioToken
-					localUsage.OutputTokenDetails.TextTokens += textToken
-					localUsage.OutputTokenDetails.AudioTokens += audioToken
+					billMu.Lock()
+					if !billingClosed {
+						localUsage.TotalTokens += textToken + audioToken
+						localUsage.OutputTokens += textToken + audioToken
+						localUsage.OutputTokenDetails.TextTokens += textToken
+						localUsage.OutputTokenDetails.AudioTokens += audioToken
+					}
+					billMu.Unlock()
 				}
 
 				err = helper.WssString(c, clientConn, string(message))
@@ -210,17 +241,16 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	case <-c.Done():
 	}
 
-	if usage.TotalTokens != 0 {
-		_ = preConsumeUsage(c, info, usage, sumUsage)
-	}
+	// Flush any un-billed remainder exactly once, then freeze the totals so a
+	// still-running reader cannot add usage (or charge) after the snapshot.
+	billMu.Lock()
+	_ = consume(usage)
+	_ = consume(localUsage)
+	billingClosed = true
+	final := *sumUsage
+	billMu.Unlock()
 
-	if localUsage.TotalTokens != 0 {
-		_ = preConsumeUsage(c, info, localUsage, sumUsage)
-	}
-
-	// check usage total tokens, if 0, use local usage
-
-	return nil, sumUsage
+	return nil, &final
 }
 
 func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) error {
@@ -237,6 +267,6 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	totalUsage.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
 	totalUsage.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
 	// clear usage
-	err := service.PreWssConsumeQuota(ctx, info, usage)
+	err := preWssConsume(ctx, info, usage)
 	return err
 }
