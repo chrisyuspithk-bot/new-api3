@@ -867,6 +867,7 @@ func (user *User) UpdateWithTx(tx *gorm.DB, updatePassword bool) error {
 		"aff_quota",
 		"aff_history",
 		"auth_version",
+		"billing_mode", // only SetCustomerBillingMode may change it (balance-0 guard)
 	).Updates(newUser).Error; err != nil {
 		return err
 	}

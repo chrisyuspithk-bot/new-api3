@@ -3,6 +3,9 @@ package model
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"gorm.io/gorm"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -261,4 +264,101 @@ func TestDirectCreditCallsWriteNoRevenueRow(t *testing.T) {
 	created, err := ReconcileRevenueFromLogs(0, 100)
 	require.NoError(t, err)
 	assert.Zero(t, created)
+}
+
+func TestBillingModeSurvivesRedisUserCache(t *testing.T) {
+	truncateTables(t)
+	useUserCacheMiniRedis(t)
+	user := User{Username: "dc-redis", Password: "password", Role: common.RoleCommonUser,
+		Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1, ResellerId: 77,
+		BillingMode: BillingModeDirectCredit}
+	require.NoError(t, DB.Create(&user).Error)
+	require.NoError(t, populateUserCache(user))
+	base, err := cacheGetUserBase(user.Id)
+	require.NoError(t, err, "cache hit")
+	assert.Equal(t, BillingModeDirectCredit, base.BillingMode, "mode must be in the Redis hash")
+	cached, err := GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, BillingModeDirectCredit, cached.BillingMode)
+
+	// Switch at balance 0 republishes the cache.
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", user.Id).Update("quota", 0).Error)
+	require.NoError(t, SetCustomerBillingMode(user.Id, "markup"))
+	cached, err = GetUserCache(user.Id)
+	require.NoError(t, err)
+	assert.Equal(t, BillingModeMarkup, cached.BillingMode)
+}
+
+func TestDirectCreditConsumedCreditIsNotReversible(t *testing.T) {
+	setupDirectCredit(t, 1, 1.25)
+	_, err := DirectCreditCustomer(pcReseller, pcCustomer, 100, 1, "", nil)
+	require.NoError(t, err)
+	// Customer spends all 100 (used_quota grows), then gets 100 from a
+	// non-lot source (e.g. admin quota edit).
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", pcCustomer).Updates(map[string]any{
+		"used_quota": gorm.Expr("used_quota + 100"), "quota": gorm.Expr("quota - 100")}).Error)
+	resellerBefore, rootBefore := pcQuota(t, pcReseller), pcQuota(t, pcRoot)
+	_, err = ReverseDirectCredit(pcReseller, pcCustomer, 100, 1, "", nil)
+	assert.ErrorIs(t, err, ErrInsufficientQuota, "balance is 0 after spending")
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", pcCustomer).Update("quota", 100).Error)
+	_, err = ReverseDirectCredit(pcReseller, pcCustomer, 1, 1, "", nil)
+	assert.ErrorIs(t, err, ErrDirectCreditExceedsGrants, "spent lot credit is never reversible")
+	assert.Equal(t, resellerBefore, pcQuota(t, pcReseller))
+	assert.Equal(t, rootBefore, pcQuota(t, pcRoot))
+}
+
+func TestDirectCreditPartialConsumptionFIFO(t *testing.T) {
+	setupDirectCredit(t, 1, 1.25)
+	_, err := DirectCreditCustomer(pcReseller, pcCustomer, 100, 1, "", nil) // lot A cost 100 adm 20
+	require.NoError(t, err)
+	// Spend 60 from lot A, then top up lot B.
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", pcCustomer).Updates(map[string]any{
+		"used_quota": gorm.Expr("used_quota + 60"), "quota": gorm.Expr("quota - 60")}).Error)
+	_, err = DirectCreditCustomer(pcReseller, pcCustomer, 50, 1, "", nil) // lot B cost 50 adm 10
+	require.NoError(t, err)
+	var lots []DirectCreditGrant
+	require.NoError(t, DB.Order("id").Find(&lots).Error)
+	require.Len(t, lots, 2)
+	assert.Equal(t, int64(40), lots[0].Remaining, "lot A consumed oldest-first")
+	assert.Equal(t, int64(40), lots[0].CostRemaining)
+	assert.Equal(t, int64(50), lots[1].Remaining)
+	// Spend 50 more: 40 from A, 10 from B. Balance 90 -> 40, unused = 40 (B).
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", pcCustomer).Updates(map[string]any{
+		"used_quota": gorm.Expr("used_quota + 50"), "quota": gorm.Expr("quota - 50")}).Error)
+	// +10 from a non-lot source: balance 50 but only 40 is unused lot credit.
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", pcCustomer).Update("quota", gorm.Expr("quota + 10")).Error)
+	resellerBefore := pcQuota(t, pcReseller)
+	_, err = ReverseDirectCredit(pcReseller, pcCustomer, 41, 1, "", nil)
+	assert.ErrorIs(t, err, ErrDirectCreditExceedsGrants)
+	res, err := ReverseDirectCredit(pcReseller, pcCustomer, 40, 1, "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, int64(-40), res.ResellerCost)
+	assert.Equal(t, resellerBefore+40, pcQuota(t, pcReseller))
+	assert.Equal(t, 10, pcQuota(t, pcCustomer))
+}
+
+func TestBillingModeSwitchClosesLotsAndBlocksInFlight(t *testing.T) {
+	setupDirectCredit(t, 1, 1.25)
+	_, err := DirectCreditCustomer(pcReseller, pcCustomer, 100, 1, "", nil)
+	require.NoError(t, err)
+	require.NoError(t, DB.Model(&User{}).Where("id = ?", pcCustomer).Update("quota", 0).Error)
+	task := Task{UserId: pcCustomer, Status: TaskStatusInProgress, TaskID: "dc-inflight"}
+	require.NoError(t, DB.Create(&task).Error)
+	assert.ErrorIs(t, SetCustomerBillingMode(pcCustomer, "markup"), ErrBillingModeSwitchInFlight)
+	require.NoError(t, DB.Model(&Task{}).Where("id = ?", task.ID).Update("status", TaskStatusSuccess).Error)
+	t.Cleanup(func() { DB.Exec("DELETE FROM tasks WHERE task_id = ?", "dc-inflight") })
+
+	old := common.BatchUpdateEnabled
+	common.BatchUpdateEnabled = true
+	assert.ErrorIs(t, SetCustomerBillingMode(pcCustomer, "markup"), ErrBillingModeSwitchBatch)
+	common.BatchUpdateEnabled = old
+
+	require.NoError(t, SetCustomerBillingMode(pcCustomer, "markup"))
+	var open int64
+	DB.Model(&DirectCreditGrant{}).Where("customer_id = ? AND remaining > 0", pcCustomer).Count(&open)
+	assert.Zero(t, open, "switch closes all lots")
+	// A markup transfer to a customer that became direct_credit is refused.
+	require.NoError(t, SetCustomerBillingMode(pcCustomer, BillingModeDirectCredit))
+	err = TransferResellerCustomerQuota(pcReseller, pcCustomer, 10, ResellerLedger{Kind: ResellerLedgerCustomerCredit})
+	assert.ErrorIs(t, err, ErrBillingModeChanged)
 }

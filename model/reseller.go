@@ -547,6 +547,19 @@ func TransferResellerCustomerQuota(resellerId, customerId, customerDelta int, en
 	entry.CreatedAt = common.GetTimestamp()
 	resellerDelta := -customerDelta
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		// Re-check the billing mode under the customer row lock: a concurrent
+		// switch to direct_credit must not receive a 1:1 markup transfer.
+		var cust User
+		if err := lockForUpdate(tx).Select("id", "reseller_id", "billing_mode").
+			Where("id = ?", customerId).First(&cust).Error; err != nil {
+			return err
+		}
+		if cust.ResellerId != resellerId {
+			return gorm.ErrRecordNotFound
+		}
+		if cust.BillingMode == BillingModeDirectCredit {
+			return ErrBillingModeChanged
+		}
 		// Debit the funding side first so a failed credit never orphans funds.
 		if resellerDelta < 0 {
 			if err := applyQuotaDeltaTx(tx, resellerId, resellerDelta, ErrAmountExceedsResellerBalance); err != nil {

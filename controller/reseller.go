@@ -806,8 +806,7 @@ func ResellerUpdateCustomer(c *gin.Context) {
 	}
 	fields := map[string]any{}
 	if req.BillingMode != nil {
-		// Switching is only allowed at a 0 balance (atomic check).
-		if err := model.SetCustomerBillingMode(user.Id, *req.BillingMode); err != nil {
+		if _, err := model.NormalizeBillingMode(*req.BillingMode); err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -838,6 +837,14 @@ func ResellerUpdateCustomer(c *gin.Context) {
 	}
 	if req.Remark != nil {
 		fields["remark"] = *req.Remark
+	}
+	// All other input is validated; switch the mode first (0-balance guard)
+	// so a rejected switch leaves the profile untouched.
+	if req.BillingMode != nil {
+		if err := model.SetCustomerBillingMode(user.Id, *req.BillingMode); err != nil {
+			common.ApiError(c, err)
+			return
+		}
 	}
 	if err := model.UpdateResellerCustomerFields(user.Id, fields); err != nil {
 		common.ApiError(c, err)

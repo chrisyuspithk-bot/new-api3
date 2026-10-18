@@ -754,9 +754,9 @@ func UpdateUser(c *gin.Context) {
 		auditParams["password_reset"] = updatePassword
 		auditParams["admin_permissions_updated"] = updatedUser.AdminPermissions != nil
 	}
-	if modeReq.BillingMode != nil && originUser.ResellerId > 0 {
-		// Same rule as the reseller UI: only at a 0 balance.
-		if err := model.SetCustomerBillingMode(updatedUser.Id, *modeReq.BillingMode); err != nil {
+	applyMode := modeReq.BillingMode != nil && originUser.ResellerId > 0
+	if applyMode {
+		if _, err := model.NormalizeBillingMode(*modeReq.BillingMode); err != nil {
 			common.ApiError(c, err)
 			return
 		}
@@ -789,6 +789,18 @@ func UpdateUser(c *gin.Context) {
 	if err := model.PublishUserAuthCache(updatedUser.Id); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if applyMode {
+		// Same rule as the reseller UI: only at a 0 balance. Runs after the
+		// profile edit is fully applied; a rejection reports that the mode
+		// was not changed (the profile edit stays saved and audited).
+		if err := model.SetCustomerBillingMode(updatedUser.Id, *modeReq.BillingMode); err != nil {
+			delete(auditParams, "billing_mode")
+			auditParams["billing_mode_rejected"] = err.Error()
+			recordManageAuditFor(c, updatedUser.Id, "user.update", auditParams)
+			common.ApiErrorMsg(c, "user saved, but billing mode was not changed: "+err.Error())
+			return
+		}
 	}
 	recordManageAuditFor(c, updatedUser.Id, "user.update", auditParams)
 	c.JSON(http.StatusOK, gin.H{

@@ -32,10 +32,10 @@ const (
 	RevenuePayerDirectCredit = "direct_credit"
 	// RevenuePayerNone marks a billing context that must write no revenue row
 	// (direct_credit customer calls).
-	RevenuePayerNone = "none"
-	RevenueKindDCTopup       = "dc_topup"
-	RevenueKindDCReversal    = "dc_reversal"
-	RevenueSourceDirectCred  = "direct_credit"
+	RevenuePayerNone        = "none"
+	RevenueKindDCTopup      = "dc_topup"
+	RevenueKindDCReversal   = "dc_reversal"
+	RevenueSourceDirectCred = "direct_credit"
 
 	ResellerLedgerDirectCreditCost           = "direct_credit_cost"
 	ResellerLedgerDirectCreditResellerProfit = "direct_credit_reseller_profit"
@@ -49,6 +49,9 @@ var (
 	ErrDirectCreditExceedsGrants   = errors.New("amount exceeds the customer's unused direct credit")
 	ErrDirectCreditAmount          = errors.New("amount must be greater than 0")
 	ErrDirectCreditNoResellerSetup = errors.New("reseller profile with a valid default cost factor is required")
+	ErrBillingModeChanged          = errors.New("customer billing mode changed; retry")
+	ErrBillingModeSwitchInFlight   = errors.New("billing mode cannot be changed while the customer has unfinished tasks")
+	ErrBillingModeSwitchBatch      = errors.New("billing mode cannot be changed while batch quota updates are enabled")
 )
 
 // NormalizeBillingMode maps API input to the stored value.
@@ -75,7 +78,10 @@ type DirectCreditGrant struct {
 	Remaining           int64   `json:"remaining" gorm:"type:bigint;not null"`
 	CostRemaining       int64   `json:"cost_remaining" gorm:"type:bigint;not null"`
 	AdminMicroRemaining int64   `json:"admin_micro_remaining" gorm:"type:bigint;not null"`
-	CreatedAt           int64   `json:"created_at" gorm:"bigint"`
+	// UsedMark is the customer's used_quota when the lot was last synced;
+	// usage since then consumes open lots oldest-first (see syncDirectCreditLotsTx).
+	UsedMark  int64 `json:"used_mark" gorm:"type:bigint;not null;default:0"`
+	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 }
 
 func (DirectCreditGrant) TableName() string { return "direct_credit_grants" }
@@ -147,7 +153,7 @@ func directCreditFactorsTx(tx *gorm.DB, resellerId int, customer *User) (markup,
 
 func loadDirectCreditCustomerTx(tx *gorm.DB, resellerId, customerId int) (*User, error) {
 	var u User
-	if err := lockForUpdate(tx).Select("id", "reseller_id", "billing_mode", "markup", "quota", "username").
+	if err := lockForUpdate(tx).Select("id", "reseller_id", "billing_mode", "markup", "quota", "used_quota", "username").
 		Where("id = ? AND reseller_id = ?", customerId, resellerId).First(&u).Error; err != nil {
 		return nil, err
 	}
@@ -155,6 +161,56 @@ func loadDirectCreditCustomerTx(tx *gorm.DB, resellerId, customerId int) (*User,
 		return nil, ErrNotDirectCreditCustomer
 	}
 	return &u, nil
+}
+
+// lotSlice returns the cost and admin-micro share of part credit taken from g
+// at the lot's original ratios; the last slice takes the exact remainder.
+func lotSlice(g *DirectCreditGrant, part int64) (c, a int64) {
+	if part == g.Remaining {
+		return g.CostRemaining, g.AdminMicroRemaining
+	}
+	c = min(decimal.NewFromInt(part).Mul(decimal.NewFromInt(g.Cost)).Div(decimal.NewFromInt(g.Credit)).Round(0).IntPart(), g.CostRemaining)
+	a = decimal.NewFromInt(part).Mul(decimal.NewFromInt(g.AdminProfitMicro)).Div(decimal.NewFromInt(g.Credit)).Round(0).IntPart()
+	if (g.AdminMicroRemaining >= 0 && a > g.AdminMicroRemaining) || (g.AdminMicroRemaining < 0 && a < g.AdminMicroRemaining) {
+		a = g.AdminMicroRemaining
+	}
+	return c, a
+}
+
+// syncDirectCreditLotsTx marks credit consumed by usage: the growth of the
+// customer's used_quota since the last sync consumes open lots oldest-first
+// (no money moves; consumed credit is final). All usage is attributed to lots
+// first, which can only shrink what is reversible (safe side). Caller holds
+// the customer row lock.
+func syncDirectCreditLotsTx(tx *gorm.DB, cust *User) error {
+	var lots []DirectCreditGrant
+	if err := lockForUpdate(tx).Where("customer_id = ? AND remaining > 0", cust.Id).
+		Order("id ASC").Find(&lots).Error; err != nil {
+		return err
+	}
+	if len(lots) == 0 {
+		return nil
+	}
+	// Every sync stamps all open lots with the same mark, so the oldest
+	// open lot's mark is the last sync point.
+	used := int64(cust.UsedQuota)
+	spent := max(used-lots[0].UsedMark, 0)
+	for i := range lots {
+		g := &lots[i]
+		upd := map[string]any{"used_mark": used}
+		if spent > 0 {
+			part := min(spent, g.Remaining)
+			c, a := lotSlice(g, part)
+			upd["remaining"] = g.Remaining - part
+			upd["cost_remaining"] = g.CostRemaining - c
+			upd["admin_micro_remaining"] = g.AdminMicroRemaining - a
+			spent -= part
+		}
+		if err := tx.Model(&DirectCreditGrant{}).Where("id = ?", g.Id).Updates(upd).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // DirectCreditCustomer tops up a direct_credit customer by x in ONE transaction.
@@ -167,6 +223,9 @@ func DirectCreditCustomer(resellerId, customerId int, x int64, operatorId int, r
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		cust, err := loadDirectCreditCustomerTx(tx, resellerId, customerId)
 		if err != nil {
+			return err
+		}
+		if err := syncDirectCreditLotsTx(tx, cust); err != nil {
 			return err
 		}
 		markup, costFactor, err := directCreditFactorsTx(tx, resellerId, cust)
@@ -186,7 +245,7 @@ func DirectCreditCustomer(resellerId, customerId int, x int64, operatorId int, r
 		}
 		now := common.GetTimestamp()
 		g := DirectCreditGrant{CustomerId: customerId, ResellerId: resellerId, Credit: x, Cost: cost, AdminProfitMicro: adminMicro,
-			Markup: markup, CostFactor: costFactor, Remaining: x, CostRemaining: cost, AdminMicroRemaining: adminMicro, CreatedAt: now}
+			Markup: markup, CostFactor: costFactor, Remaining: x, CostRemaining: cost, AdminMicroRemaining: adminMicro, UsedMark: int64(cust.UsedQuota), CreatedAt: now}
 		if err := tx.Create(&g).Error; err != nil {
 			return err
 		}
@@ -280,6 +339,9 @@ func ReverseDirectCredit(resellerId, customerId int, y int64, operatorId int, re
 		if int64(cust.Quota) < y {
 			return ErrInsufficientQuota
 		}
+		if err := syncDirectCreditLotsTx(tx, cust); err != nil {
+			return err
+		}
 		var lots []DirectCreditGrant
 		if err := lockForUpdate(tx).Where("customer_id = ? AND reseller_id = ? AND remaining > 0", customerId, resellerId).
 			Order("id DESC").Find(&lots).Error; err != nil {
@@ -294,16 +356,7 @@ func ReverseDirectCredit(resellerId, customerId int, y int64, operatorId int, re
 			}
 			g := &lots[i]
 			part := min(left, g.Remaining)
-			var c, a int64
-			if part == g.Remaining {
-				c, a = g.CostRemaining, g.AdminMicroRemaining // last slice takes the exact rest
-			} else {
-				c = min(decimal.NewFromInt(part).Mul(decimal.NewFromInt(g.Cost)).Div(decimal.NewFromInt(g.Credit)).Round(0).IntPart(), g.CostRemaining)
-				a = decimal.NewFromInt(part).Mul(decimal.NewFromInt(g.AdminProfitMicro)).Div(decimal.NewFromInt(g.Credit)).Round(0).IntPart()
-				if (g.AdminMicroRemaining >= 0 && a > g.AdminMicroRemaining) || (g.AdminMicroRemaining < 0 && a < g.AdminMicroRemaining) {
-					a = g.AdminMicroRemaining
-				}
-			}
+			c, a := lotSlice(g, part)
 			if err := tx.Model(&DirectCreditGrant{}).Where("id = ? AND remaining >= ?", g.Id, part).Updates(map[string]any{
 				"remaining":             gorm.Expr("remaining - ?", part),
 				"cost_remaining":        gorm.Expr("cost_remaining - ?", c),
@@ -366,7 +419,10 @@ func directCreditSyncCaches(resellerId, customerId int, credits []profitCredit) 
 }
 
 // SetCustomerBillingMode switches a customer's mode; only allowed while the
-// customer balance is exactly 0 (checked atomically in the UPDATE).
+// customer balance is exactly 0 (checked atomically in the UPDATE), no async
+// task is unfinished (its refund would land under the other mode) and batch
+// quota updates are off (the DB balance would lag). On switch every open
+// direct-credit lot is closed: at balance 0 nothing in it is unused.
 func SetCustomerBillingMode(customerId int, mode string) error {
 	mode, err := NormalizeBillingMode(mode)
 	if err != nil {
@@ -379,13 +435,41 @@ func SetCustomerBillingMode(customerId int, mode string) error {
 	if cur.BillingMode == mode {
 		return nil
 	}
-	res := DB.Model(&User{}).Where("id = ? AND reseller_id > 0 AND quota = 0 AND billing_mode = ?", customerId, cur.BillingMode).
-		Update("billing_mode", mode)
-	if res.Error != nil {
-		return res.Error
+	if common.BatchUpdateEnabled {
+		return ErrBillingModeSwitchBatch
 	}
-	if res.RowsAffected == 0 {
-		return ErrBillingModeSwitchNonZero
+	err = DB.Transaction(func(tx *gorm.DB) error {
+		var locked User
+		if err := lockForUpdate(tx).Select("id", "quota", "billing_mode").Where("id = ?", customerId).First(&locked).Error; err != nil {
+			return err
+		}
+		var n int64
+		if err := tx.Model(&Task{}).Where("user_id = ? AND status NOT IN ?", customerId,
+			[]string{TaskStatusFailure, TaskStatusSuccess}).Count(&n).Error; err != nil {
+			return err
+		}
+		if n == 0 {
+			if err := tx.Model(&Midjourney{}).Where("user_id = ? AND status NOT IN ?", customerId,
+				[]string{"FAILURE", "SUCCESS"}).Count(&n).Error; err != nil {
+				return err
+			}
+		}
+		if n > 0 {
+			return ErrBillingModeSwitchInFlight
+		}
+		res := tx.Model(&User{}).Where("id = ? AND reseller_id > 0 AND quota = 0 AND billing_mode = ?", customerId, cur.BillingMode).
+			Update("billing_mode", mode)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return ErrBillingModeSwitchNonZero
+		}
+		return tx.Model(&DirectCreditGrant{}).Where("customer_id = ? AND remaining > 0", customerId).
+			Updates(map[string]any{"remaining": 0, "cost_remaining": 0, "admin_micro_remaining": 0}).Error
+	})
+	if err != nil {
+		return err
 	}
 	if err := PublishUserAuthCache(customerId); err != nil {
 		_ = invalidateUserCache(customerId)

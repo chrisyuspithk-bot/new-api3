@@ -38,7 +38,7 @@ func dcQuota(t *testing.T, id int) int {
 
 func TestResellerDirectCreditCustomerEndToEnd(t *testing.T) {
 	setupResellerCreditCustomerDB(t)
-	require.NoError(t, model.DB.AutoMigrate(&model.RevenueRecord{}, &model.DirectCreditGrant{}, &model.ProfitCreditAccumulator{}))
+	require.NoError(t, model.DB.AutoMigrate(&model.RevenueRecord{}, &model.DirectCreditGrant{}, &model.ProfitCreditAccumulator{}, &model.Task{}, &model.Midjourney{}))
 	resellerID, customerID := seedResellerCreditFixture(t, 1000)
 	require.NoError(t, model.DB.Model(&model.ResellerProfile{}).Where("user_id = ?", resellerID).Update("default_cost_factor", 1.25).Error)
 	require.NoError(t, model.DB.Create(&model.User{Id: 9500, Username: "dc-root", Role: common.RoleRootUser, Status: 1, Quota: 0, AffCode: "dr0"}).Error)
