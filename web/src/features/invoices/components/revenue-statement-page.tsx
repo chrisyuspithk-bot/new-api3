@@ -212,7 +212,7 @@ export function RevenueStatementPage(props: {
         ? ([
             [
               t('Direct credit top-ups'),
-              st.direct_credit_total.requests,
+              null,
               st.direct_credit_total.customer_price,
             ],
             [
@@ -248,7 +248,7 @@ export function RevenueStatementPage(props: {
         ? ([
             [
               t('Direct credit top-ups'),
-              st.direct_credit_total.requests,
+              null,
               st.direct_credit_total.customer_price,
             ],
             [

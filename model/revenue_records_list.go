@@ -42,7 +42,7 @@ func (f RevenueRecordFilter) query() *gorm.DB {
 		q = q.Where("r.created_at < ?", f.To)
 	}
 	if f.Scope == RevenueScopeReseller {
-		q = q.Where("r.reseller_id = ? AND r.payer_type IN ?", f.ResellerId, []string{RevenuePayerCustomer, RevenuePayerResellerSelf})
+		q = q.Where("r.reseller_id = ? AND r.payer_type IN ?", f.ResellerId, []string{RevenuePayerCustomer, RevenuePayerResellerSelf, RevenuePayerDirectCredit})
 	} else if f.ResellerId > 0 {
 		q = q.Where("r.reseller_id = ?", f.ResellerId)
 	}

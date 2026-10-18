@@ -2,6 +2,7 @@ package model
 
 import (
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
@@ -361,4 +362,24 @@ func TestBillingModeSwitchClosesLotsAndBlocksInFlight(t *testing.T) {
 	require.NoError(t, SetCustomerBillingMode(pcCustomer, BillingModeDirectCredit))
 	err = TransferResellerCustomerQuota(pcReseller, pcCustomer, 10, ResellerLedger{Kind: ResellerLedgerCustomerCredit})
 	assert.ErrorIs(t, err, ErrBillingModeChanged)
+}
+
+func TestDirectCreditRowsVisibleToReseller(t *testing.T) {
+	setupDirectCredit(t, 1.2, 1.25)
+	res, err := DirectCreditCustomer(pcReseller, pcCustomer, 120, 1, "", nil)
+	require.NoError(t, err)
+	rows, _, err := ListRevenueRecords(RevenueRecordFilter{Scope: RevenueScopeReseller, ResellerId: pcReseller, Page: 1, PageSize: 50})
+	require.NoError(t, err)
+	found := false
+	for _, r := range rows {
+		if r.Id == res.RevenueId {
+			found = true
+			assert.Equal(t, RevenueKindDCTopup, r.Kind)
+		}
+	}
+	assert.True(t, found, "reseller profit records include direct credit top-ups")
+	st, err := ComputeRevenueStatement(time.Now().Format("2006-01"), RevenueScopeReseller, pcReseller)
+	require.NoError(t, err)
+	assert.Equal(t, int64(120), st.DirectCreditSum.CustomerPrice)
+	assert.Equal(t, int64(100), st.DirectCreditSum.ResellerCost)
 }

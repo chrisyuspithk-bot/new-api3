@@ -119,7 +119,7 @@ func revenueScopeKey(scope string, resellerId int) string {
 func revenueScopeQuery(db *gorm.DB, scope string, resellerId int, from, toEx int64) *gorm.DB {
 	q := db.Model(&RevenueRecord{}).Where("created_at >= ? AND created_at < ?", from, toEx)
 	if scope == RevenueScopeReseller {
-		q = q.Where("reseller_id = ? AND payer_type IN ?", resellerId, []string{RevenuePayerCustomer, RevenuePayerResellerSelf})
+		q = q.Where("reseller_id = ? AND payer_type IN ?", resellerId, []string{RevenuePayerCustomer, RevenuePayerResellerSelf, RevenuePayerDirectCredit})
 	}
 	return q
 }
