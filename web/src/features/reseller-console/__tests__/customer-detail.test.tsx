@@ -37,7 +37,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <ResellerCustomerDetailPage id={7} />
-    </QueryClientProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -94,8 +94,8 @@ describe('reseller customer detail API keys', () => {
 
     await waitFor(() =>
       expect(api.delete).toHaveBeenCalledWith(
-        '/api/reseller/customers/7/tokens/31'
-      )
+        '/api/reseller/customers/7/tokens/31',
+      ),
     )
   })
 
@@ -116,11 +116,34 @@ describe('reseller customer detail API keys', () => {
 
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith(
-        '/api/reseller/customers/7/tokens/31/key'
-      )
+        '/api/reseller/customers/7/tokens/31/key',
+      ),
     )
     await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith('sk-abcdFULLKEYwxyzONLY')
+      expect(writeText).toHaveBeenCalledWith('sk-abcdFULLKEYwxyzONLY'),
+    )
+  })
+})
+
+describe('reseller customer detail billing mode', () => {
+  it('sends billing_mode only when changed at a zero balance', async () => {
+    const user = userEvent.setup()
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true, data: {} } })
+    renderPage()
+    const select = (await screen.findByLabelText(
+      'Billing mode',
+    )) as HTMLSelectElement
+    expect(select.value).toBe('markup')
+    expect(select.disabled).toBe(false)
+    await user.selectOptions(select, 'direct_credit')
+    await user.click(screen.getAllByRole('button', { name: 'Save' })[0])
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith(
+        '/api/reseller/customers/7',
+        expect.objectContaining({ billing_mode: 'direct_credit' }),
+      ),
     )
   })
 })

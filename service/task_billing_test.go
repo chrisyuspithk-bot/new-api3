@@ -63,7 +63,7 @@ func TestMain(m *testing.M) {
 		&model.SystemTaskLock{},
 		&model.ResellerProfile{},
 		&model.RevenueRecord{},
-		&model.RevenueMonthlySnapshot{}, &model.ProfitCreditAccumulator{}, &model.ResellerLedger{},
+		&model.RevenueMonthlySnapshot{}, &model.ProfitCreditAccumulator{}, &model.DirectCreditGrant{}, &model.ResellerLedger{},
 		&model.QuotaRefundJournal{},
 		&model.ResellerGroup{},
 		&model.ResellerModelPrice{},

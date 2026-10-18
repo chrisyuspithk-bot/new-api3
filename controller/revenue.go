@@ -119,7 +119,7 @@ func writeRevenueCSV(c *gin.Context, st *model.RevenueStatement) {
 	sums := []struct {
 		name string
 		a    model.RevenueAgg
-	}{{"total", st.Totals}, {"customer", st.CustomerSum}, {"reseller_self", st.SelfSum}}
+	}{{"total", st.Totals}, {"customer", st.CustomerSum}, {"reseller_self", st.SelfSum}, {"direct_credit", st.DirectCreditSum}}
 	if internal {
 		sums = append(sums, struct {
 			name string
@@ -307,6 +307,8 @@ func writeRevenuePDF(c *gin.Context, st *model.RevenueStatement) {
 			{tr(i18n.MsgRevenueExportItemResellerProfit), "", qs(st.CustomerSum.ResellerProfit), us(st.CustomerSum.ResellerProfit)},
 			{tr(i18n.MsgRevenueExportItemSelfUse), qs(st.SelfSum.Requests), qs(st.SelfSum.CustomerPrice), us(st.SelfSum.CustomerPrice)},
 			{tr(i18n.MsgRevenueExportItemDirect), qs(st.DirectSum.Requests), qs(st.DirectSum.CustomerPrice), us(st.DirectSum.CustomerPrice)},
+			{tr(i18n.MsgRevenueRecordsKindDCTopup), "", qs(st.DirectCreditSum.CustomerPrice), us(st.DirectCreditSum.CustomerPrice)},
+			{tr(i18n.MsgLedgerExportKindDirectCreditCost), "", qs(st.DirectCreditSum.ResellerCost), us(st.DirectCreditSum.ResellerCost)},
 			{tr(i18n.MsgRevenueExportItemAdminRevenue), "", qs(st.Totals.AdminRevenue), us(st.Totals.AdminRevenue)},
 			{tr(i18n.MsgRevenueExportItemBase), "", mq(st.Totals.BaseQuotaMicro), mu(st.Totals.BaseQuotaMicro)},
 			{tr(i18n.MsgRevenueExportItemAdminProfit), "", mq(st.Totals.AdminProfitMicro), mu(st.Totals.AdminProfitMicro)},
@@ -317,7 +319,9 @@ func writeRevenuePDF(c *gin.Context, st *model.RevenueStatement) {
 			{tr(i18n.MsgRevenueExportItemYourCost), "", qs(st.CustomerSum.ResellerCost), us(st.CustomerSum.ResellerCost)},
 			{tr(i18n.MsgRevenueExportItemYourProfit), "", qs(st.CustomerSum.ResellerProfit), us(st.CustomerSum.ResellerProfit)},
 			{tr(i18n.MsgRevenueExportItemOwnUsage), qs(st.SelfSum.Requests), qs(st.SelfSum.ResellerCost), us(st.SelfSum.ResellerCost)},
-			{tr(i18n.MsgRevenueExportItemTotalPaid), "", qs(st.CustomerSum.ResellerCost + st.SelfSum.ResellerCost), us(st.CustomerSum.ResellerCost + st.SelfSum.ResellerCost)},
+			{tr(i18n.MsgRevenueRecordsKindDCTopup), "", qs(st.DirectCreditSum.CustomerPrice), us(st.DirectCreditSum.CustomerPrice)},
+			{tr(i18n.MsgLedgerExportKindDirectCreditCost), "", qs(st.DirectCreditSum.ResellerCost), us(st.DirectCreditSum.ResellerCost)},
+			{tr(i18n.MsgRevenueExportItemTotalPaid), "", qs(st.CustomerSum.ResellerCost + st.SelfSum.ResellerCost + st.DirectCreditSum.ResellerCost), us(st.CustomerSum.ResellerCost + st.SelfSum.ResellerCost + st.DirectCreditSum.ResellerCost)},
 		}
 	}
 	ledgerPDFTable(pdf, []float64{140, 30, 50, 53}, "LRRR",

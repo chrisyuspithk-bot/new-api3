@@ -79,6 +79,59 @@ func creditQuotaTx(tx *gorm.DB, userId int, delta int64) error {
 	return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", delta)).Error
 }
 
+// accrueAdminProfitTx adds micro (may be negative) to the root accumulator and
+// moves the root wallet by the whole quota units crossed, writing one ledger
+// row of kind when a unit is crossed. floor rejects a debit that would take
+// the root wallet below zero. state is RevenueCreditStateNoRoot without root.
+func accrueAdminProfitTx(tx *gorm.DB, micro int64, kind, ref, remark string, floor bool) (root int, whole int64, state string, err error) {
+	now := common.GetTimestamp()
+	root = rootUserIdTx(tx)
+	if root == 0 {
+		state = RevenueCreditStateNoRoot
+	}
+	if err = tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&ProfitCreditAccumulator{UserId: root, UpdatedAt: now}).Error; err != nil && !isDuplicateKeyErr(err) {
+		return
+	}
+	err = nil
+	// The UPDATE takes the row write lock until commit, so the read below
+	// and the whole-unit delta are race-free across concurrent writers.
+	if err = tx.Model(&ProfitCreditAccumulator{}).Where("user_id = ?", root).
+		Updates(map[string]any{"accrued_micro": gorm.Expr("accrued_micro + ?", micro), "updated_at": now}).Error; err != nil {
+		return
+	}
+	var acc ProfitCreditAccumulator
+	if err = tx.Where("user_id = ?", root).First(&acc).Error; err != nil {
+		return
+	}
+	if root > 0 {
+		whole = floorDivMicro(acc.AccruedMicro) - acc.CreditedQuota
+	}
+	if whole == 0 {
+		return
+	}
+	if floor && whole < 0 {
+		err = applyQuotaDeltaTx(tx, root, int(whole), ErrInsufficientQuota)
+	} else {
+		err = creditQuotaTx(tx, root, whole)
+	}
+	if err != nil {
+		return
+	}
+	if err = tx.Model(&ProfitCreditAccumulator{}).Where("user_id = ?", root).
+		Update("credited_quota", gorm.Expr("credited_quota + ?", whole)).Error; err != nil {
+		return
+	}
+	err = tx.Create(&ResellerLedger{
+		ResellerId: root,
+		Kind:       kind,
+		QuotaDelta: whole,
+		RefId:      ref,
+		Remark:     truncateRemark(fmt.Sprintf("%s accrued_micro=%d", remark, acc.AccruedMicro)),
+		CreatedAt:  now,
+	}).Error
+	return
+}
+
 func applyProfitCreditsTx(tx *gorm.DB, rec *RevenueRecord) ([]profitCredit, error) {
 	if !rec.creditEligible || rec.creditBlocked != "" {
 		st := RevenueCreditStateNotCredited
@@ -115,45 +168,15 @@ func applyProfitCreditsTx(tx *gorm.DB, rec *RevenueRecord) ([]profitCredit, erro
 
 	// 2) Admin profit via the micro-quota accumulator.
 	if rec.AdminProfitMicro != 0 {
-		root := rootUserIdTx(tx)
-		if root == 0 {
-			state = RevenueCreditStateNoRoot
-		}
-		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&ProfitCreditAccumulator{UserId: root, UpdatedAt: now}).Error; err != nil && !isDuplicateKeyErr(err) {
+		root, whole, st, err := accrueAdminProfitTx(tx, rec.AdminProfitMicro, ResellerLedgerAdminProfitCredit,
+			revenueLedgerRef(rec.Id), fmt.Sprintf("%s %s admin_profit_micro=%d", rec.Kind, rec.ModelName, rec.AdminProfitMicro), false)
+		if err != nil {
 			return nil, err
 		}
-		// The UPDATE takes the row write lock until commit, so the read below
-		// and the whole-unit delta are race-free across concurrent writers.
-		if err := tx.Model(&ProfitCreditAccumulator{}).Where("user_id = ?", root).
-			Updates(map[string]any{"accrued_micro": gorm.Expr("accrued_micro + ?", rec.AdminProfitMicro), "updated_at": now}).Error; err != nil {
-			return nil, err
-		}
-		var acc ProfitCreditAccumulator
-		if err := tx.Where("user_id = ?", root).First(&acc).Error; err != nil {
-			return nil, err
-		}
-		whole := int64(0)
-		if root > 0 {
-			whole = floorDivMicro(acc.AccruedMicro) - acc.CreditedQuota
+		if st != "" {
+			state = st
 		}
 		if whole != 0 {
-			if err := creditQuotaTx(tx, root, whole); err != nil {
-				return nil, err
-			}
-			if err := tx.Model(&ProfitCreditAccumulator{}).Where("user_id = ?", root).
-				Update("credited_quota", gorm.Expr("credited_quota + ?", whole)).Error; err != nil {
-				return nil, err
-			}
-			if err := tx.Create(&ResellerLedger{
-				ResellerId: root,
-				Kind:       ResellerLedgerAdminProfitCredit,
-				QuotaDelta: whole,
-				RefId:      revenueLedgerRef(rec.Id),
-				Remark:     truncateRemark(fmt.Sprintf("%s %s admin_profit_micro=%d accrued_micro=%d", rec.Kind, rec.ModelName, rec.AdminProfitMicro, acc.AccruedMicro)),
-				CreatedAt:  now,
-			}).Error; err != nil {
-				return nil, err
-			}
 			rec.AdminCredited = whole
 			credits = append(credits, profitCredit{root, whole})
 		}

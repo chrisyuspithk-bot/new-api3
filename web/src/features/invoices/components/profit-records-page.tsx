@@ -99,6 +99,8 @@ export function ProfitRecordsPage(props: {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1;
   const ts = (v: number) => new Date(v * 1000).toLocaleString(intlLocale);
   const typeLabel = (r: ProfitRecord) => {
+    if (r.kind === "dc_topup") return t("Direct credit top-up");
+    if (r.kind === "dc_reversal") return t("Direct credit reversal");
     const kind = r.kind === "refund" ? t("Refund") : t("Charge");
     let payer = t("Direct user");
     if (r.payer_type === "customer") payer = t("Customer");

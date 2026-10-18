@@ -56,6 +56,7 @@ export type RevenueStatement = {
   customer_total: RevenueAgg;
   self_total: RevenueAgg;
   direct_total: RevenueAgg;
+  direct_credit_total?: RevenueAgg;
   by_reseller?: RevenueAgg[];
   reseller_self?: RevenueAgg[];
   direct?: RevenueAgg[];
@@ -73,8 +74,8 @@ export type RevenueStatement = {
 export interface ProfitRecord {
   id: number;
   created_at: number;
-  kind: "consume" | "refund";
-  payer_type: "customer" | "reseller_self" | "direct";
+  kind: "consume" | "refund" | "dc_topup" | "dc_reversal";
+  payer_type: "customer" | "reseller_self" | "direct" | "direct_credit";
   user_id: number;
   username: string;
   reseller_id: number;

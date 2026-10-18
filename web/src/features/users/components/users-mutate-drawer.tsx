@@ -98,6 +98,11 @@ import {
 import type { User } from '../types'
 import { UserQuotaDialog } from './user-quota-dialog'
 import { useUsers } from './users-provider'
+import {
+  BillingModeSelect,
+  normalizeBillingMode,
+  type BillingMode,
+} from '@/features/reseller-console/components/billing-mode'
 
 type UsersMutateDrawerProps = {
   open: boolean
@@ -141,6 +146,14 @@ export function UsersMutateDrawer({
     defaultValues: USER_FORM_DEFAULT_VALUES,
   })
 
+  // Reseller customers only: billing mode (switch allowed at a 0 balance).
+  const [customerInfo, setCustomerInfo] = useState<{
+    resellerId: number
+    quota: number
+    mode: BillingMode
+  } | null>(null)
+  const [billingMode, setBillingMode] = useState<BillingMode | null>(null)
+
   // Load existing data when updating
   useEffect(() => {
     if (open && isUpdate && currentRow) {
@@ -149,6 +162,16 @@ export function UsersMutateDrawer({
         .then((result) => {
           if (result.success && result.data) {
             loadedPermissions.current = result.data.admin_permissions
+            setBillingMode(null)
+            setCustomerInfo(
+              (result.data.reseller_id ?? 0) > 0
+                ? {
+                    resellerId: result.data.reseller_id ?? 0,
+                    quota: result.data.quota ?? 0,
+                    mode: normalizeBillingMode(result.data.billing_mode),
+                  }
+                : null,
+            )
             form.reset(transformUserToFormDefaults(result.data))
           } else {
             handleServerError(result, t('Failed to load'))
@@ -186,8 +209,18 @@ export function UsersMutateDrawer({
       const payload = transformFormDataToPayload(
         data,
         currentRow?.id,
-        permissionCatalog
+        permissionCatalog,
       )
+      if (
+        isUpdate &&
+        customerInfo &&
+        billingMode != null &&
+        billingMode !== customerInfo.mode
+      ) {
+        ;(
+          payload as typeof payload & { billing_mode?: BillingMode }
+        ).billing_mode = billingMode
+      }
       if (
         isUpdate &&
         payload.admin_permissions &&
@@ -195,8 +228,8 @@ export function UsersMutateDrawer({
           JSON.stringify(
             normalizeAdminPermissions(
               loadedPermissions.current,
-              permissionCatalog
-            )
+              permissionCatalog,
+            ),
           )
       ) {
         delete payload.admin_permissions
@@ -212,7 +245,7 @@ export function UsersMutateDrawer({
             title: t('Verify to update user credentials'),
             description: t(
               'Confirm your identity before changing the account {{username}}.',
-              { username: currentRow.username }
+              { username: currentRow.username },
             ),
           })
           if (!proof) return
@@ -224,7 +257,7 @@ export function UsersMutateDrawer({
           context: { role: payload.role ?? ROLE.ADMIN },
           title: t('Verify to create administrator'),
           description: t(
-            'Confirm your identity before creating an administrator account.'
+            'Confirm your identity before creating an administrator account.',
           ),
         })
         if (!proof) return
@@ -233,7 +266,7 @@ export function UsersMutateDrawer({
       const result = isUpdate
         ? await updateUser(
             payload as typeof payload & { id: number },
-            proofToken
+            proofToken,
           )
         : await createUser(payload, proofToken)
 
@@ -241,7 +274,7 @@ export function UsersMutateDrawer({
         toast.success(
           isUpdate
             ? t(SUCCESS_MESSAGES.USER_UPDATED)
-            : t(SUCCESS_MESSAGES.USER_CREATED)
+            : t(SUCCESS_MESSAGES.USER_CREATED),
         )
         onOpenChange(false)
         triggerRefresh()
@@ -251,7 +284,7 @@ export function UsersMutateDrawer({
     } catch (error) {
       handleServerError(
         AuthOperationError.from(error),
-        t(ERROR_MESSAGES.UNEXPECTED)
+        t(ERROR_MESSAGES.UNEXPECTED),
       )
     } finally {
       setIsSubmitting(false)
@@ -487,7 +520,7 @@ export function UsersMutateDrawer({
                           <Textarea
                             {...field}
                             placeholder={t(
-                              'Admin notes (only visible to admins)'
+                              'Admin notes (only visible to admins)',
                             )}
                             rows={3}
                           />
@@ -496,6 +529,22 @@ export function UsersMutateDrawer({
                       </FormItem>
                     )}
                   />
+                  {customerInfo && (
+                    <div className='space-y-1.5'>
+                      <label
+                        htmlFor='admin-customer-billing-mode'
+                        className='text-sm font-medium'
+                      >
+                        {t('Billing mode')}
+                      </label>
+                      <BillingModeSelect
+                        id='admin-customer-billing-mode'
+                        value={billingMode ?? customerInfo.mode}
+                        onChange={setBillingMode}
+                        balance={customerInfo.quota}
+                      />
+                    </div>
+                  )}
                 </SideDrawerSection>
               )}
 
@@ -508,7 +557,7 @@ export function UsersMutateDrawer({
                     </h3>
                     <p className='text-muted-foreground text-xs'>
                       {t(
-                        'Default administrator permissions can be overridden for this user.'
+                        'Default administrator permissions can be overridden for this user.',
                       )}
                     </p>
                     <FormField
@@ -517,7 +566,7 @@ export function UsersMutateDrawer({
                       render={({ field }) => {
                         const selected = normalizeAdminPermissions(
                           field.value,
-                          permissionCatalog
+                          permissionCatalog,
                         )
                         return (
                           <FormItem>
@@ -536,13 +585,13 @@ export function UsersMutateDrawer({
                         {hasPermission(
                           currentUser,
                           ADMIN_PERMISSION_RESOURCES.CHANNEL,
-                          ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
+                          ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE,
                         )
                           ? t(
-                              'Your account can edit sensitive channel settings.'
+                              'Your account can edit sensitive channel settings.',
                             )
                           : t(
-                              'Your account cannot edit sensitive channel settings.'
+                              'Your account cannot edit sensitive channel settings.',
                             )}
                       </p>
                     )}
@@ -557,7 +606,7 @@ export function UsersMutateDrawer({
                   </h3>
                   <p className='text-muted-foreground text-xs'>
                     {t(
-                      'Third-party account bindings (read-only, managed by user in Security & Access)'
+                      'Third-party account bindings (read-only, managed by user in Security & Access)',
                     )}
                   </p>
 

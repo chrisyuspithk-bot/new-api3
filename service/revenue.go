@@ -19,6 +19,10 @@ func revenueContextFromRelayInfo(info *relaycommon.RelayInfo) model.RevenueConte
 	if info == nil {
 		return model.RevenueContext{PayerType: model.RevenuePayerDirect}
 	}
+	if info.DirectCredit {
+		// Booked at top-up time; calls write no revenue row.
+		return model.RevenueContext{PayerType: model.RevenuePayerNone}
+	}
 	if info.ResellerId > 0 {
 		return model.RevenueContext{PayerType: model.RevenuePayerCustomer, ResellerId: info.ResellerId,
 			CostFactor: info.ResellerCostFactor, Markup: info.ResellerMarkup}
@@ -33,6 +37,9 @@ func revenueContextFromRelayInfo(info *relaycommon.RelayInfo) model.RevenueConte
 // SetRevenueContextFromRelayInfo makes the next consume log on c also write a
 // revenue record.
 func SetRevenueContextFromRelayInfo(c *gin.Context, info *relaycommon.RelayInfo) {
+	if info != nil && info.DirectCredit {
+		return
+	}
 	model.SetRevenueContext(c, RevenueContextFromRelayInfo(info))
 }
 
@@ -42,6 +49,9 @@ func taskRevenueContext(task *model.Task) *model.RevenueContext {
 		return nil
 	}
 	bc := task.PrivateData.BillingContext
+	if bc != nil && bc.DirectCredit {
+		return nil
+	}
 	rc := model.RevenueContext{PayerType: model.RevenuePayerDirect}
 	if bc != nil {
 		if bc.ResellerId > 0 {
@@ -62,6 +72,9 @@ func midjourneyRevenueContext(task *model.Midjourney) *model.RevenueContext {
 	rc := model.RevenueContext{PayerType: model.RevenuePayerDirect}
 	if task.Revenue != "" {
 		_ = json.Unmarshal([]byte(task.Revenue), &rc)
+	}
+	if rc.PayerType == model.RevenuePayerNone {
+		return nil
 	}
 	return &rc
 }

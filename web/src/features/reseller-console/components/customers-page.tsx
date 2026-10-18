@@ -60,6 +60,11 @@ import {
   setCustomerStatus,
 } from '../api'
 import type { Customer } from '../types'
+import {
+  BillingModeBadge,
+  BillingModeSelect,
+  type BillingMode,
+} from './billing-mode'
 
 export function ResellerCustomersPage() {
   const { t } = useTranslation()
@@ -78,6 +83,7 @@ export function ResellerCustomersPage() {
     group: '',
     markup: '',
   })
+  const [createMode, setCreateMode] = useState<BillingMode>('markup')
   const [adjustUsd, setAdjustUsd] = useState('')
   const [adjustRemark, setAdjustRemark] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null)
@@ -87,7 +93,7 @@ export function ResellerCustomersPage() {
     queryKey: ['reseller-customers', page, keyword],
     queryFn: async () => {
       const res = requireServerSuccess(
-        await listCustomers({ p: page, page_size: 20, keyword })
+        await listCustomers({ p: page, page_size: 20, keyword }),
       )
       return res.data ?? null
     },
@@ -108,9 +114,14 @@ export function ResellerCustomersPage() {
   })()
   const isDebit = adjustTarget?.mode === 'debit'
   // Credit draws on the reseller cost balance; debit claws back from the customer.
+  // Direct credit costs credit / markup: the server checks the reseller side.
+  const directCreditTopUp =
+    !isDebit && adjustTarget?.customer.billing_mode === 'direct_credit'
   const adjustLimitQuota = isDebit
     ? (adjustTarget?.customer.quota ?? 0)
-    : availableCostQuota
+    : directCreditTopUp
+      ? Number.POSITIVE_INFINITY
+      : availableCostQuota
   const adjustLimitUsd = adjustLimitQuota / quotaPerUnit
   const adjustAmountUsd = Number(adjustUsd)
   const adjustExceedsBalance =
@@ -134,7 +145,8 @@ export function ResellerCustomersPage() {
         await createCustomer({
           ...form,
           markup: form.markup ? Number(form.markup) : undefined,
-        })
+          billing_mode: createMode,
+        }),
       )
       toast.success(t('Customer created'))
       setCreateOpen(false)
@@ -145,6 +157,7 @@ export function ResellerCustomersPage() {
         group: '',
         markup: '',
       })
+      setCreateMode('markup')
       refresh()
     } catch (error) {
       handleServerError(error, t('Failed to create customer'))
@@ -168,12 +181,12 @@ export function ResellerCustomersPage() {
     try {
       if (isDebit) {
         requireServerSuccess(
-          await debitCustomer(adjustTarget.customer.id, body)
+          await debitCustomer(adjustTarget.customer.id, body),
         )
         toast.success(t('Customer debited'))
       } else {
         requireServerSuccess(
-          await creditCustomer(adjustTarget.customer.id, body)
+          await creditCustomer(adjustTarget.customer.id, body),
         )
         toast.success(t('Customer credited'))
       }
@@ -182,7 +195,9 @@ export function ResellerCustomersPage() {
     } catch (error) {
       handleServerError(
         error,
-        isDebit ? t('Failed to debit customer') : t('Failed to credit customer')
+        isDebit
+          ? t('Failed to debit customer')
+          : t('Failed to credit customer'),
       )
     }
   }
@@ -238,18 +253,19 @@ export function ResellerCustomersPage() {
                   <TableHead>{t('Group')}</TableHead>
                   <TableHead>{t('Quota')}</TableHead>
                   <TableHead>{t('Markup')}</TableHead>
+                  <TableHead>{t('Billing mode')}</TableHead>
                   <TableHead />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={7}>{t('Loading...')}</TableCell>
+                    <TableCell colSpan={8}>{t('Loading...')}</TableCell>
                   </TableRow>
                 )}
                 {!isLoading && items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7}>{t('No customers')}</TableCell>
+                    <TableCell colSpan={8}>{t('No customers')}</TableCell>
                   </TableRow>
                 )}
                 {items.map((row) => (
@@ -279,6 +295,9 @@ export function ResellerCustomersPage() {
                     <TableCell>
                       {row.markup != null ? row.markup : t('Default')}
                     </TableCell>
+                    <TableCell>
+                      <BillingModeBadge mode={row.billing_mode} />
+                    </TableCell>
                     <TableCell className='space-x-1'>
                       <Button
                         size='sm'
@@ -307,14 +326,14 @@ export function ResellerCustomersPage() {
                             requireServerSuccess(
                               await setCustomerStatus(
                                 row.id,
-                                row.status === 1 ? 2 : 1
-                              )
+                                row.status === 1 ? 2 : 1,
+                              ),
                             )
                             refresh()
                           } catch (error) {
                             handleServerError(
                               error,
-                              t('Failed to update status')
+                              t('Failed to update status'),
                             )
                           }
                         }}
@@ -398,6 +417,16 @@ export function ResellerCustomersPage() {
                   />
                 </div>
               ))}
+              <div className='space-y-1.5'>
+                <Label htmlFor='reseller-customer-billing-mode'>
+                  {t('Billing mode')}
+                </Label>
+                <BillingModeSelect
+                  id='reseller-customer-billing-mode'
+                  value={createMode}
+                  onChange={setCreateMode}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button type='submit'>{t('Create')}</Button>

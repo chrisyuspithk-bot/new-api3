@@ -117,6 +117,9 @@ type User struct {
 	ResellerId int `json:"reseller_id" gorm:"type:int;not null;default:0;index:idx_users_reseller_id;index:idx_users_reseller_status,priority:1"`
 	// Markup overrides the reseller default markup for this customer (nil = inherit).
 	Markup *float64 `json:"markup,omitempty" gorm:"type:decimal(18,6)"`
+	// BillingMode of a reseller customer: "" = per-call markup (default),
+	// "direct_credit" = base-price calls, split booked at top-up time.
+	BillingMode string `json:"billing_mode" gorm:"type:varchar(16);not null;default:''"`
 	// ResellerUsername / ResellerDisplayName are filled by FillResellerNames
 	// for admin listings; never persisted.
 	ResellerUsername    string `json:"reseller_username,omitempty" gorm:"-:all"`
@@ -128,6 +131,7 @@ func (user *User) ToBaseUser() *UserBase {
 		Id:          user.Id,
 		Group:       user.Group,
 		ResellerId:  user.ResellerId,
+		BillingMode: user.BillingMode,
 		Quota:       user.Quota,
 		Status:      user.Status,
 		Role:        user.Role,

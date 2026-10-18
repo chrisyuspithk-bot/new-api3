@@ -93,6 +93,11 @@ type RelayInfo struct {
 	// ResellerSelf marks a reseller calling the API for itself: a single leg
 	// billed to its own balance at base x ResellerCostFactor, with no markup.
 	ResellerSelf bool
+	// DirectCredit marks a direct_credit customer: base price (cost factor 1,
+	// markup 1), no reseller leg, no revenue record. ResellerId is cleared;
+	// DirectCreditResellerId keeps the owner for logging only.
+	DirectCredit           bool
+	DirectCreditResellerId int
 	// ResellerMarkup / ResellerCostFactor are resolved by HandleGroupRatio and
 	// folded into GroupRatio so every billing engine path yields the customer
 	// charge; ResellerPricingErr fails billing closed when resolution failed.
@@ -657,6 +662,14 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 			//promptTokens: common.GetContextKeyInt(c, constant.ContextKeyPromptTokens),
 			estimatePromptTokens: common.GetContextKeyInt(c, constant.ContextKeyEstimatedTokens),
 		},
+	}
+	// A direct_credit customer is billed at base price with no reseller leg
+	// and no revenue row; the reseller/admin split was booked at top-up.
+	if info.ResellerId > 0 && common.GetContextKeyString(c, constant.ContextKeyUserBillingMode) == "direct_credit" {
+		info.DirectCredit = true
+		info.DirectCreditResellerId = info.ResellerId
+		info.ResellerId = 0
+		info.ResellerSelf = false
 	}
 
 	if info.RelayMode == relayconstant.RelayModeUnknown {

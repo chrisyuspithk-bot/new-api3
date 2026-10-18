@@ -57,46 +57,54 @@ function renderOverview() {
   return render(
     <QueryClientProvider client={client}>
       <ResellerOverview />
-    </QueryClientProvider>
+    </QueryClientProvider>,
   )
 }
 
 beforeEach(() => {
-  vi.spyOn(api, 'get').mockImplementation(async (url: string, config?: { params?: { p?: number; page_size?: number } }) => {
-    if (url === '/api/reseller/ledger') {
-      const page = config?.params?.p ?? 1
-      const pageSize = config?.params?.page_size ?? 20
-      // 25 total so paging is exercisable; page 1 returns fixture rows.
-      const items = page === 1 ? ledgerRows : [
-        {
-          id: 3,
-          kind: 'admin_debit',
-          quota_delta: -100,
-          customer_id: 0,
-          remark: 'page2',
-          created_at: 1791848000,
-        },
-      ]
+  vi.spyOn(api, 'get').mockImplementation(
+    async (
+      url: string,
+      config?: { params?: { p?: number; page_size?: number } },
+    ) => {
+      if (url === '/api/reseller/ledger') {
+        const page = config?.params?.p ?? 1
+        const pageSize = config?.params?.page_size ?? 20
+        // 25 total so paging is exercisable; page 1 returns fixture rows.
+        const items =
+          page === 1
+            ? ledgerRows
+            : [
+                {
+                  id: 3,
+                  kind: 'admin_debit',
+                  quota_delta: -100,
+                  customer_id: 0,
+                  remark: 'page2',
+                  created_at: 1791848000,
+                },
+              ]
+        return {
+          data: {
+            success: true,
+            data: { items, total: 25, page, page_size: pageSize },
+          },
+        }
+      }
       return {
         data: {
           success: true,
-          data: { items, total: 25, page, page_size: pageSize },
+          data: {
+            id: 9,
+            username: 'r',
+            display_name: '',
+            quota: 0,
+            used_quota: 0,
+          },
         },
       }
-    }
-    return {
-      data: {
-        success: true,
-        data: {
-          id: 9,
-          username: 'r',
-          display_name: '',
-          quota: 0,
-          used_quota: 0,
-        },
-      },
-    }
-  })
+    },
+  )
 })
 
 afterEach(() => {
@@ -131,10 +139,10 @@ describe('reseller overview recent ledger', () => {
   it('shows the translated kind label instead of the raw kind', async () => {
     renderOverview()
     expect(
-      await screen.findByRole('cell', { name: 'Customer credit' })
+      await screen.findByRole('cell', { name: 'Customer credit' }),
     ).toBeVisible()
     expect(
-      screen.queryByRole('cell', { name: 'customer_credit' })
+      screen.queryByRole('cell', { name: 'customer_credit' }),
     ).not.toBeInTheDocument()
   })
 
@@ -176,7 +184,7 @@ describe('reseller overview recent ledger', () => {
         '/api/reseller/ledger',
         expect.objectContaining({
           params: expect.objectContaining({ p: 2, page_size: 20 }),
-        })
+        }),
       )
     })
     expect(await screen.findByText('2 / 2')).toBeVisible()

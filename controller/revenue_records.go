@@ -157,6 +157,12 @@ func revenueRecordsFilename(f model.RevenueRecordFilter, ext string) string {
 }
 
 func revenueKindLabel(tr func(string) string, kind, payer string) string {
+	switch kind {
+	case model.RevenueKindDCTopup:
+		return tr(i18n.MsgRevenueRecordsKindDCTopup)
+	case model.RevenueKindDCReversal:
+		return tr(i18n.MsgRevenueRecordsKindDCReversal)
+	}
 	k := tr(i18n.MsgRevenueRecordsKindConsume)
 	if kind == model.RevenueKindRefund {
 		k = tr(i18n.MsgRevenueRecordsKindRefund)

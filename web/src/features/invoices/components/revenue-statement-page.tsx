@@ -94,7 +94,7 @@ export function RevenueStatementPage(props: {
       await downloadInvoiceCsv(
         statementUrl(props.scope),
         `revenue-${period}-${props.scope}.${format}`,
-        { period, format }
+        { period, format },
       )
     } catch (error) {
       handleServerError(error, t('Download failed'))
@@ -208,6 +208,20 @@ export function RevenueStatementPage(props: {
         st.direct_total.requests,
         st.direct_total.customer_price,
       ],
+      ...(st.direct_credit_total
+        ? ([
+            [
+              t('Direct credit top-ups'),
+              st.direct_credit_total.requests,
+              st.direct_credit_total.customer_price,
+            ],
+            [
+              t('Direct credit cost (paid to admin)'),
+              null,
+              st.direct_credit_total.reseller_cost,
+            ],
+          ] as Array<[string, number | null, number]>)
+        : []),
       [t('Admin revenue'), null, st.totals.admin_revenue],
       [t('Base price total'), null, micro(st.totals.base_quota_micro)],
       [t('Admin margin over base'), null, micro(st.totals.admin_profit_micro)],
@@ -230,10 +244,26 @@ export function RevenueStatementPage(props: {
         st.self_total.requests,
         st.self_total.reseller_cost,
       ],
+      ...(st.direct_credit_total
+        ? ([
+            [
+              t('Direct credit top-ups'),
+              st.direct_credit_total.requests,
+              st.direct_credit_total.customer_price,
+            ],
+            [
+              t('Your cost for direct credit'),
+              null,
+              st.direct_credit_total.reseller_cost,
+            ],
+          ] as Array<[string, number | null, number]>)
+        : []),
       [
         t('Total paid to admin'),
         null,
-        st.customer_total.reseller_cost + st.self_total.reseller_cost,
+        st.customer_total.reseller_cost +
+          st.self_total.reseller_cost +
+          (st.direct_credit_total?.reseller_cost ?? 0),
       ],
     ]
   }

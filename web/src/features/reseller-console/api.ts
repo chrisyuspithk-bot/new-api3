@@ -64,6 +64,7 @@ export async function createCustomer(body: {
   group?: string
   markup?: number
   remark?: string
+  billing_mode?: 'markup' | 'direct_credit'
 }): Promise<ApiResponse<Customer>> {
   const res = await api.post('/api/reseller/customers', body)
   return res.data
@@ -78,6 +79,7 @@ export async function updateCustomer(
     markup?: number
     clear_markup?: boolean
     remark?: string
+    billing_mode?: 'markup' | 'direct_credit'
   }
 ): Promise<ApiResponse<Customer>> {
   const res = await api.put(`/api/reseller/customers/${id}`, body)

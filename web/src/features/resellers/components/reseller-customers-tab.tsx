@@ -55,6 +55,7 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { createResellerCustomer, listResellerCustomers } from '../api'
 import type { ResellerCustomer } from '../types'
+import { BillingModeBadge } from '@/features/reseller-console/components/billing-mode'
 
 const PAGE_SIZE = 20
 
@@ -82,7 +83,7 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
           p: page,
           page_size: PAGE_SIZE,
           keyword,
-        })
+        }),
       )
       return res.data
     },
@@ -98,7 +99,7 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
 
   const openUserDialog = async (
     row: ResellerCustomer,
-    dialog: 'update' | 'delete'
+    dialog: 'update' | 'delete',
   ) => {
     try {
       const res = requireServerSuccess(await getUser(row.id))
@@ -117,7 +118,7 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
         await createResellerCustomer(props.resellerId, {
           ...form,
           markup: form.markup ? Number(form.markup) : undefined,
-        })
+        }),
       )
       toast.success(t('Customer created'))
       setCreateOpen(false)
@@ -169,18 +170,19 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
               <TableHead>{t('Used')}</TableHead>
               <TableHead>{t('Requests')}</TableHead>
               <TableHead>{t('Markup')}</TableHead>
+              <TableHead>{t('Billing mode')}</TableHead>
               <TableHead className='text-right'>{t('Actions')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={9}>{t('Loading...')}</TableCell>
+                <TableCell colSpan={10}>{t('Loading...')}</TableCell>
               </TableRow>
             )}
             {!isLoading && items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={9}>{t('No customers')}</TableCell>
+                <TableCell colSpan={10}>{t('No customers')}</TableCell>
               </TableRow>
             )}
             {items.map((row) => (
@@ -209,6 +211,9 @@ function ResellerCustomersTabInner(props: { resellerId: number }) {
                 <TableCell>{row.request_count}</TableCell>
                 <TableCell>
                   {row.markup != null ? row.markup : t('Default')}
+                </TableCell>
+                <TableCell>
+                  <BillingModeBadge mode={row.billing_mode} />
                 </TableCell>
                 <TableCell className='text-right'>
                   <div className='inline-flex items-center gap-1'>

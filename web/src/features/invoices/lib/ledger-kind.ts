@@ -39,6 +39,12 @@ export function ledgerKindLabel(kind: string, t: TFunction): string {
       return t("Reseller profit credit");
     case "admin_profit_credit":
       return t("Admin profit credit");
+    case "direct_credit_cost":
+      return t("Direct credit cost");
+    case "direct_credit_reseller_profit":
+      return t("Direct credit reseller profit");
+    case "direct_credit_admin_profit":
+      return t("Direct credit admin profit");
     default:
       return kind;
   }

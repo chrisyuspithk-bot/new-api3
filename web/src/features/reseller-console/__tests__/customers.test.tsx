@@ -48,7 +48,7 @@ function renderPage() {
   return render(
     <QueryClientProvider client={client}>
       <ResellerCustomersPage />
-    </QueryClientProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -81,7 +81,7 @@ describe('reseller customers page', () => {
     const dialog = await screen.findByRole('dialog')
     await user.type(
       within(dialog).getByRole('textbox', { name: 'Username' }),
-      'newcust'
+      'newcust',
     )
     await user.type(within(dialog).getByLabelText('Password'), 'password123')
 
@@ -90,8 +90,8 @@ describe('reseller customers page', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith(
         '/api/reseller/customers',
-        expect.objectContaining({ username: 'newcust', group: '' })
-      )
+        expect.objectContaining({ username: 'newcust', group: '' }),
+      ),
     )
   })
 
@@ -103,11 +103,11 @@ describe('reseller customers page', () => {
     expect(within(dialog).getByText(/demodemo3/)).toBeVisible()
     await user.type(
       within(dialog).getByRole('spinbutton', { name: 'Amount (USD)' }),
-      '5'
+      '5',
     )
     await user.type(
       within(dialog).getByRole('textbox', { name: 'Remark' }),
-      'October top-up'
+      'October top-up',
     )
 
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
@@ -118,8 +118,8 @@ describe('reseller customers page', () => {
         {
           money_usd: 5,
           remark: 'October top-up',
-        }
-      )
+        },
+      ),
     )
   })
 
@@ -135,7 +135,7 @@ describe('reseller customers page', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
     await waitFor(() =>
-      expect(api.delete).toHaveBeenCalledWith('/api/reseller/customers/7')
+      expect(api.delete).toHaveBeenCalledWith('/api/reseller/customers/7'),
     )
   })
 
@@ -149,7 +149,7 @@ describe('reseller customers page', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
     await waitFor(() =>
-      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument(),
     )
     expect(api.delete).not.toHaveBeenCalled()
   })
@@ -175,11 +175,11 @@ describe('reseller customers page', () => {
     expect(within(dialog).getByText('Debit Customer')).toBeVisible()
     await user.type(
       within(dialog).getByRole('spinbutton', { name: 'Amount (USD)' }),
-      '3'
+      '3',
     )
     await user.type(
       within(dialog).getByRole('textbox', { name: 'Remark' }),
-      'refund'
+      'refund',
     )
 
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
@@ -188,7 +188,7 @@ describe('reseller customers page', () => {
       expect(api.post).toHaveBeenCalledWith('/api/reseller/customers/7/debit', {
         money_usd: 3,
         remark: 'refund',
-      })
+      }),
     )
   })
 
@@ -212,14 +212,14 @@ describe('reseller customers page', () => {
     const dialog = await screen.findByRole('dialog')
     await user.type(
       within(dialog).getByRole('spinbutton', { name: 'Amount (USD)' }),
-      '2'
+      '2',
     )
 
     expect(
-      within(dialog).getByText('Amount exceeds customer balance')
+      within(dialog).getByText('Amount exceeds customer balance'),
     ).toBeVisible()
     expect(
-      within(dialog).getByRole('button', { name: 'Confirm' })
+      within(dialog).getByRole('button', { name: 'Confirm' }),
     ).toBeDisabled()
     expect(api.post).not.toHaveBeenCalled()
   })

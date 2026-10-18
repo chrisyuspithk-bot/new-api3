@@ -67,19 +67,21 @@ type RevenueReconciliation struct {
 }
 
 type RevenueStatement struct {
-	Period       string       `json:"period"`
-	Timezone     string       `json:"timezone"`
-	Scope        string       `json:"scope"`
-	ResellerId   int          `json:"reseller_id,omitempty"`
-	ResellerName string       `json:"reseller_name,omitempty"`
-	Totals       RevenueAgg   `json:"totals"`
-	CustomerSum  RevenueAgg   `json:"customer_total"`
-	SelfSum      RevenueAgg   `json:"self_total"`
-	DirectSum    RevenueAgg   `json:"direct_total"`
-	ByReseller   []RevenueAgg `json:"by_reseller,omitempty"`
-	ResellerSelf []RevenueAgg `json:"reseller_self,omitempty"`
-	Direct       []RevenueAgg `json:"direct,omitempty"`
-	ByCustomer   []RevenueAgg `json:"by_customer,omitempty"`
+	Period       string     `json:"period"`
+	Timezone     string     `json:"timezone"`
+	Scope        string     `json:"scope"`
+	ResellerId   int        `json:"reseller_id,omitempty"`
+	ResellerName string     `json:"reseller_name,omitempty"`
+	Totals       RevenueAgg `json:"totals"`
+	CustomerSum  RevenueAgg `json:"customer_total"`
+	SelfSum      RevenueAgg `json:"self_total"`
+	DirectSum    RevenueAgg `json:"direct_total"`
+	// DirectCreditSum: direct-credit top-ups/reversals (split booked at top-up).
+	DirectCreditSum RevenueAgg   `json:"direct_credit_total"`
+	ByReseller      []RevenueAgg `json:"by_reseller,omitempty"`
+	ResellerSelf    []RevenueAgg `json:"reseller_self,omitempty"`
+	Direct          []RevenueAgg `json:"direct,omitempty"`
+	ByCustomer      []RevenueAgg `json:"by_customer,omitempty"`
 
 	Reconciliation RevenueReconciliation `json:"reconciliation"`
 
@@ -204,6 +206,8 @@ func ComputeRevenueStatement(period, scope string, resellerId int) (*RevenueStat
 				line(byUser, r.UserId).add(a)
 				ids[r.UserId] = struct{}{}
 			}
+		case RevenuePayerDirectCredit:
+			st.DirectCreditSum.add(a)
 		case RevenuePayerResellerSelf:
 			st.SelfSum.add(a)
 			line(selfByReseller, r.ResellerId).add(a)
@@ -231,6 +235,7 @@ func ComputeRevenueStatement(period, scope string, resellerId int) (*RevenueStat
 		stripAdminFields(&st.Totals)
 		stripAdminFields(&st.CustomerSum)
 		stripAdminFields(&st.SelfSum)
+		stripAdminFields(&st.DirectCreditSum)
 		for i := range st.ByCustomer {
 			stripAdminFields(&st.ByCustomer[i])
 		}
@@ -239,6 +244,7 @@ func ComputeRevenueStatement(period, scope string, resellerId int) (*RevenueStat
 	sum.add(st.CustomerSum)
 	sum.add(st.SelfSum)
 	sum.add(st.DirectSum)
+	sum.add(st.DirectCreditSum)
 	rec := &st.Reconciliation
 	rec.SectionsOK = sum == st.Totals
 	rec.IdentityDiffMicro = identity
@@ -261,7 +267,8 @@ func ComputeRevenueStatement(period, scope string, resellerId int) (*RevenueStat
 			rec.LogCompared = true
 			rec.LogChargeQuota = lg.Charge
 			rec.LogResellerCost = lg.Cost
-			rec.LogChargeDiff = st.Totals.CustomerPrice - lg.Charge
+			// Direct-credit top-ups have no consume logs.
+			rec.LogChargeDiff = st.Totals.CustomerPrice - st.DirectCreditSum.CustomerPrice - lg.Charge
 			// Customer rows' reseller cost is what the log reseller leg moved.
 			rec.LogResellerCostDif = st.CustomerSum.ResellerCost - lg.Cost
 		}

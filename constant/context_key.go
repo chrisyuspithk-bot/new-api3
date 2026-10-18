@@ -52,9 +52,11 @@ const (
 	ContextKeyUserEmail      ContextKey = "user_email"
 	ContextKeyUserGroup      ContextKey = "user_group"
 	ContextKeyUserResellerId ContextKey = "user_reseller_id"
-	ContextKeyUserRole       ContextKey = "user_role"
-	ContextKeyUsingGroup     ContextKey = "group"
-	ContextKeyUserName       ContextKey = "username"
+	// ContextKeyUserBillingMode is the customer billing mode ("" or "direct_credit").
+	ContextKeyUserBillingMode ContextKey = "user_billing_mode"
+	ContextKeyUserRole        ContextKey = "user_role"
+	ContextKeyUsingGroup      ContextKey = "group"
+	ContextKeyUserName        ContextKey = "username"
 
 	ContextKeyLocalCountTokens ContextKey = "local_count_tokens"
 

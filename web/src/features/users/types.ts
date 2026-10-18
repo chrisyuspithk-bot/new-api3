@@ -60,6 +60,7 @@ export const userSchema = z.object({
   DeletedAt: z.any().nullable().optional(),
   remark: z.string().optional(),
   reseller_id: z.number().optional(),
+  billing_mode: z.string().optional(),
   reseller_username: z.string().optional(),
   reseller_display_name: z.string().optional(),
   admin_permissions: z

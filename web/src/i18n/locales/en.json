@@ -7443,6 +7443,20 @@
     "To": "To",
     "Customer ID": "Customer ID",
     "Reseller profit credit": "Reseller profit credit",
-    "Admin profit credit": "Admin profit credit"
+    "Admin profit credit": "Admin profit credit",
+    "Billing mode": "Billing mode",
+    "Direct credit": "Direct credit",
+    "Per-call markup": "Per-call markup",
+    "Billing mode can only be changed when the customer balance is 0": "Billing mode can only be changed when the customer balance is 0",
+    "Direct credit: calls are billed at base price; you pay credit ÷ markup when topping up": "Direct credit: calls are billed at base price; you pay credit ÷ markup when topping up",
+    "Per-call markup: each call is billed at your markup": "Per-call markup: each call is billed at your markup",
+    "Direct credit top-up": "Direct credit top-up",
+    "Direct credit reversal": "Direct credit reversal",
+    "Direct credit cost": "Direct credit cost",
+    "Direct credit reseller profit": "Direct credit reseller profit",
+    "Direct credit admin profit": "Direct credit admin profit",
+    "Direct credit top-ups": "Direct credit top-ups",
+    "Direct credit cost (paid to admin)": "Direct credit cost (paid to admin)",
+    "Your cost for direct credit": "Your cost for direct credit"
   }
 }

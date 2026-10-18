@@ -7443,6 +7443,20 @@
     "To": "結束日期",
     "Customer ID": "客戶 ID",
     "Reseller profit credit": "經銷商利潤入帳",
-    "Admin profit credit": "管理員利潤入帳"
+    "Admin profit credit": "管理員利潤入帳",
+    "Billing mode": "計費模式",
+    "Direct credit": "直充",
+    "Per-call markup": "按次加價",
+    "Billing mode can only be changed when the customer balance is 0": "僅當客戶餘額為 0 時才能切換計費模式",
+    "Direct credit: calls are billed at base price; you pay credit ÷ markup when topping up": "直充：調用按基礎價格扣費；儲值時您支付 儲值額 ÷ 加價倍率",
+    "Per-call markup: each call is billed at your markup": "按次加價：每次調用按您的加價計費",
+    "Direct credit top-up": "直充儲值",
+    "Direct credit reversal": "直充退回",
+    "Direct credit cost": "直充成本",
+    "Direct credit reseller profit": "直充經銷商利潤",
+    "Direct credit admin profit": "直充管理員利潤",
+    "Direct credit top-ups": "直充儲值",
+    "Direct credit cost (paid to admin)": "直充成本（支付給管理員）",
+    "Your cost for direct credit": "您的直充成本"
   }
 }

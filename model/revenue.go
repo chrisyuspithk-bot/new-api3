@@ -103,6 +103,9 @@ const ContextKeyRevenue = "b2b2c_revenue_ctx"
 const logOtherRevenueKey = "revenue_ctx"
 
 func SetRevenueContext(c *gin.Context, rc RevenueContext) {
+	if rc.PayerType == RevenuePayerNone {
+		return
+	}
 	if c != nil {
 		c.Set(ContextKeyRevenue, rc)
 	}
@@ -208,7 +211,7 @@ func BuildRevenueRecord(rc RevenueContext, userId int, modelName, kind string, c
 // For self/direct rows the payer's charge is the admin revenue.
 func (r RevenueRecord) IdentityHolds() bool {
 	legs := r.AdminRevenue == r.CustomerPrice && r.ResellerProfit == 0
-	if r.PayerType == RevenuePayerCustomer {
+	if r.PayerType == RevenuePayerCustomer || r.PayerType == RevenuePayerDirectCredit {
 		legs = r.CustomerPrice == r.ResellerCost+r.ResellerProfit && r.AdminRevenue == r.ResellerCost
 	}
 	if r.Flags == RevenueFlagInvalidFactors {
@@ -383,6 +386,9 @@ func logsShareMainDB() bool {
 // DB both are written in ONE transaction (revenue keyed by log id); otherwise
 // the revenue row is written separately with retries.
 func createLogWithRevenue(log *Log, rc *RevenueContext, writeLog bool) {
+	if rc != nil && rc.PayerType == RevenuePayerNone {
+		rc = nil
+	}
 	var rec *RevenueRecord
 	if rc != nil {
 		if kind, ok := logTypeRevenueKind(log.Type); ok && (log.Quota != 0 || log.ResellerCostQuota != 0) {
@@ -443,7 +449,7 @@ func createLogWithRevenue(log *Log, rc *RevenueContext, writeLog bool) {
 
 // attachRevenueToOther stores the revenue context in the admin-only log info.
 func attachRevenueToOther(other *LogOther, rc *RevenueContext) {
-	if other == nil || rc == nil {
+	if other == nil || rc == nil || rc.PayerType == RevenuePayerNone {
 		return
 	}
 	other.SetAdmin(logOtherRevenueKey, *rc)

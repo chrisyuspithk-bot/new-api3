@@ -3,6 +3,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -698,7 +699,17 @@ func GetUserModels(c *gin.Context) {
 
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
-	err := common.DecodeJson(c.Request.Body, &updatedUser)
+	body, err := io.ReadAll(c.Request.Body)
+	if err == nil {
+		err = common.Unmarshal(body, &updatedUser)
+	}
+	// billing_mode is applied only when the key is present (absent = unchanged).
+	var modeReq struct {
+		BillingMode *string `json:"billing_mode"`
+	}
+	if err == nil {
+		_ = common.Unmarshal(body, &modeReq)
+	}
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorT(c, "Invalid parameters")
 		return
@@ -742,6 +753,14 @@ func UpdateUser(c *gin.Context) {
 		auditParams["verification_method"] = authorization.Method
 		auditParams["password_reset"] = updatePassword
 		auditParams["admin_permissions_updated"] = updatedUser.AdminPermissions != nil
+	}
+	if modeReq.BillingMode != nil && originUser.ResellerId > 0 {
+		// Same rule as the reseller UI: only at a 0 balance.
+		if err := model.SetCustomerBillingMode(updatedUser.Id, *modeReq.BillingMode); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		auditParams["billing_mode"] = *modeReq.BillingMode
 	}
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {

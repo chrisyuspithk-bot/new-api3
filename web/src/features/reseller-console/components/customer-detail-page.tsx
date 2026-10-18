@@ -58,6 +58,11 @@ import {
   updateCustomer,
   upsertCustomerModelMarkup,
 } from '../api'
+import {
+  BillingModeSelect,
+  normalizeBillingMode,
+  type BillingMode,
+} from './billing-mode'
 
 function formatApiKey(raw?: string | null) {
   if (!raw) return ''
@@ -75,6 +80,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [group, setGroup] = useState<string | null>(null)
   const [markup, setMarkup] = useState<string | null>(null)
+  const [billingMode, setBillingMode] = useState<BillingMode | null>(null)
   const [deleteTokenId, setDeleteTokenId] = useState<number | null>(null)
   const [deletingToken, setDeletingToken] = useState(false)
   const [copyingTokenId, setCopyingTokenId] = useState<number | null>(null)
@@ -91,7 +97,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
     queryKey: ['reseller-customer-tokens', id],
     queryFn: async () => {
       const res = requireServerSuccess(
-        await listCustomerTokens(id, { page_size: 50 })
+        await listCustomerTokens(id, { page_size: 50 }),
       )
       return res.data ?? null
     },
@@ -118,7 +124,12 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
               ? undefined
               : Number(markup ?? c.markup ?? undefined),
           clear_markup: markup === '',
-        })
+          billing_mode:
+            billingMode != null &&
+            billingMode !== normalizeBillingMode(c.billing_mode)
+              ? billingMode
+              : undefined,
+        }),
       )
       toast.success(t('Customer updated'))
       qc.invalidateQueries({ queryKey: ['reseller-customer', id] })
@@ -146,7 +157,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
       setCopyingTokenId(tokenId)
       try {
         const res = requireServerSuccess(
-          await fetchCustomerTokenKey(id, tokenId)
+          await fetchCustomerTokenKey(id, tokenId),
         )
         const fullKey = formatApiKey(res.data?.key)
         if (!fullKey) {
@@ -169,7 +180,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
         setCopyingTokenId((cur) => (cur === tokenId ? null : cur))
       }
     },
-    [id, t]
+    [id, t],
   )
 
   return (
@@ -218,6 +229,17 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                     placeholder={t('Leave empty to inherit')}
                   />
                 </div>
+                <div className='space-y-1.5'>
+                  <Label htmlFor='customer-billing-mode'>
+                    {t('Billing mode')}
+                  </Label>
+                  <BillingModeSelect
+                    id='customer-billing-mode'
+                    value={billingMode ?? normalizeBillingMode(c.billing_mode)}
+                    onChange={setBillingMode}
+                    balance={c.quota}
+                  />
+                </div>
                 <div className='flex items-end'>
                   <Button size='sm' onClick={saveProfile}>
                     {t('Save')}
@@ -245,10 +267,10 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                           name: tokenName,
                           group: tokenGroup,
                           unlimited_quota: true,
-                        })
+                        }),
                       )
                       setCreatedKey(
-                        res.data?.key ? formatApiKey(res.data.key) : null
+                        res.data?.key ? formatApiKey(res.data.key) : null,
                       )
                       toast.success(t('Token created'))
                       qc.invalidateQueries({
@@ -398,7 +420,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                         await upsertCustomerModelMarkup(id, {
                           model_name: modelName,
                           markup: Number(modelMarkup),
-                        })
+                        }),
                       )
                       toast.success(t('Markup saved'))
                       setModelName('')
@@ -456,8 +478,8 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                                   requireServerSuccess(
                                     await deleteCustomerModelMarkup(
                                       id,
-                                      row.model_name
-                                    )
+                                      row.model_name,
+                                    ),
                                   )
                                   qc.invalidateQueries({
                                     queryKey: ['reseller-customer-markups', id],
@@ -465,7 +487,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
                                 } catch (error) {
                                   handleServerError(
                                     error,
-                                    t('Failed to delete')
+                                    t('Failed to delete'),
                                   )
                                 }
                               }}
@@ -487,7 +509,7 @@ export function ResellerCustomerDetailPage({ id }: { id: number }) {
           onOpenChange={(o) => !o && setDeleteTokenId(null)}
           title={t('Are you sure?')}
           desc={t(
-            'Are you sure you want to delete this key? This action cannot be undone.'
+            'Are you sure you want to delete this key? This action cannot be undone.',
           )}
           confirmText={t('Delete')}
           destructive

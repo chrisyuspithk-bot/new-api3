@@ -81,6 +81,7 @@ func assertB2B2C() error {
 		"revenue_records",
 		"revenue_monthly_snapshots",
 		"profit_credit_accumulators",
+		"direct_credit_grants",
 		"quota_refund_journal",
 	}
 	for _, t := range requiredTables {

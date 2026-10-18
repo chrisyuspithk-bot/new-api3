@@ -180,6 +180,9 @@ type TaskBillingContext struct {
 	// ProfitCredit: submitted after profit crediting existed, so refunds of
 	// this task reverse the credited profit (see model.RevenueContext).
 	ProfitCredit bool `json:"profit_credit,omitempty"`
+	// DirectCredit: submitted by a direct_credit customer (base price, no
+	// reseller leg, no revenue row on settle/refund).
+	DirectCredit bool `json:"direct_credit,omitempty"`
 }
 
 // ResultRetrievable reports whether retrieval surfaces (native query routes,

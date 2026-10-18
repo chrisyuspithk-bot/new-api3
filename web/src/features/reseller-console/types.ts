@@ -58,6 +58,7 @@ export interface Customer {
   used_quota: number
   request_count: number
   markup?: number | null
+  billing_mode?: 'markup' | 'direct_credit'
   remark?: string
   created_at?: number
 }

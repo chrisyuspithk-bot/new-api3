@@ -99,6 +99,9 @@ var resellerLedgerKinds = []string{
 	model.ResellerLedgerRedemptionRedeem,
 	model.ResellerLedgerResellerProfitCredit,
 	model.ResellerLedgerAdminProfitCredit,
+	model.ResellerLedgerDirectCreditCost,
+	model.ResellerLedgerDirectCreditResellerProfit,
+	model.ResellerLedgerDirectCreditAdminProfit,
 }
 
 // ledgerExportScope is the role scope of a balance-ledger export.
@@ -178,7 +181,9 @@ func writeLedgerExport(c *gin.Context, scope ledgerExportScope) {
 			ex.increase.Entries += kt.Entries
 			ex.increase.Quota += kt.Quota
 			ex.increase.MoneyUsd += kt.MoneyUsd
-		case model.ResellerLedgerResellerProfitCredit, model.ResellerLedgerAdminProfitCredit:
+		case model.ResellerLedgerResellerProfitCredit, model.ResellerLedgerAdminProfitCredit,
+			model.ResellerLedgerDirectCreditCost, model.ResellerLedgerDirectCreditAdminProfit:
+			// direct_credit_reseller_profit is a memo (no wallet movement): not counted.
 			// Net per kind: credits minus refund reversals.
 			if kt.Quota >= 0 {
 				ex.increase.Entries += kt.Entries

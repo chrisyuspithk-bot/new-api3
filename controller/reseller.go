@@ -620,6 +620,13 @@ func ResellerUpdateMarkup(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{"default_markup": markup})
 }
 
+func billingModeOut(m string) string {
+	if m == model.BillingModeDirectCredit {
+		return m
+	}
+	return "markup"
+}
+
 func customerView(user *model.User) gin.H {
 	return gin.H{
 		"id":            user.Id,
@@ -631,6 +638,7 @@ func customerView(user *model.User) gin.H {
 		"used_quota":    user.UsedQuota,
 		"request_count": user.RequestCount,
 		"markup":        user.Markup,
+		"billing_mode":  billingModeOut(user.BillingMode),
 		"remark":        user.Remark,
 		"created_at":    user.CreatedAt,
 	}
@@ -691,6 +699,8 @@ type resellerCustomerRequest struct {
 	Markup      *float64 `json:"markup"`
 	ClearMarkup bool     `json:"clear_markup"`
 	Remark      *string  `json:"remark"`
+	// BillingMode: "markup" (default) or "direct_credit"; nil = unchanged.
+	BillingMode *string `json:"billing_mode"`
 }
 
 // AdminCreateResellerCustomer creates a customer under reseller :id (same body as ResellerCreateCustomer).
@@ -758,6 +768,14 @@ func createResellerCustomer(c *gin.Context, resellerId int, req resellerCustomer
 		ResellerId:  resellerId,
 		Markup:      req.Markup,
 	}
+	if req.BillingMode != nil {
+		mode, err := model.NormalizeBillingMode(*req.BillingMode)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user.BillingMode = mode
+	}
 	if user.DisplayName == "" {
 		user.DisplayName = username
 	}
@@ -787,6 +805,13 @@ func ResellerUpdateCustomer(c *gin.Context) {
 		return
 	}
 	fields := map[string]any{}
+	if req.BillingMode != nil {
+		// Switching is only allowed at a 0 balance (atomic check).
+		if err := model.SetCustomerBillingMode(user.Id, *req.BillingMode); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	if req.Group != "" {
 		cfg, err := model.GetResellerPricingConfig(user.ResellerId)
 		if err != nil {
@@ -854,6 +879,23 @@ func resellerAdjustCustomer(c *gin.Context, sign int) {
 	amount, err := req.quotaAmount()
 	if err != nil {
 		common.ApiError(c, err)
+		return
+	}
+	if user.BillingMode == model.BillingModeDirectCredit {
+		// Direct credit: the reseller pays credit/markup; profit split booked now.
+		var res *model.DirectCreditResult
+		if sign > 0 {
+			res, err = model.DirectCreditCustomer(user.ResellerId, user.Id, int64(amount), c.GetInt("id"), req.Remark, req.MoneyUsd)
+		} else {
+			res, err = model.ReverseDirectCredit(user.ResellerId, user.Id, int64(amount), c.GetInt("id"), req.Remark, req.MoneyUsd)
+		}
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		model.RecordLog(user.Id, model.LogTypeResellerCredit, common.NewMessage("Reseller adjusted balance by {{quota}}", map[string]any{"quota": signedQuota(sign, amount)}))
+		common.ApiSuccess(c, gin.H{"quota_delta": sign * amount, "billing_mode": model.BillingModeDirectCredit,
+			"reseller_cost": res.ResellerCost, "reseller_profit": res.ResellerProfit, "revenue_id": res.RevenueId})
 		return
 	}
 	kind := model.ResellerLedgerCustomerCredit

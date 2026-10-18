@@ -398,3 +398,22 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 func ptr[T any](value T) *T {
 	return &value
 }
+
+func TestGenRelayInfoDirectCreditCustomerHasNoResellerLeg(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		mode         string
+		wantReseller int
+		wantDC       bool
+	}{{"", 6, false}, {"direct_credit", 0, true}} {
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+		common.SetContextKey(ctx, constant.ContextKeyUserResellerId, 6)
+		common.SetContextKey(ctx, constant.ContextKeyUserBillingMode, tc.mode)
+		info, err := GenRelayInfo(ctx, types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: "m"}, nil)
+		require.NoError(t, err)
+		assert.Equal(t, tc.wantReseller, info.ResellerId, tc.mode)
+		assert.Equal(t, tc.wantDC, info.DirectCredit, tc.mode)
+		assert.False(t, info.ResellerSelf)
+	}
+}
