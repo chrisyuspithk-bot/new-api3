@@ -39,6 +39,15 @@ func revenueRecordFilterFromQuery(c *gin.Context) model.RevenueRecordFilter {
 	f.CustomerId, _ = strconv.Atoi(c.Query("customer_id"))
 	f.Page, _ = strconv.Atoi(c.DefaultQuery("p", "1"))
 	f.PageSize, _ = strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if f.Page <= 0 {
+		f.Page = 1
+	}
+	if f.PageSize <= 0 {
+		f.PageSize = 20
+	}
+	if f.PageSize > 100 {
+		f.PageSize = 100
+	}
 	return f
 }
 

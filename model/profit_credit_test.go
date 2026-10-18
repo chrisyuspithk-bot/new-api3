@@ -88,7 +88,8 @@ func TestProfitCreditCustomerCallCreditsBothInSameTx(t *testing.T) {
 	require.Len(t, led, 2)
 	assert.Equal(t, ResellerLedgerResellerProfitCredit, led[0].Kind)
 	assert.Equal(t, fmt.Sprintf("rev:%d", r.Id), led[0].RefId, "ledger references the revenue row")
-	assert.Equal(t, pcCustomer, led[0].CustomerId)
+	assert.Zero(t, led[0].CustomerId, "never visible in customer-scoped ledgers")
+	assert.Zero(t, led[1].CustomerId)
 	assert.Equal(t, ResellerLedgerAdminProfitCredit, led[1].Kind)
 	assert.Equal(t, pcRoot, led[1].ResellerId)
 	assert.Equal(t, int64(12), led[1].QuotaDelta)
@@ -248,4 +249,35 @@ func TestProfitCreditConcurrentNoLostOrDoubleCredit(t *testing.T) {
 	assert.Equal(t, 1000+int(acc.CreditedQuota), pcQuota(t, pcRoot))
 	_, asum := pcLedger(t, ResellerLedgerAdminProfitCredit)
 	assert.Equal(t, acc.CreditedQuota, asum, "ledger == accumulator == wallet")
+}
+
+func TestProfitCreditSkippedWhenResellerLegFailed(t *testing.T) {
+	setupProfitCredit(t, true)
+	for i, cost := range []int64{0, 50} { // failed leg (0) and short leg
+		r := BuildRevenueRecord(customerCtx(), pcCustomer, "m", RevenueKindConsume, 87, cost)
+		r.DedupeKey = fmt.Sprintf("leg:%d", i)
+		require.NoError(t, insertRevenueTx(DB, &r))
+		assert.Equal(t, RevenueCreditStateLegMismatch, r.CreditState)
+	}
+	assert.Equal(t, 1000, pcQuota(t, pcReseller), "no payout of the whole price")
+	assert.Equal(t, 1000, pcQuota(t, pcRoot), "root not debited")
+	var n int64
+	DB.Model(&ResellerLedger{}).Count(&n)
+	assert.Zero(t, n)
+	// Refund with a failed leg is not reversed either.
+	r := BuildRevenueRecord(customerCtx(), pcCustomer, "m", RevenueKindRefund, 87, 0)
+	r.DedupeKey = "leg:refund"
+	require.NoError(t, insertRevenueTx(DB, &r))
+	assert.Equal(t, 1000, pcQuota(t, pcReseller))
+}
+
+func TestProfitCreditInvalidFactorsNotCredited(t *testing.T) {
+	setupProfitCredit(t, true)
+	rc := customerCtx()
+	rc.Markup = 0
+	r := BuildRevenueRecord(rc, pcCustomer, "m", RevenueKindConsume, 87, 0)
+	r.DedupeKey = "inv:1"
+	require.NoError(t, insertRevenueTx(DB, &r))
+	assert.Equal(t, RevenueCreditStateNotCredited, r.CreditState)
+	assert.Equal(t, 1000, pcQuota(t, pcReseller))
 }

@@ -1,17 +1,16 @@
 package service
 
 import (
-	"net/http/httptest"
-
 	"context"
-	"github.com/gin-gonic/gin"
 	"math"
 	"math/rand"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

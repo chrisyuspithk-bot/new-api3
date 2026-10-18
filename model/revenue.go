@@ -77,6 +77,7 @@ type RevenueRecord struct {
 
 	pendingCredits []profitCredit `gorm:"-"`
 	creditEligible bool           `gorm:"-"`
+	creditBlocked  string         `gorm:"-"`
 }
 
 func (RevenueRecord) TableName() string { return "revenue_records" }
@@ -173,7 +174,18 @@ func BuildRevenueRecord(rc RevenueContext, userId int, modelName, kind string, c
 		rec.AdminRevenue = charge
 		rec.BaseQuotaMicro = charge * revenueMicro
 	}
+	if rec.PayerType == RevenuePayerCustomer && rec.Flags != RevenueFlagInvalidFactors && charge > 0 {
+		// The reseller leg must have moved ~charge/markup. A failed or skipped
+		// leg reports a short cost; paying out charge-cost as profit would
+		// hand the reseller the whole price (and debit root). Book it, flag
+		// it, never credit it.
+		expected := decimal.NewFromInt(charge).Div(decimal.NewFromFloat(rc.Markup)).Round(0).IntPart()
+		if d := expected - resellerCost; d > 1 || d < -1 {
+			rec.creditBlocked = RevenueCreditStateLegMismatch
+		}
+	}
 	if rec.Flags == RevenueFlagInvalidFactors {
+		rec.creditBlocked = RevenueCreditStateNotCredited
 		// Fail closed: never invent a margin. The full charge is booked as
 		// reseller profit only when the reseller really paid nothing.
 		rec.BaseQuotaMicro = 0
@@ -412,6 +424,7 @@ func createLogWithRevenue(log *Log, rc *RevenueContext, writeLog bool) {
 		common.SysError(fmt.Sprintf("log+revenue transaction failed, falling back to separate writes: %v", err))
 		log.Id = 0
 		rec.Id = 0
+		rec.ResellerCredited, rec.AdminCredited, rec.CreditState, rec.pendingCredits = 0, 0, "", nil
 	}
 	if err := createLog(log); err != nil {
 		common.SysError(fmt.Sprintf("failed to record log: %v", err))

@@ -97,6 +97,8 @@ var resellerLedgerKinds = []string{
 	model.ResellerLedgerRedemptionIssue,
 	model.ResellerLedgerRedemptionRefund,
 	model.ResellerLedgerRedemptionRedeem,
+	model.ResellerLedgerResellerProfitCredit,
+	model.ResellerLedgerAdminProfitCredit,
 }
 
 // ledgerExportScope is the role scope of a balance-ledger export.
@@ -176,6 +178,17 @@ func writeLedgerExport(c *gin.Context, scope ledgerExportScope) {
 			ex.increase.Entries += kt.Entries
 			ex.increase.Quota += kt.Quota
 			ex.increase.MoneyUsd += kt.MoneyUsd
+		case model.ResellerLedgerResellerProfitCredit, model.ResellerLedgerAdminProfitCredit:
+			// Net per kind: credits minus refund reversals.
+			if kt.Quota >= 0 {
+				ex.increase.Entries += kt.Entries
+				ex.increase.Quota += kt.Quota
+				ex.increase.MoneyUsd += kt.MoneyUsd
+			} else {
+				ex.decrease.Entries += kt.Entries
+				ex.decrease.Quota -= kt.Quota
+				ex.decrease.MoneyUsd += kt.MoneyUsd
+			}
 		case model.ResellerLedgerAdminDebit, model.ResellerLedgerCustomerDebit:
 			// Debit rows store a negative quota_delta; report the magnitude.
 			ex.decrease.Entries += kt.Entries

@@ -55,6 +55,13 @@ func (f RevenueRecordFilter) query() *gorm.DB {
 // ListRevenueRecords returns one page (newest first), the total row count and
 // the totals over every filtered row.
 func ListRevenueRecords(f RevenueRecordFilter) ([]RevenueRecordView, RevenueRecordTotals, error) {
+	if f.PageSize > 100 {
+		f.PageSize = 100
+	}
+	return listRevenueRecords(f)
+}
+
+func listRevenueRecords(f RevenueRecordFilter) ([]RevenueRecordView, RevenueRecordTotals, error) {
 	var totals RevenueRecordTotals
 	if err := f.query().Select("COUNT(*) AS row_count, COALESCE(SUM(r.customer_price),0) AS customer_price, " +
 		"COALESCE(SUM(r.reseller_cost),0) AS reseller_cost, COALESCE(SUM(r.reseller_profit),0) AS reseller_profit, " +
@@ -65,7 +72,7 @@ func ListRevenueRecords(f RevenueRecordFilter) ([]RevenueRecordView, RevenueReco
 	if f.PageSize <= 0 {
 		f.PageSize = 20
 	}
-	if f.PageSize > 100 && f.PageSize != maxRevenueExportRows {
+	if f.PageSize > maxRevenueExportRows {
 		f.PageSize = 100
 	}
 	if f.Page <= 0 {
@@ -85,6 +92,6 @@ func ListRevenueRecords(f RevenueRecordFilter) ([]RevenueRecordView, RevenueReco
 // RevenueRecordsForExport returns up to maxRevenueExportRows filtered rows.
 func RevenueRecordsForExport(f RevenueRecordFilter) ([]RevenueRecordView, RevenueRecordTotals, bool, error) {
 	f.Page, f.PageSize = 1, maxRevenueExportRows
-	rows, totals, err := ListRevenueRecords(f)
+	rows, totals, err := listRevenueRecords(f)
 	return rows, totals, totals.Rows > int64(len(rows)), err
 }

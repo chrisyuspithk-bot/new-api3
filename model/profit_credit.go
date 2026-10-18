@@ -32,6 +32,9 @@ const (
 	// RevenueCreditStateNotCredited: context not eligible (see
 	// RevenueContext.ProfitCredit): booked for reporting, wallets untouched.
 	RevenueCreditStateNotCredited = "not_credited"
+	// RevenueCreditStateLegMismatch: the reseller cost leg did not move the
+	// expected amount (failed/skipped); booked and flagged, never credited.
+	RevenueCreditStateLegMismatch = "leg_mismatch"
 )
 
 // ProfitCreditAccumulator tracks admin profit in micro-quota per beneficiary.
@@ -77,9 +80,13 @@ func creditQuotaTx(tx *gorm.DB, userId int, delta int64) error {
 }
 
 func applyProfitCreditsTx(tx *gorm.DB, rec *RevenueRecord) ([]profitCredit, error) {
-	if !rec.creditEligible {
-		rec.CreditState = RevenueCreditStateNotCredited
-		return nil, tx.Model(&RevenueRecord{}).Where("id = ?", rec.Id).Update("credit_state", RevenueCreditStateNotCredited).Error
+	if !rec.creditEligible || rec.creditBlocked != "" {
+		st := RevenueCreditStateNotCredited
+		if rec.creditEligible && rec.creditBlocked != "" {
+			st = rec.creditBlocked
+		}
+		rec.CreditState = st
+		return nil, tx.Model(&RevenueRecord{}).Where("id = ?", rec.Id).Update("credit_state", st).Error
 	}
 	now := common.GetTimestamp()
 	var credits []profitCredit
@@ -91,8 +98,9 @@ func applyProfitCreditsTx(tx *gorm.DB, rec *RevenueRecord) ([]profitCredit, erro
 			return nil, err
 		}
 		if err := tx.Create(&ResellerLedger{
+			// CustomerId stays 0: customer-scoped ledgers/exports must never
+			// show reseller margin. The customer is reachable via RefId rev:<id>.
 			ResellerId: rec.ResellerId,
-			CustomerId: rec.UserId,
 			Kind:       ResellerLedgerResellerProfitCredit,
 			QuotaDelta: rec.ResellerProfit,
 			RefId:      revenueLedgerRef(rec.Id),
@@ -138,7 +146,6 @@ func applyProfitCreditsTx(tx *gorm.DB, rec *RevenueRecord) ([]profitCredit, erro
 			}
 			if err := tx.Create(&ResellerLedger{
 				ResellerId: root,
-				CustomerId: rec.UserId,
 				Kind:       ResellerLedgerAdminProfitCredit,
 				QuotaDelta: whole,
 				RefId:      revenueLedgerRef(rec.Id),
