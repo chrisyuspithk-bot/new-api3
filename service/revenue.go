@@ -10,6 +10,12 @@ import (
 
 // RevenueContextFromRelayInfo snapshots who pays and the factors applied.
 func RevenueContextFromRelayInfo(info *relaycommon.RelayInfo) model.RevenueContext {
+	rc := revenueContextFromRelayInfo(info)
+	rc.ProfitCredit = true
+	return rc
+}
+
+func revenueContextFromRelayInfo(info *relaycommon.RelayInfo) model.RevenueContext {
 	if info == nil {
 		return model.RevenueContext{PayerType: model.RevenuePayerDirect}
 	}
@@ -44,6 +50,7 @@ func taskRevenueContext(task *model.Task) *model.RevenueContext {
 			rc = model.RevenueContext{PayerType: model.RevenuePayerResellerSelf, ResellerId: task.UserId, CostFactor: bc.ResellerCostFactor, Markup: 1}
 		}
 	}
+	rc.ProfitCredit = bc != nil && bc.ProfitCredit
 	return &rc
 }
 

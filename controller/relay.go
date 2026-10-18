@@ -630,6 +630,7 @@ func executeTaskSubmissionWith(
 		OriginModelName: relayInfo.OriginModelName,
 		PerCallBilling:  common.StringsContains(constant.TaskPricePatches, relayInfo.OriginModelName) || relayInfo.PriceData.UsePrice,
 		TieredSnapshot:  relayInfo.TieredBillingSnapshot,
+		ProfitCredit:    true,
 	}
 	if relayInfo.ResellerId > 0 {
 		task.PrivateData.BillingContext.ResellerId = relayInfo.ResellerId

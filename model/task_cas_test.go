@@ -63,7 +63,7 @@ func TestMain(m *testing.M) {
 		&Invoice{},
 		&ResellerProfile{},
 		&RevenueRecord{},
-		&RevenueMonthlySnapshot{},
+		&RevenueMonthlySnapshot{}, &ProfitCreditAccumulator{},
 		&QuotaRefundJournal{},
 		&ResellerLedger{},
 	); err != nil {

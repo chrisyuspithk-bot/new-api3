@@ -1,7 +1,10 @@
 package service
 
 import (
+	"net/http/httptest"
+
 	"context"
+	"github.com/gin-gonic/gin"
 	"math"
 	"math/rand"
 	"testing"
@@ -68,6 +71,15 @@ func TestMidjourneyResellerLegChargedAndRefunded(t *testing.T) {
 	assert.Equal(t, 800, quotaOf(t, b2bResellerId))
 	assert.Equal(t, 9600, quotaOf(t, b2bCustomerId))
 	assert.Equal(t, 200, task.ResellerCostQuota)
+	// The MJ proxy writes the submit consume log: its revenue row credits the
+	// reseller profit (200), which the refund below reverses.
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest("POST", "/mj/submit/imagine", nil)
+	SetMidjourneyRevenueContext(ctx, task)
+	ctx.Set(model.ContextKeyLogResellerId, b2bResellerId)
+	ctx.Set(model.ContextKeyLogResellerCostQuota, 200)
+	model.RecordConsumeLog(ctx, b2bCustomerId, model.RecordConsumeLogParams{ModelName: "mj", Quota: 400})
+	assert.Equal(t, 1000, quotaOf(t, b2bResellerId), "cost 200 paid, profit 200 credited")
 
 	require.True(t, RefundMidjourneyQuota(context.Background(), task, "failed"))
 	assert.Equal(t, 1000, quotaOf(t, b2bResellerId))

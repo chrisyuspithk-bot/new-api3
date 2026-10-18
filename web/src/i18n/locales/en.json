@@ -7432,6 +7432,17 @@
     "Reconciliation": "Reconciliation",
     "Not checked": "Not checked",
     "OK": "OK",
-    "MISMATCH": "MISMATCH"
+    "MISMATCH": "MISMATCH",
+    "Profit records": "Profit records",
+    "Records": "Records",
+    "Admin profit": "Admin profit",
+    "Admin profit credited": "Admin profit credited",
+    "Carried remainder": "Carried remainder",
+    "Direct user": "Direct user",
+    "From": "From",
+    "To": "To",
+    "Customer ID": "Customer ID",
+    "Reseller profit credit": "Reseller profit credit",
+    "Admin profit credit": "Admin profit credit"
   }
 }

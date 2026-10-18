@@ -66,6 +66,17 @@ type RevenueRecord struct {
 	AdminProfitMicro int64   `json:"admin_profit_micro" gorm:"type:bigint"`
 	Source           string  `json:"source" gorm:"type:varchar(16);default:'live'"`
 	Flags            string  `json:"flags" gorm:"type:varchar(64);default:''"`
+	// Profit crediting (applied in the same transaction as the row insert).
+	// ResellerCredited is the quota credited (negative: reversed) to the
+	// reseller wallet; AdminCredited the whole quota units credited to the root
+	// account after accumulating AdminProfitMicro. CreditState is "credited"
+	// once applied ("" for rows written before crediting existed).
+	ResellerCredited int64  `json:"reseller_credited" gorm:"type:bigint;default:0"`
+	AdminCredited    int64  `json:"admin_credited" gorm:"type:bigint;default:0"`
+	CreditState      string `json:"credit_state" gorm:"type:varchar(16);default:''"`
+
+	pendingCredits []profitCredit `gorm:"-"`
+	creditEligible bool           `gorm:"-"`
 }
 
 func (RevenueRecord) TableName() string { return "revenue_records" }
@@ -77,6 +88,11 @@ type RevenueContext struct {
 	ResellerId int     `json:"rid,omitempty"`
 	CostFactor float64 `json:"cf,omitempty"`
 	Markup     float64 `json:"m,omitempty"`
+	// ProfitCredit marks a billing context created after profit crediting was
+	// introduced: its rows credit (refunds: reverse) reseller/admin profit.
+	// Contexts without it (pre-deploy tasks, violation fees) are booked but
+	// not credited, so a refund never reverses a credit that was never given.
+	ProfitCredit bool `json:"pc,omitempty"`
 }
 
 const ContextKeyRevenue = "b2b2c_revenue_ctx"
@@ -108,11 +124,12 @@ func GetRevenueContext(c *gin.Context) (RevenueContext, bool) {
 // wallet amount, both >= 0; kind refund negates every amount.
 func BuildRevenueRecord(rc RevenueContext, userId int, modelName, kind string, charge, resellerCost int64) RevenueRecord {
 	rec := RevenueRecord{
-		CreatedAt: common.GetTimestamp(),
-		Kind:      kind,
-		PayerType: rc.PayerType,
-		UserId:    userId,
-		ModelName: truncateRunes(modelName, 128),
+		creditEligible: rc.ProfitCredit,
+		CreatedAt:      common.GetTimestamp(),
+		Kind:           kind,
+		PayerType:      rc.PayerType,
+		UserId:         userId,
+		ModelName:      truncateRunes(modelName, 128),
 	}
 	if charge < 0 {
 		charge = -charge
@@ -208,15 +225,48 @@ func isDuplicateKeyErr(err error) bool {
 }
 
 // insertRevenueTx inserts rec idempotently: an existing dedupe key is success.
+// When the row is newly inserted, the reseller and admin profit of the row are
+// credited in the same transaction (see applyProfitCreditsTx); a duplicate
+// key credits nothing, so every row is credited exactly once.
+// tx == DB opens its own transaction and syncs caches after commit; callers
+// passing an outer transaction must call syncProfitCreditCaches after commit.
 func insertRevenueTx(tx *gorm.DB, rec *RevenueRecord) error {
 	if rec.DedupeKey == "" {
 		return errors.New("revenue record without dedupe key")
 	}
-	res := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "dedupe_key"}}, DoNothing: true}).Create(rec)
-	if res.Error != nil && !isDuplicateKeyErr(res.Error) {
-		return res.Error
+	if tx == DB {
+		var credits []profitCredit
+		err := DB.Transaction(func(t *gorm.DB) error {
+			var e error
+			credits, e = insertRevenueAndCreditTx(t, rec)
+			return e
+		})
+		if err != nil {
+			return err
+		}
+		syncProfitCreditCaches(credits)
+		return nil
 	}
+	credits, err := insertRevenueAndCreditTx(tx, rec)
+	if err != nil {
+		return err
+	}
+	rec.pendingCredits = credits
 	return nil
+}
+
+func insertRevenueAndCreditTx(tx *gorm.DB, rec *RevenueRecord) ([]profitCredit, error) {
+	res := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "dedupe_key"}}, DoNothing: true}).Create(rec)
+	if res.Error != nil {
+		if isDuplicateKeyErr(res.Error) {
+			return nil, nil
+		}
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 || rec.Id == 0 {
+		return nil, nil // already recorded (and credited) under this key
+	}
+	return applyProfitCreditsTx(tx, rec)
 }
 
 // revenueRetryDelays are the synchronous retry back-offs of a revenue write.
@@ -356,6 +406,7 @@ func createLogWithRevenue(log *Log, rc *RevenueContext, writeLog bool) {
 			return insertRevenueTx(tx, rec)
 		})
 		if err == nil {
+			syncProfitCreditCaches(rec.pendingCredits)
 			return
 		}
 		common.SysError(fmt.Sprintf("log+revenue transaction failed, falling back to separate writes: %v", err))

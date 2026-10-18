@@ -177,6 +177,9 @@ type TaskBillingContext struct {
 	ResellerId         int     `json:"reseller_id,omitempty"`
 	ResellerMarkup     float64 `json:"reseller_markup,omitempty"`
 	ResellerCostFactor float64 `json:"reseller_cost_factor,omitempty"`
+	// ProfitCredit: submitted after profit crediting existed, so refunds of
+	// this task reverse the credited profit (see model.RevenueContext).
+	ProfitCredit bool `json:"profit_credit,omitempty"`
 }
 
 // ResultRetrievable reports whether retrieval surfaces (native query routes,

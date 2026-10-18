@@ -387,7 +387,7 @@ func migrateDB() error {
 		&ResellerLedger{},
 		&Invoice{},
 		&RevenueRecord{},
-		&RevenueMonthlySnapshot{},
+		&RevenueMonthlySnapshot{}, &ProfitCreditAccumulator{},
 		&QuotaRefundJournal{},
 	)
 	if err != nil {

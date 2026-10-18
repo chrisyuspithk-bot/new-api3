@@ -7321,6 +7321,17 @@
     "Reconciliation": "Reconciliation",
     "Not checked": "Not checked",
     "OK": "OK",
-    "MISMATCH": "MISMATCH"
+    "MISMATCH": "MISMATCH",
+    "Profit records": "利益記録",
+    "Records": "件数",
+    "Admin profit": "管理者利益",
+    "Admin profit credited": "管理者利益（入金済）",
+    "Carried remainder": "繰越端数",
+    "Direct user": "直属ユーザー",
+    "From": "開始日",
+    "To": "終了日",
+    "Customer ID": "顧客ID",
+    "Reseller profit credit": "代理店利益入金",
+    "Admin profit credit": "管理者利益入金"
   }
 }

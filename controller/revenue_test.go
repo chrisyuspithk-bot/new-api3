@@ -26,7 +26,7 @@ func setupRevenueDB(t *testing.T) {
 	require.NoError(t, err)
 	model.DB, model.LOG_DB = db, db
 	t.Cleanup(func() { model.DB, model.LOG_DB = previousDB, previousLogDB })
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.RevenueRecord{}, &model.RevenueMonthlySnapshot{}))
+	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Log{}, &model.RevenueRecord{}, &model.RevenueMonthlySnapshot{}, &model.ProfitCreditAccumulator{}, &model.ResellerLedger{}))
 	require.NoError(t, i18n.Init())
 	require.NoError(t, db.Create(&model.User{Id: 61, Username: "rA", AffCode: "x1"}).Error)
 	require.NoError(t, db.Create(&model.User{Id: 62, Username: "cA", AffCode: "x2"}).Error)

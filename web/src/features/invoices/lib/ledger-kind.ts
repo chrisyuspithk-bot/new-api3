@@ -16,26 +16,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { TFunction } from 'i18next'
+import type { TFunction } from "i18next";
 
 /** Translated label for a balance-ledger kind; unknown kinds pass through. */
 export function ledgerKindLabel(kind: string, t: TFunction): string {
   switch (kind) {
-    case 'admin_credit':
-      return t('Admin credit')
-    case 'admin_debit':
-      return t('Admin debit')
-    case 'customer_credit':
-      return t('Customer credit')
-    case 'customer_debit':
-      return t('Customer debit')
-    case 'redemption_issue':
-      return t('Redemption code issued')
-    case 'redemption_refund':
-      return t('Redemption code refund')
-    case 'redemption_redeem':
-      return t('Redemption code redeemed')
+    case "admin_credit":
+      return t("Admin credit");
+    case "admin_debit":
+      return t("Admin debit");
+    case "customer_credit":
+      return t("Customer credit");
+    case "customer_debit":
+      return t("Customer debit");
+    case "redemption_issue":
+      return t("Redemption code issued");
+    case "redemption_refund":
+      return t("Redemption code refund");
+    case "redemption_redeem":
+      return t("Redemption code redeemed");
+    case "reseller_profit_credit":
+      return t("Reseller profit credit");
+    case "admin_profit_credit":
+      return t("Admin profit credit");
     default:
-      return kind
+      return kind;
   }
 }

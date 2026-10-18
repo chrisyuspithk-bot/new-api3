@@ -7321,6 +7321,17 @@
     "Reconciliation": "Reconciliation",
     "Not checked": "Not checked",
     "OK": "OK",
-    "MISMATCH": "MISMATCH"
+    "MISMATCH": "MISMATCH",
+    "Profit records": "Registres de profit",
+    "Records": "Enregistrements",
+    "Admin profit": "Profit admin",
+    "Admin profit credited": "Profit admin crédité",
+    "Carried remainder": "Reliquat reporté",
+    "Direct user": "Utilisateur direct",
+    "From": "Du",
+    "To": "Au",
+    "Customer ID": "ID client",
+    "Reseller profit credit": "Crédit de profit revendeur",
+    "Admin profit credit": "Crédit de profit admin"
   }
 }

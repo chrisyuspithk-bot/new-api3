@@ -7321,6 +7321,17 @@
     "Reconciliation": "Reconciliation",
     "Not checked": "Not checked",
     "OK": "OK",
-    "MISMATCH": "MISMATCH"
+    "MISMATCH": "MISMATCH",
+    "Profit records": "Bản ghi lợi nhuận",
+    "Records": "Bản ghi",
+    "Admin profit": "Lợi nhuận quản trị",
+    "Admin profit credited": "Lợi nhuận quản trị đã ghi có",
+    "Carried remainder": "Phần dư chuyển tiếp",
+    "Direct user": "Người dùng trực tiếp",
+    "From": "Từ",
+    "To": "Đến",
+    "Customer ID": "ID khách hàng",
+    "Reseller profit credit": "Ghi có lợi nhuận đại lý",
+    "Admin profit credit": "Ghi có lợi nhuận quản trị"
   }
 }

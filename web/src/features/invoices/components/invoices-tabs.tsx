@@ -16,36 +16,41 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, type ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import type { RevenueScope } from '../revenue-types'
-import { RevenueStatementPage } from './revenue-statement-page'
+import type { RevenueScope } from "../revenue-types";
+import { ProfitRecordsPage } from "./profit-records-page";
+import { RevenueStatementPage } from "./revenue-statement-page";
 
-type InvoiceTab = 'ledger' | 'revenue'
+type InvoiceTab = "ledger" | "revenue" | "records";
 
 /**
  * Invoices page with two tabs: the existing balance ledger and the revenue
  * (earnings) statement. The tab switch renders in each page's action bar.
  */
 export function InvoicesTabsPage(props: {
-  scope: RevenueScope
-  renderLedger: (tabSwitch: ReactNode) => ReactNode
+  scope: RevenueScope;
+  renderLedger: (tabSwitch: ReactNode) => ReactNode;
 }) {
-  const { t } = useTranslation()
-  const [tab, setTab] = useState<InvoiceTab>('ledger')
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<InvoiceTab>("ledger");
   const tabSwitch = (
     <Tabs value={tab} onValueChange={(value) => setTab(value as InvoiceTab)}>
       <TabsList>
-        <TabsTrigger value='ledger'>{t('Balance ledger')}</TabsTrigger>
-        <TabsTrigger value='revenue'>{t('Revenue')}</TabsTrigger>
+        <TabsTrigger value="ledger">{t("Balance ledger")}</TabsTrigger>
+        <TabsTrigger value="revenue">{t("Revenue")}</TabsTrigger>
+        <TabsTrigger value="records">{t("Profit records")}</TabsTrigger>
       </TabsList>
     </Tabs>
-  )
-  if (tab === 'revenue') {
-    return <RevenueStatementPage scope={props.scope} tabSwitch={tabSwitch} />
+  );
+  if (tab === "records") {
+    return <ProfitRecordsPage scope={props.scope} tabSwitch={tabSwitch} />;
   }
-  return <>{props.renderLedger(tabSwitch)}</>
+  if (tab === "revenue") {
+    return <RevenueStatementPage scope={props.scope} tabSwitch={tabSwitch} />;
+  }
+  return <>{props.renderLedger(tabSwitch)}</>;
 }

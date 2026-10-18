@@ -206,6 +206,7 @@ func SetApiRouter(router *gin.Engine) {
 			resellerAdminRoute.GET("/invoices/:id", controller.AdminGetInvoice)
 			resellerAdminRoute.POST("/invoices/generate", controller.AdminGenerateInvoices)
 			resellerAdminRoute.GET("/revenue/statement", controller.AdminRevenueStatement)
+			resellerAdminRoute.GET("/revenue/records", controller.AdminRevenueRecords)
 			resellerAdminRoute.POST("/revenue/reconcile", controller.AdminRevenueReconcile)
 		}
 
@@ -246,6 +247,7 @@ func SetApiRouter(router *gin.Engine) {
 			resellerRoute.GET("/invoices", controller.ResellerListInvoices)
 			resellerRoute.GET("/invoices/:id", controller.ResellerGetInvoice)
 			resellerRoute.GET("/revenue/statement", controller.ResellerRevenueStatement)
+			resellerRoute.GET("/revenue/records", controller.ResellerRevenueRecords)
 		}
 
 		subscriptionRoute := apiRouter.Group("/subscription")

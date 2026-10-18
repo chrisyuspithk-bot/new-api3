@@ -25,16 +25,18 @@ const defaultPDFFontDir = "/usr/share/fonts/truetype/noto"
 
 // ledgerExportLabelKeys maps ledger kinds and invoice scopes to their labels.
 var ledgerExportLabelKeys = map[string]string{
-	model.ResellerLedgerAdminCredit:      i18n.MsgLedgerExportKindAdminCredit,
-	model.ResellerLedgerAdminDebit:       i18n.MsgLedgerExportKindAdminDebit,
-	model.ResellerLedgerCustomerCredit:   i18n.MsgLedgerExportKindCustomerCredit,
-	model.ResellerLedgerCustomerDebit:    i18n.MsgLedgerExportKindCustomerDebit,
-	model.ResellerLedgerRedemptionIssue:  i18n.MsgLedgerExportKindRedemptionIssue,
-	model.ResellerLedgerRedemptionRefund: i18n.MsgLedgerExportKindRedemptionRefund,
-	model.ResellerLedgerRedemptionRedeem: i18n.MsgLedgerExportKindRedemptionRedeem,
-	model.InvoiceScopeCustomer:           i18n.MsgLedgerExportScopeCustomer,
-	model.InvoiceScopeReseller:           i18n.MsgLedgerExportScopeReseller,
-	model.InvoiceScopeAdminRollup:        i18n.MsgLedgerExportScopeAdminRollup,
+	model.ResellerLedgerAdminCredit:          i18n.MsgLedgerExportKindAdminCredit,
+	model.ResellerLedgerAdminDebit:           i18n.MsgLedgerExportKindAdminDebit,
+	model.ResellerLedgerCustomerCredit:       i18n.MsgLedgerExportKindCustomerCredit,
+	model.ResellerLedgerCustomerDebit:        i18n.MsgLedgerExportKindCustomerDebit,
+	model.ResellerLedgerRedemptionIssue:      i18n.MsgLedgerExportKindRedemptionIssue,
+	model.ResellerLedgerRedemptionRefund:     i18n.MsgLedgerExportKindRedemptionRefund,
+	model.ResellerLedgerRedemptionRedeem:     i18n.MsgLedgerExportKindRedemptionRedeem,
+	model.ResellerLedgerResellerProfitCredit: i18n.MsgLedgerExportKindResellerProfitCredit,
+	model.ResellerLedgerAdminProfitCredit:    i18n.MsgLedgerExportKindAdminProfitCredit,
+	model.InvoiceScopeCustomer:               i18n.MsgLedgerExportScopeCustomer,
+	model.InvoiceScopeReseller:               i18n.MsgLedgerExportScopeReseller,
+	model.InvoiceScopeAdminRollup:            i18n.MsgLedgerExportScopeAdminRollup,
 }
 
 // ledgerPDFFont finds the CJK TrueType font for a statement in lang:

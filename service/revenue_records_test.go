@@ -26,7 +26,11 @@ func cleanRevenue(t *testing.T) {
 	model.DB.Exec("DELETE FROM revenue_records")
 	model.DB.Exec("DELETE FROM revenue_monthly_snapshots")
 	model.DB.Exec("DELETE FROM logs")
+	model.DB.Exec("DELETE FROM reseller_ledger")
+	model.DB.Exec("DELETE FROM profit_credit_accumulators")
 	t.Cleanup(func() {
+		model.DB.Exec("DELETE FROM reseller_ledger")
+		model.DB.Exec("DELETE FROM profit_credit_accumulators")
 		model.DB.Exec("DELETE FROM revenue_records")
 		model.DB.Exec("DELETE FROM revenue_monthly_snapshots")
 		model.DB.Exec("DELETE FROM logs")
@@ -46,6 +50,15 @@ func revenueRows(t *testing.T) []model.RevenueRecord {
 	var rows []model.RevenueRecord
 	require.NoError(t, model.DB.Order("id").Find(&rows).Error)
 	return rows
+}
+
+// resellerCredited sums reseller_profit_credit ledger entries (profit
+// credited back to the reseller wallet after each billed customer call).
+func resellerCredited(t *testing.T) int {
+	t.Helper()
+	var v int64
+	require.NoError(t, model.DB.Model(&model.ResellerLedger{}).Where("reseller_id = ? AND kind = ?", b2bResellerId, model.ResellerLedgerResellerProfitCredit).Select("COALESCE(SUM(quota_delta),0)").Scan(&v).Error)
+	return int(v)
 }
 
 func usedQuota(t *testing.T, id int) (int, int) {
@@ -75,7 +88,8 @@ func TestRevenueCustomerCallDualLegRecordedInOneRow(t *testing.T) {
 	settleAndLog(t, ctx, info, 150) // base 100 -> cost 125 -> price 150
 
 	assert.Equal(t, c0-150, quotaOf(t, b2bCustomerId), "customer pays price")
-	assert.Equal(t, r0-125, quotaOf(t, b2bResellerId), "reseller pays base x costFactor exactly")
+	assert.Equal(t, 25, resellerCredited(t), "reseller profit credited")
+	assert.Equal(t, r0-125+25, quotaOf(t, b2bResellerId), "reseller pays base x costFactor exactly, then is credited its profit")
 	used1, req1 := usedQuota(t, b2bResellerId)
 	assert.Equal(t, used0+125, used1, "reseller used_quota tracks customer usage cost")
 	assert.Equal(t, req0+1, req1, "reseller request_count incremented")
@@ -215,7 +229,7 @@ func TestRevenueStreamingTopUpThenSettle(t *testing.T) {
 	require.NoError(t, info.Billing.Reserve(400)) // mid-stream reservation grows
 	assert.Equal(t, 100000-200, quotaOf(t, b2bResellerId))
 	settleAndLog(t, ctx, info, 301) // final usage below the reservation
-	assert.Equal(t, 100000-151, quotaOf(t, b2bResellerId), "round(301/2)=151")
+	assert.Equal(t, 100000-151+150, quotaOf(t, b2bResellerId), "round(301/2)=151 cost, 150 profit credited")
 	assert.Equal(t, 100000-301, quotaOf(t, b2bCustomerId))
 	rows := revenueRows(t)
 	require.Len(t, rows, 1)
@@ -301,6 +315,8 @@ func TestRevenueTaskRecalculateUpAndDown(t *testing.T) {
 	cleanRevenue(t)
 	seedResellerLine(t, 850, 10000, 2, common.UserStatusEnabled)
 	task := seedResellerTask(t, 300, 2)
+	task.PrivateData.BillingContext.ProfitCredit = true // submitted post-deploy
+	require.NoError(t, model.DB.Save(task).Error)
 	RecalculateTaskQuota(context.Background(), task, 501, common.NewMessage("up"))
 	RecalculateTaskQuota(context.Background(), task, 100, common.NewMessage("down"))
 	rows := revenueRows(t)
@@ -316,7 +332,8 @@ func TestRevenueTaskRecalculateUpAndDown(t *testing.T) {
 		net += r.ResellerCost
 	}
 	assert.Equal(t, int64(50-150), net, "net cost delta matches reseller wallet movement")
-	assert.Equal(t, 950, quotaOf(t, b2bResellerId))
+	assert.Equal(t, 950+resellerCredited(t), quotaOf(t, b2bResellerId))
+	assert.Equal(t, (201-101)+(-401+201), resellerCredited(t), "profit credited then reversed")
 }
 
 func TestRevenueMidjourneySettleAndRefund(t *testing.T) {
@@ -367,15 +384,17 @@ func TestRevenueConcurrentCustomerCallsNeverOverspendReseller(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	assert.Equal(t, 10, ok, "exactly balance/cost calls admitted")
-	assert.Equal(t, 0, quotaOf(t, b2bResellerId), "never negative from reserve")
+	// Profit credits (50 per call at markup 2) may admit more calls; the
+	// reserve must still never take the wallet negative.
+	assert.GreaterOrEqual(t, ok, 10)
+	assert.GreaterOrEqual(t, quotaOf(t, b2bResellerId), 0, "never negative from reserve")
 	rows := revenueRows(t)
-	assert.Len(t, rows, 10)
+	assert.Len(t, rows, ok)
 	var cost int64
 	for _, r := range rows {
 		cost += r.ResellerCost
 	}
-	assert.Equal(t, int64(500), cost, "revenue rows reconcile to the reseller wallet")
+	assert.Equal(t, int64(500)-cost+int64(resellerCredited(t)), int64(quotaOf(t, b2bResellerId)), "revenue rows + credits reconcile to the reseller wallet")
 }
 
 func TestRevenueRealtimeFallbackPathRecordsResellerLeg(t *testing.T) {

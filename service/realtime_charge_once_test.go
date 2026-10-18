@@ -47,7 +47,10 @@ func assertChargedOnce(t *testing.T, before rtState, total int, markup float64) 
 	}
 	assert.Equal(t, total, before.customer-after.customer, "customer charged once")
 	assert.Equal(t, total, before.token-after.token, "token charged once")
-	assert.Equal(t, cost, before.reseller-after.reseller, "reseller charged once")
+	assert.Equal(t, cost-resellerCredited(t), before.reseller-after.reseller, "reseller charged once (net of credited profit)")
+	if credited := resellerCredited(t); credited != 0 {
+		assert.Equal(t, total-cost, credited, "profit credited once")
+	}
 	assert.Equal(t, cost, after.rUsed-before.rUsed, "reseller used_quota counted once")
 }
 
@@ -200,7 +203,7 @@ func TestRealtimeLegacyNoSessionChargesOnce(t *testing.T) {
 	settleAndLog(t, ctx, info, 90)
 	after := rtSnap(t)
 	assert.Equal(t, 90, before.customer-after.customer)
-	assert.Equal(t, 45, before.reseller-after.reseller)
+	assert.Equal(t, 45-45, before.reseller-after.reseller, "45 cost, 45 profit credited")
 	rows := revenueRows(t)
 	require.Len(t, rows, 1)
 	assert.Equal(t, int64(45), rows[0].ResellerCost)

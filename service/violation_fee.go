@@ -147,7 +147,9 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		"violation_fee_marker": CSAMViolationMarker,
 	})
 
-	SetRevenueContextFromRelayInfo(ctx, relayInfo)
+	// Booked but not profit-credited: no reseller leg is charged for the fee,
+	// so crediting would pay the reseller the whole fee out of admin margin.
+	model.SetRevenueContext(ctx, revenueContextFromRelayInfo(relayInfo))
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:      relayInfo.ChannelId,
 		ModelName:      relayInfo.OriginModelName,

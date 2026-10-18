@@ -16,56 +16,103 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type RevenueScope = 'admin' | 'reseller'
+export type RevenueScope = "admin" | "reseller";
 
 export type RevenueAgg = {
-  key: string
-  id: number
-  name: string
-  requests: number
-  refunds: number
-  customer_price: number
-  reseller_cost: number
-  reseller_profit: number
-  admin_revenue: number
-  base_quota_micro?: number
-  admin_profit_micro?: number
-  flagged_rows: number
-}
+  key: string;
+  id: number;
+  name: string;
+  requests: number;
+  refunds: number;
+  customer_price: number;
+  reseller_cost: number;
+  reseller_profit: number;
+  admin_revenue: number;
+  base_quota_micro?: number;
+  admin_profit_micro?: number;
+  flagged_rows: number;
+};
 
 export type RevenueReconciliation = {
-  identity_ok: boolean
-  identity_diff_micro: number
-  sections_ok: boolean
-  log_compared: boolean
-  log_charge_quota: number
-  log_reseller_cost: number
-  log_charge_diff: number
-  log_reseller_cost_diff: number
-  flagged_rows: number
-  pending_retry: number
-}
+  identity_ok: boolean;
+  identity_diff_micro: number;
+  sections_ok: boolean;
+  log_compared: boolean;
+  log_charge_quota: number;
+  log_reseller_cost: number;
+  log_charge_diff: number;
+  log_reseller_cost_diff: number;
+  flagged_rows: number;
+  pending_retry: number;
+};
 
 export type RevenueStatement = {
-  period: string
-  timezone: string
-  scope: RevenueScope
-  reseller_id?: number
-  reseller_name?: string
-  totals: RevenueAgg
-  customer_total: RevenueAgg
-  self_total: RevenueAgg
-  direct_total: RevenueAgg
-  by_reseller?: RevenueAgg[]
-  reseller_self?: RevenueAgg[]
-  direct?: RevenueAgg[]
-  by_customer?: RevenueAgg[]
-  reconciliation: RevenueReconciliation
-  row_count: number
-  checksum: string
-  frozen: boolean
-  frozen_at?: number
-  late_rows: number
-  checksum_mismatch: boolean
-  generated_at: number
+  period: string;
+  timezone: string;
+  scope: RevenueScope;
+  reseller_id?: number;
+  reseller_name?: string;
+  totals: RevenueAgg;
+  customer_total: RevenueAgg;
+  self_total: RevenueAgg;
+  direct_total: RevenueAgg;
+  by_reseller?: RevenueAgg[];
+  reseller_self?: RevenueAgg[];
+  direct?: RevenueAgg[];
+  by_customer?: RevenueAgg[];
+  reconciliation: RevenueReconciliation;
+  row_count: number;
+  checksum: string;
+  frozen: boolean;
+  frozen_at?: number;
+  late_rows: number;
+  checksum_mismatch: boolean;
+  generated_at: number;
+};
+
+export interface ProfitRecord {
+  id: number;
+  created_at: number;
+  kind: "consume" | "refund";
+  payer_type: "customer" | "reseller_self" | "direct";
+  user_id: number;
+  username: string;
+  reseller_id: number;
+  reseller_username: string;
+  model_name: string;
+  request_id: string;
+  customer_price: number;
+  reseller_cost: number;
+  reseller_profit: number;
+  reseller_credited: number;
+  credit_state: string;
+  /** admin only, quota with micro precision */
+  admin_profit?: number;
+  admin_credited?: number;
+  markup: number;
+  flags?: string;
+}
+
+export interface ProfitRecordsTotals {
+  rows: number;
+  customer_price: number;
+  reseller_cost: number;
+  reseller_profit: number;
+  reseller_credited: number;
+  admin_profit?: number;
+  admin_credited?: number;
+}
+
+export interface ProfitRecordsPage {
+  items: ProfitRecord[];
+  total: number;
+  page: number;
+  page_size: number;
+  totals: ProfitRecordsTotals;
+  admin_accumulator?: {
+    user_id: number;
+    accrued_micro: number;
+    credited_quota: number;
+    remainder_micro: number;
+  };
 }

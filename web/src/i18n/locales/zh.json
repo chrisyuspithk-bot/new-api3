@@ -7432,6 +7432,17 @@
     "Reconciliation": "对账",
     "Not checked": "未检查",
     "OK": "通过",
-    "MISMATCH": "不符"
+    "MISMATCH": "不符",
+    "Profit records": "利润记录",
+    "Records": "记录数",
+    "Admin profit": "管理员利润",
+    "Admin profit credited": "管理员利润已入账",
+    "Carried remainder": "结转余数",
+    "Direct user": "直属用户",
+    "From": "开始日期",
+    "To": "结束日期",
+    "Customer ID": "客户 ID",
+    "Reseller profit credit": "经销商利润入账",
+    "Admin profit credit": "管理员利润入账"
   }
 }

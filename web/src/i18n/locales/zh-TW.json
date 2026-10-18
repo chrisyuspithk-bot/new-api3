@@ -7432,6 +7432,17 @@
     "Reconciliation": "對賬",
     "Not checked": "未檢查",
     "OK": "通過",
-    "MISMATCH": "不符"
+    "MISMATCH": "不符",
+    "Profit records": "利潤記錄",
+    "Records": "記錄數",
+    "Admin profit": "管理員利潤",
+    "Admin profit credited": "管理員利潤已入帳",
+    "Carried remainder": "結轉餘數",
+    "Direct user": "直屬用戶",
+    "From": "開始日期",
+    "To": "結束日期",
+    "Customer ID": "客戶 ID",
+    "Reseller profit credit": "經銷商利潤入帳",
+    "Admin profit credit": "管理員利潤入帳"
   }
 }

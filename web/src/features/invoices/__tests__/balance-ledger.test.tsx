@@ -16,357 +16,368 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AdminInvoicesPage } from '@/features/invoices'
-import { CustomerInvoicesPage } from '@/features/invoices/customer-page'
-import { ResellerInvoicesPage } from '@/features/reseller-console/components/invoices-page'
-import { api } from '@/lib/api'
+import { AdminInvoicesPage } from "@/features/invoices";
+import { CustomerInvoicesPage } from "@/features/invoices/customer-page";
+import { ResellerInvoicesPage } from "@/features/reseller-console/components/invoices-page";
+import { api } from "@/lib/api";
 
 function ledgerResponse(
   items: Array<Record<string, unknown>> = [],
-  total = items.length
+  total = items.length,
 ) {
-  return { data: { success: true, data: { items, total } } }
+  return { data: { success: true, data: { items, total } } };
 }
 
 function pdfResponse() {
-  return { data: new Blob(['%PDF-1.3\n'], { type: 'application/pdf' }) }
+  return { data: new Blob(["%PDF-1.3\n"], { type: "application/pdf" }) };
 }
 
 function csvResponse() {
-  return { data: new Blob(['# SUMMARY\n'], { type: 'text/csv' }) }
+  return { data: new Blob(["# SUMMARY\n"], { type: "text/csv" }) };
 }
 
 function stubFileSave() {
   // jsdom has no object URLs; stub the browser boundary only.
-  const urlApi = URL as unknown as Record<string, unknown>
-  urlApi.createObjectURL = vi.fn(() => 'blob:ledger')
-  urlApi.revokeObjectURL = vi.fn()
+  const urlApi = URL as unknown as Record<string, unknown>;
+  urlApi.createObjectURL = vi.fn(() => "blob:ledger");
+  urlApi.revokeObjectURL = vi.fn();
   const click = vi
-    .spyOn(HTMLAnchorElement.prototype, 'click')
-    .mockImplementation(() => {})
-  return { click }
+    .spyOn(HTMLAnchorElement.prototype, "click")
+    .mockImplementation(() => {});
+  return { click };
 }
 
 function renderPage(ui: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
-  })
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+  });
+  return render(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
 }
 
 afterEach(() => {
-  vi.restoreAllMocks()
-})
+  vi.restoreAllMocks();
+});
 
-describe('admin invoices page', () => {
+describe("admin invoices page", () => {
   beforeEach(() => {
-    vi.spyOn(api, 'get').mockResolvedValue(ledgerResponse())
-  })
+    vi.spyOn(api, "get").mockResolvedValue(ledgerResponse());
+  });
 
-  it('exports the selected month and kind as an authenticated PDF download', async () => {
-    const { click } = stubFileSave()
-    const user = userEvent.setup()
-    renderPage(<AdminInvoicesPage />)
-    const month = screen.getByRole('textbox', { name: 'Month' })
-    await user.clear(month)
-    await user.type(month, '2026-08')
+  it("exports the selected month and kind as an authenticated PDF download", async () => {
+    const { click } = stubFileSave();
+    const user = userEvent.setup();
+    renderPage(<AdminInvoicesPage />);
+    const month = screen.getByRole("textbox", { name: "Month" });
+    await user.clear(month);
+    await user.type(month, "2026-08");
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Kind' }),
-      'admin_credit'
-    )
-    vi.mocked(api.get).mockResolvedValueOnce(pdfResponse())
+      screen.getByRole("combobox", { name: "Kind" }),
+      "admin_credit",
+    );
+    vi.mocked(api.get).mockResolvedValueOnce(pdfResponse());
 
-    await user.click(screen.getByRole('button', { name: 'Export' }))
+    await user.click(screen.getByRole("button", { name: "Export" }));
 
-    await waitFor(() => expect(click).toHaveBeenCalled())
-    expect(api.get).toHaveBeenCalledWith('/api/admin/reseller_ledger/export', {
-      params: { period: '2026-08', kind: 'admin_credit' },
-      responseType: 'blob',
-    })
-    const link = click.mock.contexts[0] as HTMLAnchorElement
-    expect(link.download).toBe('ledger-2026-08-admin_credit.pdf')
-  })
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    expect(api.get).toHaveBeenCalledWith("/api/admin/reseller_ledger/export", {
+      params: { period: "2026-08", kind: "admin_credit" },
+      responseType: "blob",
+    });
+    const link = click.mock.contexts[0] as HTMLAnchorElement;
+    expect(link.download).toBe("ledger-2026-08-admin_credit.pdf");
+  });
 
-  it('exports CSV with format=csv when Export CSV is clicked', async () => {
-    const { click } = stubFileSave()
-    const user = userEvent.setup()
-    renderPage(<AdminInvoicesPage />)
-    const month = screen.getByRole('textbox', { name: 'Month' })
-    await user.clear(month)
-    await user.type(month, '2026-08')
-    vi.mocked(api.get).mockResolvedValueOnce(csvResponse())
+  it("exports CSV with format=csv when Export CSV is clicked", async () => {
+    const { click } = stubFileSave();
+    const user = userEvent.setup();
+    renderPage(<AdminInvoicesPage />);
+    const month = screen.getByRole("textbox", { name: "Month" });
+    await user.clear(month);
+    await user.type(month, "2026-08");
+    vi.mocked(api.get).mockResolvedValueOnce(csvResponse());
 
-    await user.click(screen.getByRole('button', { name: 'Export CSV' }))
+    await user.click(screen.getByRole("button", { name: "Export CSV" }));
 
-    await waitFor(() => expect(click).toHaveBeenCalled())
-    expect(api.get).toHaveBeenCalledWith('/api/admin/reseller_ledger/export', {
-      params: { period: '2026-08', format: 'csv' },
-      responseType: 'blob',
-    })
-    const link = click.mock.contexts[0] as HTMLAnchorElement
-    expect(link.download).toBe('ledger-2026-08.csv')
-  })
+    await waitFor(() => expect(click).toHaveBeenCalled());
+    expect(api.get).toHaveBeenCalledWith("/api/admin/reseller_ledger/export", {
+      params: { period: "2026-08", format: "csv" },
+      responseType: "blob",
+    });
+    const link = click.mock.contexts[0] as HTMLAnchorElement;
+    expect(link.download).toBe("ledger-2026-08.csv");
+  });
 
-  it('disables export while the month is not a valid YYYY-MM period', async () => {
-    const user = userEvent.setup()
-    renderPage(<AdminInvoicesPage />)
-    const month = screen.getByRole('textbox', { name: 'Month' })
-    expect(screen.getByRole('button', { name: 'Export' })).toBeEnabled()
-    await user.clear(month)
-    await user.type(month, '2026')
-    expect(screen.getByRole('button', { name: 'Export' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Export CSV' })).toBeDisabled()
-  })
+  it("disables export while the month is not a valid YYYY-MM period", async () => {
+    const user = userEvent.setup();
+    renderPage(<AdminInvoicesPage />);
+    const month = screen.getByRole("textbox", { name: "Month" });
+    expect(screen.getByRole("button", { name: "Export" })).toBeEnabled();
+    await user.clear(month);
+    await user.type(month, "2026");
+    expect(screen.getByRole("button", { name: "Export" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeDisabled();
+  });
 
-  it('loads the balance ledger for the current month and omits the invoice list and generate', async () => {
-    renderPage(<AdminInvoicesPage />)
-    const month = screen.getByRole('textbox', { name: 'Month' })
-    expect(screen.getByRole('heading', { name: 'Invoices' })).toBeVisible()
-    // Only the Balance ledger / Revenue switch; no legacy invoice-list tab.
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Balance ledger',
-      'Revenue',
-    ])
+  it("loads the balance ledger for the current month and omits the invoice list and generate", async () => {
+    renderPage(<AdminInvoicesPage />);
+    const month = screen.getByRole("textbox", { name: "Month" });
+    expect(screen.getByRole("heading", { name: "Invoices" })).toBeVisible();
+    // Balance ledger / Revenue / Profit records; no legacy invoice-list tab.
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Balance ledger",
+      "Revenue",
+      "Profit records",
+    ]);
     expect(
-      screen.queryByRole('button', { name: 'Generate' })
-    ).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: 'Reseller' })).toBeVisible()
-    expect(screen.getByRole('columnheader', { name: 'Customer' })).toBeVisible()
+      screen.queryByRole("button", { name: "Generate" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Reseller" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("columnheader", { name: "Customer" }),
+    ).toBeVisible();
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
-        '/api/admin/reseller_ledger',
+        "/api/admin/reseller_ledger",
         expect.objectContaining({
           params: expect.objectContaining({
             period: (month as HTMLInputElement).value,
             p: 1,
             page_size: 20,
           }),
-        })
-      )
-    })
-    expect(await screen.findByText('No ledger rows')).toBeVisible()
-  })
+        }),
+      );
+    });
+    expect(await screen.findByText("No ledger rows")).toBeVisible();
+  });
 
-  it('asks for a YYYY-MM period and does not request the ledger when the month is invalid', async () => {
-    const user = userEvent.setup()
-    renderPage(<AdminInvoicesPage />)
-    const month = screen.getByRole('textbox', { name: 'Month' })
-    await waitFor(() => expect(api.get).toHaveBeenCalled())
-    vi.mocked(api.get).mockClear()
-    await user.clear(month)
-    await user.type(month, '2026')
+  it("asks for a YYYY-MM period and does not request the ledger when the month is invalid", async () => {
+    const user = userEvent.setup();
+    renderPage(<AdminInvoicesPage />);
+    const month = screen.getByRole("textbox", { name: "Month" });
+    await waitFor(() => expect(api.get).toHaveBeenCalled());
+    vi.mocked(api.get).mockClear();
+    await user.clear(month);
+    await user.type(month, "2026");
     expect(
-      screen.getByText('Enter a period as YYYY-MM to load the balance ledger')
-    ).toBeVisible()
-    expect(api.get).not.toHaveBeenCalled()
-  })
+      screen.getByText("Enter a period as YYYY-MM to load the balance ledger"),
+    ).toBeVisible();
+    expect(api.get).not.toHaveBeenCalled();
+  });
 
-  it('refetches the selected month and kind on the next page', async () => {
+  it("refetches the selected month and kind on the next page", async () => {
     vi.mocked(api.get).mockResolvedValue(
       ledgerResponse(
         [
           {
             id: 4,
             reseller_id: 9,
-            reseller_username: 'north-reseller',
+            reseller_username: "north-reseller",
             customer_id: 3,
-            customer_username: 'ada',
-            kind: 'admin_credit',
+            customer_username: "ada",
+            kind: "admin_credit",
             quota_delta: 10,
             money_usd: 1.5,
             operator_id: 1,
-            operator_username: 'root',
-            remark: 'opening',
+            operator_username: "root",
+            remark: "opening",
             created_at: 1_700_000_000,
           },
         ],
-        21
-      )
-    )
-    const user = userEvent.setup()
-    renderPage(<AdminInvoicesPage />)
-    expect(await screen.findByText('north-reseller')).toBeVisible()
+        21,
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage(<AdminInvoicesPage />);
+    expect(await screen.findByText("north-reseller")).toBeVisible();
     expect(
-      within(screen.getByRole('table')).getByText('Admin credit')
-    ).toBeVisible()
-    const month = screen.getByRole('textbox', { name: 'Month' })
-    await user.clear(month)
-    await user.type(month, '2026-08')
+      within(screen.getByRole("table")).getByText("Admin credit"),
+    ).toBeVisible();
+    const month = screen.getByRole("textbox", { name: "Month" });
+    await user.clear(month);
+    await user.type(month, "2026-08");
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
-        '/api/admin/reseller_ledger',
+        "/api/admin/reseller_ledger",
         expect.objectContaining({
-          params: expect.objectContaining({ period: '2026-08', p: 1 }),
-        })
-      )
-    })
+          params: expect.objectContaining({ period: "2026-08", p: 1 }),
+        }),
+      );
+    });
     await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Kind' }),
-      'customer_debit'
-    )
+      screen.getByRole("combobox", { name: "Kind" }),
+      "customer_debit",
+    );
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
-        '/api/admin/reseller_ledger',
+        "/api/admin/reseller_ledger",
         expect.objectContaining({
           params: expect.objectContaining({
-            period: '2026-08',
-            kind: 'customer_debit',
+            period: "2026-08",
+            kind: "customer_debit",
             p: 1,
           }),
-        })
-      )
-    })
-    await user.click(screen.getByRole('button', { name: 'Next' }))
+        }),
+      );
+    });
+    await user.click(screen.getByRole("button", { name: "Next" }));
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
-        '/api/admin/reseller_ledger',
+        "/api/admin/reseller_ledger",
         expect.objectContaining({
           params: expect.objectContaining({
-            period: '2026-08',
-            kind: 'customer_debit',
+            period: "2026-08",
+            kind: "customer_debit",
             p: 2,
           }),
-        })
-      )
-    })
-  })
-})
+        }),
+      );
+    });
+  });
+});
 
-describe('role ledger pages', () => {
+describe("role ledger pages", () => {
   beforeEach(() => {
-    vi.spyOn(api, 'get').mockResolvedValue(ledgerResponse())
-  })
+    vi.spyOn(api, "get").mockResolvedValue(ledgerResponse());
+  });
 
-  it('loads the reseller ledger, including customer rows, for the signed-in reseller', async () => {
-    renderPage(<ResellerInvoicesPage />)
-    const month = screen.getByRole('textbox', { name: 'Month' })
+  it("loads the reseller ledger, including customer rows, for the signed-in reseller", async () => {
+    renderPage(<ResellerInvoicesPage />);
+    const month = screen.getByRole("textbox", { name: "Month" });
     expect(
-      within(screen.getByRole('combobox', { name: 'Kind' })).getByRole(
-        'option',
-        { name: 'Admin credit' }
-      )
-    ).toBeInTheDocument()
+      within(screen.getByRole("combobox", { name: "Kind" })).getByRole(
+        "option",
+        { name: "Admin credit" },
+      ),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByRole('columnheader', { name: 'Reseller' })
-    ).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: 'Customer' })).toBeVisible()
+      screen.queryByRole("columnheader", { name: "Reseller" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Customer" }),
+    ).toBeVisible();
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
-        '/api/reseller/ledger',
+        "/api/reseller/ledger",
         expect.objectContaining({
           params: expect.objectContaining({
             period: (month as HTMLInputElement).value,
           }),
-        })
-      )
-    })
+        }),
+      );
+    });
     const params = vi.mocked(api.get).mock.calls[0]?.[1] as {
-      params?: Record<string, unknown>
-    }
-    expect(params.params).not.toHaveProperty('reseller_id')
-    expect(params.params).not.toHaveProperty('customer_id')
-  })
+      params?: Record<string, unknown>;
+    };
+    expect(params.params).not.toHaveProperty("reseller_id");
+    expect(params.params).not.toHaveProperty("customer_id");
+  });
 
   it.each([
-    ['reseller', ResellerInvoicesPage, '/api/reseller/ledger/export'],
-    ['customer', CustomerInvoicesPage, '/api/user/ledger/export'],
+    ["reseller", ResellerInvoicesPage, "/api/reseller/ledger/export"],
+    ["customer", CustomerInvoicesPage, "/api/user/ledger/export"],
   ])(
-    'exports the %s month through its own scoped endpoint without id params',
+    "exports the %s month through its own scoped endpoint without id params",
     async (_role, Page, exportUrl) => {
-      const { click } = stubFileSave()
-      const user = userEvent.setup()
-      renderPage(<Page />)
-      const month = screen.getByRole('textbox', { name: 'Month' })
-      vi.mocked(api.get).mockResolvedValue(pdfResponse())
+      const { click } = stubFileSave();
+      const user = userEvent.setup();
+      renderPage(<Page />);
+      const month = screen.getByRole("textbox", { name: "Month" });
+      vi.mocked(api.get).mockResolvedValue(pdfResponse());
 
-      await user.click(screen.getByRole('button', { name: 'Export' }))
+      await user.click(screen.getByRole("button", { name: "Export" }));
 
-      await waitFor(() => expect(click).toHaveBeenCalled())
+      await waitFor(() => expect(click).toHaveBeenCalled());
       expect(api.get).toHaveBeenCalledWith(exportUrl, {
         params: { period: (month as HTMLInputElement).value },
-        responseType: 'blob',
-      })
-    }
-  )
+        responseType: "blob",
+      });
+    },
+  );
 
-  it('labels redemption ledger rows and offers escrow kinds only to resellers', async () => {
+  it("labels redemption ledger rows and offers escrow kinds only to resellers", async () => {
     vi.mocked(api.get).mockResolvedValue(
       ledgerResponse([
         {
           id: 1,
           reseller_id: 7,
           customer_id: 0,
-          kind: 'redemption_issue',
+          kind: "redemption_issue",
           quota_delta: -500000,
           operator_id: 7,
           created_at: 1788000000,
         },
-      ])
-    )
-    renderPage(<ResellerInvoicesPage />)
-    const resellerKinds = screen.getByRole('combobox', { name: 'Kind' })
+      ]),
+    );
+    renderPage(<ResellerInvoicesPage />);
+    const resellerKinds = screen.getByRole("combobox", { name: "Kind" });
     for (const name of [
-      'Redemption code issued',
-      'Redemption code refund',
-      'Redemption code redeemed',
+      "Redemption code issued",
+      "Redemption code refund",
+      "Redemption code redeemed",
     ]) {
       expect(
-        within(resellerKinds).getByRole('option', { name })
-      ).toBeInTheDocument()
+        within(resellerKinds).getByRole("option", { name }),
+      ).toBeInTheDocument();
     }
     expect(
-      await screen.findByRole('cell', { name: 'Redemption code issued' })
-    ).toBeVisible()
-  })
+      await screen.findByRole("cell", { name: "Redemption code issued" }),
+    ).toBeVisible();
+  });
 
-  it('offers the customer only the redeemed-code kind among redemption kinds', () => {
-    renderPage(<CustomerInvoicesPage />)
-    const kinds = screen.getByRole('combobox', { name: 'Kind' })
+  it("offers the customer only the redeemed-code kind among redemption kinds", () => {
+    renderPage(<CustomerInvoicesPage />);
+    const kinds = screen.getByRole("combobox", { name: "Kind" });
     expect(
-      within(kinds).getByRole('option', { name: 'Redemption code redeemed' })
-    ).toBeInTheDocument()
+      within(kinds).getByRole("option", { name: "Redemption code redeemed" }),
+    ).toBeInTheDocument();
     expect(
-      within(kinds).queryByRole('option', { name: 'Redemption code issued' })
-    ).not.toBeInTheDocument()
-  })
+      within(kinds).queryByRole("option", { name: "Redemption code issued" }),
+    ).not.toBeInTheDocument();
+  });
 
-  it('loads only the signed-in customer ledger and hides other customers', async () => {
-    renderPage(<CustomerInvoicesPage />)
-    const kinds = screen.getByRole('combobox', { name: 'Kind' })
+  it("loads only the signed-in customer ledger and hides other customers", async () => {
+    renderPage(<CustomerInvoicesPage />);
+    const kinds = screen.getByRole("combobox", { name: "Kind" });
     expect(
-      within(kinds).queryByRole('option', { name: 'Admin credit' })
-    ).not.toBeInTheDocument()
+      within(kinds).queryByRole("option", { name: "Admin credit" }),
+    ).not.toBeInTheDocument();
     expect(
-      within(kinds).getByRole('option', { name: 'Customer credit' })
-    ).toBeInTheDocument()
+      within(kinds).getByRole("option", { name: "Customer credit" }),
+    ).toBeInTheDocument();
     expect(
-      screen.queryByRole('columnheader', { name: 'Customer' })
-    ).not.toBeInTheDocument()
-    expect(screen.getByRole('columnheader', { name: 'Reseller' })).toBeVisible()
+      screen.queryByRole("columnheader", { name: "Customer" }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('columnheader', { name: 'Operator' })
-    ).not.toBeInTheDocument()
+      screen.getByRole("columnheader", { name: "Reseller" }),
+    ).toBeVisible();
     expect(
-      screen.queryByRole('columnheader', { name: 'Remark' })
-    ).not.toBeInTheDocument()
+      screen.queryByRole("columnheader", { name: "Operator" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Remark" }),
+    ).not.toBeInTheDocument();
     await waitFor(() => {
       expect(api.get).toHaveBeenCalledWith(
-        '/api/user/ledger',
+        "/api/user/ledger",
         expect.objectContaining({
           params: expect.objectContaining({ p: 1, page_size: 20 }),
-        })
-      )
-    })
+        }),
+      );
+    });
     const params = vi.mocked(api.get).mock.calls[0]?.[1] as {
-      params?: Record<string, unknown>
-    }
-    expect(params.params).not.toHaveProperty('customer_id')
-    expect(params.params).not.toHaveProperty('reseller_id')
-  })
-})
+      params?: Record<string, unknown>;
+    };
+    expect(params.params).not.toHaveProperty("customer_id");
+    expect(params.params).not.toHaveProperty("reseller_id");
+  });
+});

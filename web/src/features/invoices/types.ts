@@ -16,105 +16,109 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export type InvoiceScope = 'customer' | 'reseller' | 'admin_rollup'
+export type InvoiceScope = "customer" | "reseller" | "admin_rollup";
 
 export interface Invoice {
-  id: number
-  period: string
-  scope: InvoiceScope
-  reseller_id: number
-  customer_id: number
-  reseller_name: string
-  customer_name: string
-  requests: number
-  charge_quota: number
-  cost_quota: number
-  profit_quota: number
-  charge_usd: number
-  cost_usd: number
-  profit_usd: number
-  line_items_json?: string
-  generated_at: number
-  generated_by: number
+  id: number;
+  period: string;
+  scope: InvoiceScope;
+  reseller_id: number;
+  customer_id: number;
+  reseller_name: string;
+  customer_name: string;
+  requests: number;
+  charge_quota: number;
+  cost_quota: number;
+  profit_quota: number;
+  charge_usd: number;
+  cost_usd: number;
+  profit_usd: number;
+  line_items_json?: string;
+  generated_at: number;
+  generated_by: number;
 }
 
 export interface InvoiceLineItem {
-  model: string
-  requests: number
-  charge_quota: number
-  cost_quota: number
-  profit_quota: number
-  charge_usd: number
-  cost_usd: number
-  profit_usd: number
+  model: string;
+  requests: number;
+  charge_quota: number;
+  cost_quota: number;
+  profit_quota: number;
+  charge_usd: number;
+  cost_usd: number;
+  profit_usd: number;
 }
 
 export interface InvoiceDetail {
-  invoice: Invoice
-  line_items: InvoiceLineItem[]
+  invoice: Invoice;
+  line_items: InvoiceLineItem[];
 }
 
 export interface ApiResponse<T> {
-  success: boolean
-  message?: string
-  data?: T
+  success: boolean;
+  message?: string;
+  data?: T;
 }
 
 export interface PageData<T> {
-  items?: T[]
-  total?: number
-  page?: number
-  page_size?: number
+  items?: T[];
+  total?: number;
+  page?: number;
+  page_size?: number;
 }
 
 export type ResellerLedgerKind =
-  | 'admin_credit'
-  | 'admin_debit'
-  | 'customer_credit'
-  | 'customer_debit'
-  | 'redemption_issue'
-  | 'redemption_refund'
-  | 'redemption_redeem'
+  | "admin_credit"
+  | "admin_debit"
+  | "customer_credit"
+  | "customer_debit"
+  | "redemption_issue"
+  | "redemption_refund"
+  | "redemption_redeem"
+  | "reseller_profit_credit"
+  | "admin_profit_credit";
 
 export const RESELLER_LEDGER_KINDS: ResellerLedgerKind[] = [
-  'admin_credit',
-  'admin_debit',
-  'customer_credit',
-  'customer_debit',
-  'redemption_issue',
-  'redemption_refund',
-  'redemption_redeem',
-]
+  "admin_credit",
+  "admin_debit",
+  "customer_credit",
+  "customer_debit",
+  "redemption_issue",
+  "redemption_refund",
+  "redemption_redeem",
+  "reseller_profit_credit",
+  "admin_profit_credit",
+];
 
 export const CUSTOMER_LEDGER_KINDS: ResellerLedgerKind[] = [
-  'customer_credit',
-  'customer_debit',
-  'redemption_redeem',
-]
+  "customer_credit",
+  "customer_debit",
+  "redemption_redeem",
+];
 
 export interface ResellerLedgerRow {
-  id: number
-  reseller_id: number
-  reseller_username?: string
-  customer_id: number
-  customer_username?: string
-  kind: string
-  quota_delta: number
-  money_usd?: number | null
-  operator_id: number
-  operator_username?: string
-  remark?: string
-  created_at: number
+  id: number;
+  reseller_id: number;
+  reseller_username?: string;
+  customer_id: number;
+  customer_username?: string;
+  kind: string;
+  quota_delta: number;
+  money_usd?: number | null;
+  operator_id: number;
+  operator_username?: string;
+  remark?: string;
+  created_at: number;
 }
 
 export type LedgerQuery = {
-  period: string
-  kind: string
-  page: number
-  pageSize: number
-}
+  period: string;
+  kind: string;
+  page: number;
+  pageSize: number;
+};
 
 export type LedgerPage = {
-  items: ResellerLedgerRow[]
-  total: number
-}
+  items: ResellerLedgerRow[];
+  total: number;
+};

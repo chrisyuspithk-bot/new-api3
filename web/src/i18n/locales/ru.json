@@ -7321,6 +7321,17 @@
     "Reconciliation": "Reconciliation",
     "Not checked": "Not checked",
     "OK": "OK",
-    "MISMATCH": "MISMATCH"
+    "MISMATCH": "MISMATCH",
+    "Profit records": "Записи прибыли",
+    "Records": "Записи",
+    "Admin profit": "Прибыль администратора",
+    "Admin profit credited": "Зачислено администратору",
+    "Carried remainder": "Перенесённый остаток",
+    "Direct user": "Прямой пользователь",
+    "From": "С",
+    "To": "По",
+    "Customer ID": "ID клиента",
+    "Reseller profit credit": "Зачисление прибыли реселлера",
+    "Admin profit credit": "Зачисление прибыли администратора"
   }
 }
