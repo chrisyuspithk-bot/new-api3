@@ -72,6 +72,7 @@ func TestRevenueRecordsCSVExportReconciles(t *testing.T) {
 	assert.Contains(t, body, "Total,3,,,,,1198,673,525,")
 	body = callRevenue(t, ResellerRevenueRecords, 61, "format=csv").Body.String()
 	assert.Contains(t, body, "Total,2,,,,198,173,25")
+	assert.Contains(t, body, "Total,2,,,,198,173,25,,,0.000396,0.000346,0.000050\n", "USD totals at 6 decimals reconcile with quota totals")
 	assert.NotContains(t, body, "rB")
 }
 
@@ -95,4 +96,10 @@ func TestRevenueRecordsPDFExportLocalized(t *testing.T) {
 		require.Equal(t, 200, rec.Code, lang)
 		assert.True(t, strings.HasPrefix(rec.Body.String(), "%PDF"), lang)
 	}
+}
+
+func TestRevenueUsdCellsTinyCallsVisible(t *testing.T) {
+	assert.Equal(t, []string{"0.000124", "0.000104", "0.000020"}, revenueUsdCells(62, 52, 10, 0, false))
+	assert.Equal(t, []string{"0.000002", "0.000002", "0.000000", "0.000002"}, revenueUsdCells(1, 1, 0, 1_000_000, true))
+	assert.Equal(t, "62 ($0.000124)", quotaUsdPDF("62", "0.000124"))
 }

@@ -33,7 +33,8 @@ import {
 } from "@/components/ui/table";
 import { toIntlLocale } from "@/i18n/languages";
 import { api } from "@/lib/api";
-import { formatQuota } from "@/lib/format";
+import { formatQuotaPrecise, formatRawQuota } from "@/lib/format";
+import { QuotaAmount } from "./quota-amount";
 import { handleServerError } from "@/lib/handle-server-error";
 import { requireServerSuccess } from "@/lib/server-error-message";
 
@@ -124,27 +125,32 @@ export function ProfitRecordsPage(props: {
             {t("Records")}: {tot.rows}
           </span>
           <span>
-            {t("Customer price")}: {formatQuota(tot.customer_price)}
+            {t("Customer price")}: {formatQuotaPrecise(tot.customer_price)} (
+            {formatRawQuota(tot.customer_price)} quota)
           </span>
           <span>
             {admin ? t("Reseller cost") : t("Your cost")}:{" "}
-            {formatQuota(tot.reseller_cost)}
+            {formatQuotaPrecise(tot.reseller_cost)} (
+            {formatRawQuota(tot.reseller_cost)} quota)
           </span>
           <span>
             {admin ? t("Reseller profit") : t("Your profit")}:{" "}
-            {formatQuota(tot.reseller_profit)}
+            {formatQuotaPrecise(tot.reseller_profit)} (
+            {formatRawQuota(tot.reseller_profit)} quota)
           </span>
           {admin ? (
             <span>
-              {t("Admin profit")}: {formatQuota(tot.admin_profit ?? 0)}
+              {t("Admin profit")}: {formatQuotaPrecise(tot.admin_profit ?? 0)} (
+              {formatRawQuota(tot.admin_profit ?? 0)} quota)
             </span>
           ) : null}
           {admin && data.admin_accumulator ? (
             <span>
               {t("Admin profit credited")}:{" "}
-              {formatQuota(data.admin_accumulator.credited_quota)} ·{" "}
+              {formatQuotaPrecise(data.admin_accumulator.credited_quota)} (
+              {formatRawQuota(data.admin_accumulator.credited_quota)} quota) ·{" "}
               {t("Carried remainder")}:{" "}
-              {(data.admin_accumulator.remainder_micro / 1e6).toFixed(6)}
+              {(data.admin_accumulator.remainder_micro / 1e6).toFixed(6)} quota
             </span>
           ) : null}
         </div>
@@ -202,17 +208,17 @@ export function ProfitRecordsPage(props: {
                     <TableCell>{r.model_name}</TableCell>
                     <TableCell>{typeLabel(r)}</TableCell>
                     <TableCell className="text-right">
-                      {formatQuota(r.customer_price)}
+                      <QuotaAmount quota={r.customer_price} showRaw />
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatQuota(r.reseller_cost)}
+                      <QuotaAmount quota={r.reseller_cost} showRaw />
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatQuota(r.reseller_profit)}
+                      <QuotaAmount quota={r.reseller_profit} showRaw />
                     </TableCell>
                     {admin ? (
                       <TableCell className="text-right">
-                        {formatQuota(r.admin_profit ?? 0)}
+                        <QuotaAmount quota={r.admin_profit ?? 0} showRaw />
                       </TableCell>
                     ) : null}
                   </TableRow>

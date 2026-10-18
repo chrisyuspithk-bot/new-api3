@@ -184,6 +184,38 @@ func revenueRecordsHeader(tr func(string) string, internal bool) []string {
 	return h
 }
 
+// revenueUsdHeader/Cells: USD (6 decimals) companions of the quota columns,
+// so a 1-quota call ($0.000002) is still visible in exports.
+func revenueUsdHeader(tr func(string) string, internal bool) []string {
+	h := []string{tr(i18n.MsgRevenueRecordsColPrice) + " (USD)", tr(i18n.MsgRevenueRecordsColCost) + " (USD)", tr(i18n.MsgRevenueRecordsColResellerProfit) + " (USD)"}
+	if internal {
+		h = append(h, tr(i18n.MsgRevenueRecordsColAdminProfit)+" (USD)")
+	}
+	return h
+}
+
+func revenueUsdCells(price, cost, profit, adminMicro int64, internal bool) []string {
+	u := func(v int64) string { return usdCell(model.QuotaToUsd(v)) }
+	c := []string{u(price), u(cost), u(profit)}
+	if internal {
+		c = append(c, usdCell(microToUsd(adminMicro)))
+	}
+	return c
+}
+
+// quotaUsdPDF renders "quota ($usd)" for PDF cells.
+func quotaUsdPDF(quota, usd string) string { return quota + " ($" + usd + ")" }
+
+func revenueRecordPDFCells(r model.RevenueRecordView, internal bool, tr func(string) string, ts func(int64) string) []string {
+	cells := revenueRecordCells(r, internal, tr, ts)
+	usd := revenueUsdCells(r.CustomerPrice, r.ResellerCost, r.ResellerProfit, r.AdminProfitMicro, internal)
+	off := len(cells) - len(usd)
+	for i := range usd {
+		cells[off+i] = quotaUsdPDF(cells[off+i], usd[i])
+	}
+	return cells
+}
+
 func revenueRecordCells(r model.RevenueRecordView, internal bool, tr func(string) string, ts func(int64) string) []string {
 	q := func(v int64) string { return strconv.FormatInt(v, 10) }
 	cells := []string{ts(r.CreatedAt), fmt.Sprintf("%s (#%d)", r.Username, r.UserId)}
@@ -213,6 +245,7 @@ func writeRevenueRecordsCSV(c *gin.Context, f model.RevenueRecordFilter, rows []
 	w := csv.NewWriter(c.Writer)
 	header := append([]string{"id"}, revenueRecordsHeader(tr, internal)...)
 	header = append(header, tr(i18n.MsgRevenueRecordsColCredited), "request_id")
+	header = append(header, revenueUsdHeader(tr, internal)...)
 	_ = w.Write(header)
 	for _, r := range rows {
 		cells := revenueRecordCells(r, internal, tr, ts)
@@ -225,6 +258,7 @@ func writeRevenueRecordsCSV(c *gin.Context, f model.RevenueRecordFilter, rows []
 		}
 		row := append([]string{strconv.FormatInt(r.Id, 10)}, cells...)
 		row = append(row, credited, csvSafeText(r.RequestId))
+		row = append(row, revenueUsdCells(r.CustomerPrice, r.ResellerCost, r.ResellerProfit, r.AdminProfitMicro, internal)...)
 		_ = w.Write(row)
 	}
 	tot := []string{tr(i18n.MsgRevenueRecordsTotal), strconv.FormatInt(totals.Rows, 10), ""}
@@ -235,6 +269,8 @@ func writeRevenueRecordsCSV(c *gin.Context, f model.RevenueRecordFilter, rows []
 	if internal {
 		tot = append(tot, microToQuotaStr(totals.AdminProfitMicro))
 	}
+	tot = append(tot, "", "")
+	tot = append(tot, revenueUsdCells(totals.CustomerPrice, totals.ResellerCost, totals.ResellerProfit, totals.AdminProfitMicro, internal)...)
 	_ = w.Write(tot)
 	if truncated {
 		_ = w.Write([]string{"# " + tr(i18n.MsgRevenueRecordsTruncated)})
@@ -311,15 +347,15 @@ func writeRevenueRecordsPDF(c *gin.Context, f model.RevenueRecordFilter, rows []
 	var widths []float64
 	var aligns string
 	if internal {
-		widths = []float64{32, 34, 34, 40, 34, 22, 22, 22, 37}
+		widths = []float64{30, 28, 28, 32, 29, 32.5, 32.5, 32.5, 32.5}
 		aligns = "LLLLLRRRR"
 	} else {
-		widths = []float64{36, 46, 52, 44, 33, 33, 33}
+		widths = []float64{36, 40, 44, 37, 40, 40, 40}
 		aligns = "LLLLRRR"
 	}
 	var body [][]string
 	for _, r := range rows {
-		body = append(body, revenueRecordCells(r, internal, tr, ts))
+		body = append(body, revenueRecordPDFCells(r, internal, tr, ts))
 	}
 	tot := []string{tr(i18n.MsgRevenueRecordsTotal), strconv.FormatInt(totals.Rows, 10)}
 	if internal {
@@ -328,6 +364,10 @@ func writeRevenueRecordsPDF(c *gin.Context, f model.RevenueRecordFilter, rows []
 	tot = append(tot, "", "", strconv.FormatInt(totals.CustomerPrice, 10), strconv.FormatInt(totals.ResellerCost, 10), strconv.FormatInt(totals.ResellerProfit, 10))
 	if internal {
 		tot = append(tot, microToQuotaStr(totals.AdminProfitMicro))
+	}
+	totUsd := revenueUsdCells(totals.CustomerPrice, totals.ResellerCost, totals.ResellerProfit, totals.AdminProfitMicro, internal)
+	for i := range totUsd {
+		tot[len(tot)-len(totUsd)+i] = quotaUsdPDF(tot[len(tot)-len(totUsd)+i], totUsd[i])
 	}
 	body = append(body, tot)
 	ledgerPDFSection(pdf, title)
