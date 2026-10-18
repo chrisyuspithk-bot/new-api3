@@ -40,7 +40,7 @@ describe("invoice amount precision", () => {
   });
   it("QuotaAmount renders the raw quota value and tooltip", () => {
     render(<QuotaAmount quota={62} showRaw />);
-    expect(screen.getByText("62 quota")).toBeTruthy();
-    expect(screen.getByTitle("62 quota")).toBeTruthy();
+    expect(screen.getByText("62 Quota")).toBeTruthy();
+    expect(screen.getByTitle("62 Quota")).toBeTruthy();
   });
 });

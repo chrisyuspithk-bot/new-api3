@@ -34,7 +34,6 @@ import {
 import { toIntlLocale } from "@/i18n/languages";
 import { api } from "@/lib/api";
 import { formatQuotaPrecise, formatRawQuota } from "@/lib/format";
-import { QuotaAmount } from "./quota-amount";
 import { handleServerError } from "@/lib/handle-server-error";
 import { requireServerSuccess } from "@/lib/server-error-message";
 
@@ -45,6 +44,7 @@ import type {
   ProfitRecordsPage as ProfitRecordsData,
   RevenueScope,
 } from "../revenue-types";
+import { QuotaAmount } from "./quota-amount";
 
 const PAGE_SIZE = 20;
 function recordsUrl(scope: RevenueScope): string {
@@ -126,31 +126,32 @@ export function ProfitRecordsPage(props: {
           </span>
           <span>
             {t("Customer price")}: {formatQuotaPrecise(tot.customer_price)} (
-            {formatRawQuota(tot.customer_price)} quota)
+            {formatRawQuota(tot.customer_price)} {t("Quota")})
           </span>
           <span>
             {admin ? t("Reseller cost") : t("Your cost")}:{" "}
             {formatQuotaPrecise(tot.reseller_cost)} (
-            {formatRawQuota(tot.reseller_cost)} quota)
+            {formatRawQuota(tot.reseller_cost)} {t("Quota")})
           </span>
           <span>
             {admin ? t("Reseller profit") : t("Your profit")}:{" "}
             {formatQuotaPrecise(tot.reseller_profit)} (
-            {formatRawQuota(tot.reseller_profit)} quota)
+            {formatRawQuota(tot.reseller_profit)} {t("Quota")})
           </span>
           {admin ? (
             <span>
               {t("Admin profit")}: {formatQuotaPrecise(tot.admin_profit ?? 0)} (
-              {formatRawQuota(tot.admin_profit ?? 0)} quota)
+              {formatRawQuota(tot.admin_profit ?? 0)} {t("Quota")})
             </span>
           ) : null}
           {admin && data.admin_accumulator ? (
             <span>
               {t("Admin profit credited")}:{" "}
               {formatQuotaPrecise(data.admin_accumulator.credited_quota)} (
-              {formatRawQuota(data.admin_accumulator.credited_quota)} quota) ·{" "}
+              {formatRawQuota(data.admin_accumulator.credited_quota)} {t("Quota")}) ·{" "}
               {t("Carried remainder")}:{" "}
-              {(data.admin_accumulator.remainder_micro / 1e6).toFixed(6)} quota
+              {(data.admin_accumulator.remainder_micro / 1e6).toFixed(6)}{" "}
+              {t("Quota")}
             </span>
           ) : null}
         </div>

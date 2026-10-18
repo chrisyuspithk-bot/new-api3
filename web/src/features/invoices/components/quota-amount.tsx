@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { formatQuotaPrecise, formatRawQuota } from "@/lib/format";
+import { useTranslation } from 'react-i18next'
+
+import { formatQuotaPrecise, formatRawQuota } from '@/lib/format'
 
 /**
  * Money amount with full precision; the raw quota is always in the tooltip
@@ -26,16 +28,17 @@ export function QuotaAmount({
   quota,
   showRaw = false,
 }: {
-  quota: number;
-  showRaw?: boolean;
+  quota: number
+  showRaw?: boolean
 }) {
-  const raw = formatRawQuota(quota);
+  const { t } = useTranslation()
+  const raw = `${formatRawQuota(quota)} ${t('Quota')}`
   return (
-    <span title={`${raw} quota`} data-quota={quota}>
+    <span title={raw} data-quota={quota}>
       {formatQuotaPrecise(quota)}
       {showRaw ? (
-        <span className="text-muted-foreground block text-xs">{raw} quota</span>
+        <span className='text-muted-foreground block text-xs'>{raw}</span>
       ) : null}
     </span>
-  );
+  )
 }

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"net/http/httptest"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/go-pdf/fpdf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,4 +104,51 @@ func TestRevenueUsdCellsTinyCallsVisible(t *testing.T) {
 	assert.Equal(t, []string{"0.000124", "0.000104", "0.000020"}, revenueUsdCells(62, 52, 10, 0, false))
 	assert.Equal(t, []string{"0.000002", "0.000002", "0.000000", "0.000002"}, revenueUsdCells(1, 1, 0, 1_000_000, true))
 	assert.Equal(t, "62 ($0.000124)", quotaUsdPDF("62", "0.000124"))
+}
+
+func TestRevenueRecordsPDFAmountsNeverTruncated(t *testing.T) {
+	dir := os.Getenv("PDF_FONT_DIR")
+	if dir == "" {
+		dir = defaultPDFFontDir
+	}
+	if _, err := os.Stat(dir + "/NotoSansTC.ttf"); err != nil {
+		t.Skip("CJK font not installed")
+	}
+	pdf := fpdf.New("L", "mm", "A4", dir)
+	pdf.AddUTF8Font("noto", "", "NotoSansTC.ttf")
+	pdf.SetFont("noto", "", 8.5)
+	for _, txt := range []string{
+		quotaUsdPDF("26.833332", "0.000054"),
+		quotaUsdPDF("10000000", "20.000000"),
+		quotaUsdPDF("-123456789", "-246.913578"),
+		quotaUsdPDF("1234567.944444", "2.469136"),
+	} {
+		w := 32.25 // narrowest money column (admin layout)
+		size := ledgerPDFNumberFontSize(pdf, txt, w, 8.5)
+		pdf.SetFontSize(size)
+		assert.LessOrEqual(t, pdf.GetStringWidth(txt), w-2*pdf.GetCellMargin(), txt)
+		assert.Equal(t, txt, ledgerPDFFit(pdf, txt, w), "no ellipsis on amounts")
+		pdf.SetFontSize(8.5)
+	}
+	assert.Equal(t, "-62 (-$0.000124)", quotaUsdPDF("-62", "-0.000124"))
+}
+
+func TestRevenueRecordsCSVColumnsAligned(t *testing.T) {
+	setupRevenueDB(t)
+	for _, tc := range []struct {
+		h     gin.HandlerFunc
+		id    int
+		admin bool
+	}{{AdminRevenueRecords, 1, true}, {ResellerRevenueRecords, 61, false}} {
+		body := strings.TrimPrefix(callRevenue(t, tc.h, tc.id, "format=csv").Body.String(), "\xEF\xBB\xBF")
+		recs, err := csv.NewReader(strings.NewReader(body)).ReadAll()
+		require.NoError(t, err)
+		require.GreaterOrEqual(t, len(recs), 2)
+		for _, r := range recs {
+			assert.Len(t, r, len(recs[0]), "header, rows and totals have the same columns")
+		}
+		hdr := strings.Join(recs[0], "|")
+		assert.Equal(t, tc.admin, strings.Contains(hdr, "Admin profit (USD)"))
+		assert.Contains(t, hdr, "Customer price (USD)")
+	}
 }

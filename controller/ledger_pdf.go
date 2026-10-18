@@ -263,13 +263,38 @@ func ledgerPDFTable(pdf *fpdf.Fpdf, widths []float64, aligns string, header []st
 		pdf.SetTextColor(30, 30, 30)
 		pdf.SetFillColor(247, 248, 250)
 		for i, text := range row {
-			pdf.CellFormat(widths[i], rowHeight, ledgerPDFFit(pdf, text, widths[i]), "", 0, aligns[i:i+1], n%2 == 1, 0, "")
+			align := aligns[i : i+1]
+			if align == "R" {
+				// Amounts are never cut: shrink the font until the number fits.
+				size := ledgerPDFNumberFontSize(pdf, text, widths[i], 8.5)
+				pdf.SetFontSize(size)
+				pdf.CellFormat(widths[i], rowHeight, ledgerPDFFit(pdf, text, widths[i]), "", 0, align, n%2 == 1, 0, "")
+				pdf.SetFontSize(8.5)
+				continue
+			}
+			pdf.CellFormat(widths[i], rowHeight, ledgerPDFFit(pdf, text, widths[i]), "", 0, align, n%2 == 1, 0, "")
 		}
 		pdf.Ln(-1)
 	}
 }
 
 // ledgerPDFFit shortens text with an ellipsis to fit a cell of width w.
+// ledgerPDFNumberFontSize returns the largest size <= base (min 4.5) at which
+// text fits the cell; numeric cells use it instead of truncation.
+func ledgerPDFNumberFontSize(pdf *fpdf.Fpdf, text string, w, base float64) float64 {
+	limit := w - 2*pdf.GetCellMargin()
+	size := base
+	for size > 4.5 {
+		pdf.SetFontSize(size)
+		if pdf.GetStringWidth(text) <= limit {
+			break
+		}
+		size -= 0.25
+	}
+	pdf.SetFontSize(base)
+	return size
+}
+
 func ledgerPDFFit(pdf *fpdf.Fpdf, text string, w float64) string {
 	limit := w - 2*pdf.GetCellMargin()
 	if pdf.GetStringWidth(text) <= limit {

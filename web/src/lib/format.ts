@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import dayjs from "@/lib/dayjs";
+import dayjs from '@/lib/dayjs'
 
 import {
   formatCurrencyFromUSD,
   formatQuotaWithCurrency,
   getCurrencyDisplay,
   getCurrencyFractionDigits,
-} from "./currency";
+} from './currency'
 
 // ============================================================================
 // Number Formatting
@@ -31,35 +31,35 @@ import {
 
 export function formatNumber(
   value: number | null | undefined,
-  locales?: Intl.LocalesArgument,
+  locales?: Intl.LocalesArgument
 ): string {
-  if (value == null || Number.isNaN(value as number)) return "-";
+  if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(locales, { maximumFractionDigits: 2 }).format(
-    value as number,
-  );
+    value as number
+  )
 }
 
 export function formatCompactNumber(
   value: number | null | undefined,
-  locales?: Intl.LocalesArgument,
+  locales?: Intl.LocalesArgument
 ): string {
-  if (value == null || Number.isNaN(value as number)) return "-";
+  if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(locales, {
-    notation: "compact",
+    notation: 'compact',
     maximumFractionDigits: 1,
-  }).format(value as number);
+  }).format(value as number)
 }
 
 export function formatPercent(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value as number)) return "-";
+  if (value == null || Number.isNaN(value as number)) return '-'
   return Intl.NumberFormat(undefined, {
-    style: "percent",
+    style: 'percent',
     maximumFractionDigits: 2,
-  }).format((value as number) / 100);
+  }).format((value as number) / 100)
 }
 
 export function formatCurrencyUSD(value: number | null | undefined): string {
-  return formatCurrencyFromUSD(value == null ? null : (value as number));
+  return formatCurrencyFromUSD(value == null ? null : (value as number))
 }
 
 // ============================================================================
@@ -75,7 +75,7 @@ export function formatQuota(quota: number): string {
     digitsLarge: 2,
     digitsSmall: 4,
     abbreviate: true,
-  });
+  })
 }
 
 /**
@@ -88,40 +88,41 @@ export function formatQuotaPrecise(quota: number): string {
     digitsLarge: 6,
     digitsSmall: 6,
     abbreviate: false,
-    minimumNonZero: 0,
-  });
+    // Effectively off: round, never clamp sub-1e-6 values up.
+    minimumNonZero: 1e-12,
+  })
 }
 
 /** Raw quota units as text; fractional (micro) values keep 6 decimals. */
 export function formatRawQuota(quota: number): string {
-  if (!Number.isFinite(quota)) return "-";
+  if (!Number.isFinite(quota)) return '-'
   return Number.isInteger(quota)
-    ? quota.toLocaleString("en-US")
-    : quota.toLocaleString("en-US", {
+    ? quota.toLocaleString('en-US')
+    : quota.toLocaleString('en-US', {
         minimumFractionDigits: 6,
         maximumFractionDigits: 6,
-      });
+      })
 }
 
 /**
  * Parse quota from the current display input back to quota units.
  */
 export function parseQuotaFromDollars(amount: number): number {
-  if (!Number.isFinite(amount)) return 0;
+  if (!Number.isFinite(amount)) return 0
 
-  const { config, meta } = getCurrencyDisplay();
+  const { config, meta } = getCurrencyDisplay()
 
   // Tokens-only or raw quota mode
-  if (meta.kind === "tokens") {
-    return Math.round(amount);
+  if (meta.kind === 'tokens') {
+    return Math.round(amount)
   }
 
   const exchangeRate =
-    meta.kind === "currency" || meta.kind === "custom" ? meta.exchangeRate : 1;
+    meta.kind === 'currency' || meta.kind === 'custom' ? meta.exchangeRate : 1
 
-  const usdAmount = exchangeRate > 0 ? amount / exchangeRate : amount;
+  const usdAmount = exchangeRate > 0 ? amount / exchangeRate : amount
 
-  return Math.round(usdAmount * config.quotaPerUnit);
+  return Math.round(usdAmount * config.quotaPerUnit)
 }
 
 /**
@@ -129,20 +130,20 @@ export function parseQuotaFromDollars(amount: number): number {
  * Reverse of parseQuotaFromDollars.
  */
 export function quotaUnitsToDollars(units: number): number {
-  const { config, meta } = getCurrencyDisplay();
-  return quotaUnitsToDisplayAmount(units, config.quotaPerUnit, meta);
+  const { config, meta } = getCurrencyDisplay()
+  return quotaUnitsToDisplayAmount(units, config.quotaPerUnit, meta)
 }
 
 function quotaUnitsToDisplayAmount(
   units: number,
   quotaPerUnit: number,
-  meta: ReturnType<typeof getCurrencyDisplay>["meta"],
+  meta: ReturnType<typeof getCurrencyDisplay>['meta']
 ): number {
-  if (meta.kind === "tokens") {
-    return units;
+  if (meta.kind === 'tokens') {
+    return units
   }
 
-  return (units / quotaPerUnit) * meta.exchangeRate;
+  return (units / quotaPerUnit) * meta.exchangeRate
 }
 
 /**
@@ -150,24 +151,24 @@ function quotaUnitsToDisplayAmount(
  * Uses the same precision as quota list formatting without symbols or suffixes.
  */
 export function quotaUnitsToEditableAmount(units: number): number {
-  const { config, meta } = getCurrencyDisplay();
-  const amount = quotaUnitsToDisplayAmount(units, config.quotaPerUnit, meta);
+  const { config, meta } = getCurrencyDisplay()
+  const amount = quotaUnitsToDisplayAmount(units, config.quotaPerUnit, meta)
 
-  if (meta.kind === "tokens") {
-    return Math.round(amount);
+  if (meta.kind === 'tokens') {
+    return Math.round(amount)
   }
 
-  return Number(amount.toFixed(getCurrencyFractionDigits(amount)));
+  return Number(amount.toFixed(getCurrencyFractionDigits(amount)))
 }
 
 /** Return the input step matching the configured editable quota precision. */
 export function getEditableQuotaStep(): number {
-  const { meta } = getCurrencyDisplay();
-  if (meta.kind === "tokens") {
-    return 1;
+  const { meta } = getCurrencyDisplay()
+  if (meta.kind === 'tokens') {
+    return 1
   }
 
-  return 10 ** -getCurrencyFractionDigits(0);
+  return 10 ** -getCurrencyFractionDigits(0)
 }
 
 // ============================================================================
@@ -179,9 +180,9 @@ export function getEditableQuotaStep(): number {
  */
 export function formatTimestamp(timestamp: number): string {
   if (timestamp === -1) {
-    return "Never";
+    return 'Never'
   }
-  return formatTimestampToDate(timestamp);
+  return formatTimestampToDate(timestamp)
 }
 
 /**
@@ -191,13 +192,13 @@ export function formatTimestamp(timestamp: number): string {
  */
 export function formatTimestampToDate(
   timestamp?: number,
-  unit: "seconds" | "milliseconds" = "seconds",
+  unit: 'seconds' | 'milliseconds' = 'seconds'
 ): string {
   if (!timestamp || timestamp === -1 || timestamp === 0) {
-    return "-";
+    return '-'
   }
-  const ms = unit === "seconds" ? timestamp * 1000 : timestamp;
-  return dayjs(ms).format("YYYY-MM-DD HH:mm:ss");
+  const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
+  return dayjs(ms).format('YYYY-MM-DD HH:mm:ss')
 }
 
 /**
@@ -208,51 +209,51 @@ export function formatTimestampToDate(
  */
 export function formatTimestampRelative(
   timestamp?: number,
-  unit: "seconds" | "milliseconds" = "seconds",
-  locales?: Intl.LocalesArgument,
+  unit: 'seconds' | 'milliseconds' = 'seconds',
+  locales?: Intl.LocalesArgument
 ): string {
   if (!timestamp || timestamp === -1 || timestamp === 0) {
-    return "-";
+    return '-'
   }
 
-  const ms = unit === "seconds" ? timestamp * 1000 : timestamp;
-  const diffSeconds = Math.round((ms - Date.now()) / 1000);
-  const absSeconds = Math.abs(diffSeconds);
+  const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
+  const diffSeconds = Math.round((ms - Date.now()) / 1000)
+  const absSeconds = Math.abs(diffSeconds)
   const formatter = new Intl.RelativeTimeFormat(locales, {
-    numeric: "always",
-  });
+    numeric: 'always',
+  })
 
   if (absSeconds < 60) {
-    return formatter.format(diffSeconds, "second");
+    return formatter.format(diffSeconds, 'second')
   }
   if (absSeconds < 3600) {
-    return formatter.format(Math.round(diffSeconds / 60), "minute");
+    return formatter.format(Math.round(diffSeconds / 60), 'minute')
   }
   if (absSeconds < 86400) {
-    return formatter.format(Math.round(diffSeconds / 3600), "hour");
+    return formatter.format(Math.round(diffSeconds / 3600), 'hour')
   }
   if (absSeconds < 2592000) {
-    return formatter.format(Math.round(diffSeconds / 86400), "day");
+    return formatter.format(Math.round(diffSeconds / 86400), 'day')
   }
   if (absSeconds < 31536000) {
-    return formatter.format(Math.round(diffSeconds / 2592000), "month");
+    return formatter.format(Math.round(diffSeconds / 2592000), 'month')
   }
-  return formatter.format(Math.round(diffSeconds / 31536000), "year");
+  return formatter.format(Math.round(diffSeconds / 31536000), 'year')
 }
 
 /** Format a Date object to YYYY-MM-DD HH:mm:ss */
 export function formatDateTimeStr(date: Date): string {
-  return dayjs(date).format("YYYY-MM-DD HH:mm:ss");
+  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
 }
 
 /** Format a Date object to YYYY-MM-DD */
 export function formatDateStr(date: Date): string {
-  return dayjs(date).format("YYYY-MM-DD");
+  return dayjs(date).format('YYYY-MM-DD')
 }
 
 /** Format a Date object to HH:mm:ss */
 export function formatTimeStr(date: Date): string {
-  return dayjs(date).format("HH:mm:ss");
+  return dayjs(date).format('HH:mm:ss')
 }
 
 /**
@@ -264,27 +265,27 @@ export function formatLogQuota(quota: number): string {
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,
-  });
+  })
 }
 
 /**
  * Format tokens count with K/M suffixes
  */
 export function formatTokens(tokens: number): string {
-  if (tokens === 0) return "-";
-  if (tokens < 1000) return tokens.toString();
-  if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`;
-  return `${(tokens / 1000000).toFixed(2)}M`;
+  if (tokens === 0) return '-'
+  if (tokens < 1000) return tokens.toString()
+  if (tokens < 1000000) return `${(tokens / 1000).toFixed(1)}K`
+  return `${(tokens / 1000000).toFixed(2)}M`
 }
 
 /**
  * Format use time in seconds with appropriate unit
  */
 export function formatUseTime(seconds: number): string {
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}m ${remainingSeconds.toFixed(0)}s`;
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `${minutes}m ${remainingSeconds.toFixed(0)}s`
 }
 
 /**
@@ -292,9 +293,9 @@ export function formatUseTime(seconds: number): string {
  */
 export function formatTimestampForInput(timestamp: number): string {
   if (timestamp === -1) {
-    return "";
+    return ''
   }
-  return dayjs(timestamp * 1000).format("YYYY-MM-DDTHH:mm");
+  return dayjs(timestamp * 1000).format('YYYY-MM-DDTHH:mm')
 }
 
 /**
@@ -302,10 +303,10 @@ export function formatTimestampForInput(timestamp: number): string {
  */
 export function parseTimestampFromInput(value: string): number {
   if (!value) {
-    return -1;
+    return -1
   }
-  const date = new Date(value);
-  return Math.floor(date.getTime() / 1000);
+  const date = new Date(value)
+  return Math.floor(date.getTime() / 1000)
 }
 
 // ============================================================================
@@ -317,21 +318,21 @@ export function parseTimestampFromInput(value: string): number {
  * Uses HSL for better color distribution
  */
 export function stringToColor(str: string): string {
-  if (!str) return "gray";
+  if (!str) return 'gray'
 
   // Generate hash from string
-  let hash = 0;
+  let hash = 0
   for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    hash = hash & hash; // Convert to 32-bit integer
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+    hash = hash & hash // Convert to 32-bit integer
   }
 
   // Use hash to generate hue (0-360)
-  const hue = Math.abs(hash % 360);
+  const hue = Math.abs(hash % 360)
 
   // Use saturation and lightness that work well for tags
-  const saturation = 65 + (Math.abs(hash) % 10); // 65-75%
-  const lightness = 55 + (Math.abs(hash >> 8) % 10); // 55-65%
+  const saturation = 65 + (Math.abs(hash) % 10) // 65-75%
+  const lightness = 55 + (Math.abs(hash >> 8) % 10) // 55-65%
 
-  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`
 }

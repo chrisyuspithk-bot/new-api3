@@ -204,7 +204,12 @@ func revenueUsdCells(price, cost, profit, adminMicro int64, internal bool) []str
 }
 
 // quotaUsdPDF renders "quota ($usd)" for PDF cells.
-func quotaUsdPDF(quota, usd string) string { return quota + " ($" + usd + ")" }
+func quotaUsdPDF(quota, usd string) string {
+	if strings.HasPrefix(usd, "-") {
+		return quota + " (-$" + usd[1:] + ")"
+	}
+	return quota + " ($" + usd + ")"
+}
 
 func revenueRecordPDFCells(r model.RevenueRecordView, internal bool, tr func(string) string, ts func(int64) string) []string {
 	cells := revenueRecordCells(r, internal, tr, ts)
@@ -347,10 +352,10 @@ func writeRevenueRecordsPDF(c *gin.Context, f model.RevenueRecordFilter, rows []
 	var widths []float64
 	var aligns string
 	if internal {
-		widths = []float64{30, 28, 28, 32, 29, 32.5, 32.5, 32.5, 32.5}
+		widths = []float64{32, 27, 27, 30, 28, 32.25, 32.25, 32.25, 32.25} // 273 mm = A4 landscape - margins
 		aligns = "LLLLLRRRR"
 	} else {
-		widths = []float64{36, 40, 44, 37, 40, 40, 40}
+		widths = []float64{36, 38, 42, 37, 40, 40, 40}
 		aligns = "LLLLRRR"
 	}
 	var body [][]string
