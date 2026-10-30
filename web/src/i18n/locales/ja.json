@@ -7347,5 +7347,9 @@
     "Direct credit top-ups": "Direct credit top-ups",
     "Direct credit cost (paid to admin)": "Direct credit cost (paid to admin)",
     "Your cost for direct credit": "Your cost for direct credit"
-  }
+    "Company name": "会社名",
+    "Customer created, but SP Chat provisioning failed": "顧客を作成しましたが、SP Chat のプロビジョニングに失敗しました"
+  },
+  "Reseller min customer starter credit (USD)": "リセラー新規顧客の最低スタータークレジット（USD）",
+  "Minimum credit transferred from the reseller cost balance to each newly created customer company. Default 10 (= $10). Set 0 to disable. Existing customers are unchanged.": "リセラーのコスト残高から新規顧客会社へ振り替える最低クレジット。デフォルト 10（= $10）。0 で無効。既存顧客は変更しません。"
 }

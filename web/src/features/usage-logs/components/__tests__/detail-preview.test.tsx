@@ -183,6 +183,11 @@ test.each([
     expected: 'Standard · $2 / $4/M',
   },
   {
+    name: 'standard with group markup',
+    other: { model_ratio: 0.15, completion_ratio: 4, group_ratio: 1.44 },
+    expected: 'Standard · $0.432 / $1.728/M',
+  },
+  {
     name: 'zero price fallback',
     other: { model_price: 0, group_ratio: 1 },
     expected: 'Group Ratio 1x',

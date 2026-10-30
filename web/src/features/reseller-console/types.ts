@@ -61,6 +61,14 @@ export interface Customer {
   billing_mode?: 'markup' | 'direct_credit'
   remark?: string
   created_at?: number
+  email?: string
+  company_name?: string
+  sp_chat_provisioned?: boolean
+}
+
+/** Create response: set when the SP Chat org could not be provisioned. */
+export interface CreatedCustomer extends Customer {
+  sp_chat_warning?: string
 }
 
 export interface CustomerToken {

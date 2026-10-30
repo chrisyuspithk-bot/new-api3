@@ -112,6 +112,12 @@ type User struct {
 	LastLoginAt          int64                      `json:"last_login_at" gorm:"default:0;column:last_login_at"`
 	AuthVersion          int64                      `json:"-" gorm:"type:bigint;not null;default:1;column:auth_version"`
 	AdminPermissions     map[string]map[string]bool `json:"admin_permissions,omitempty" gorm:"-:all"`
+	CompanyName          string                     `json:"company_name,omitempty" gorm:"type:text;column:company_name" validate:"max=128"`
+	OwuiGroupId          string                     `json:"owui_group_id,omitempty" gorm:"type:text;column:owui_group_id"`
+	OwuiAdminUserId      string                     `json:"owui_admin_user_id,omitempty" gorm:"type:text;column:owui_admin_user_id"`
+	NewapiTokenId        int                        `json:"newapi_token_id,omitempty" gorm:"column:newapi_token_id"`
+	SpChatProvisioned    int                        `json:"sp_chat_provisioned" gorm:"not null;default:0;column:sp_chat_provisioned"`
+	SpChatProvisionedAt  int64                      `json:"sp_chat_provisioned_at,omitempty" gorm:"column:sp_chat_provisioned_at"`
 	// ResellerId is 0 for users owned directly by the admin; >0 is the users.id
 	// of the reseller that owns this customer.
 	ResellerId int `json:"reseller_id" gorm:"type:int;not null;default:0;index:idx_users_reseller_id;index:idx_users_reseller_status,priority:1"`

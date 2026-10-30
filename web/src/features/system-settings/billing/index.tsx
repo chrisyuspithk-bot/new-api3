@@ -26,6 +26,7 @@ import {
 
 const defaultBillingSettings: BillingSettings = {
   QuotaForNewUser: 0,
+  ResellerMinCustomerCreditUSD: 10,
   QuotaForInviter: 0,
   QuotaForInvitee: 0,
   TopUpLink: '',

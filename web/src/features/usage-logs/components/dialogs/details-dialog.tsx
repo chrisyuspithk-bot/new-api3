@@ -180,7 +180,19 @@ function BillingBreakdown(props: {
   const rows: Array<{ label: string; value: string }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
-  const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
+  const userGRForPrice = other.user_group_ratio
+  const isUserGRForPrice =
+    userGRForPrice != null &&
+    Number.isFinite(userGRForPrice) &&
+    userGRForPrice !== -1
+  const groupMultiplierForPrice =
+    isUserGRForPrice
+      ? userGRForPrice
+      : other.group_ratio != null && Number.isFinite(other.group_ratio)
+        ? other.group_ratio
+        : 1
+  const baseInputUSD =
+    other.model_ratio != null ? other.model_ratio * 2.0 * groupMultiplierForPrice : 0
 
   if (isTieredExpr) {
     rows.push({
@@ -197,7 +209,7 @@ function BillingBreakdown(props: {
       for (const entry of tieredSummary.priceEntries) {
         rows.push({
           label: t(entry.shortLabel),
-          value: `${fmtPrice(entry.price)}/${entry.unit ? t(entry.unit) : 'M'}`,
+          value: `${fmtPrice(entry.price * groupMultiplierForPrice)}/${entry.unit ? t(entry.unit) : 'M'}`,
         })
       }
     } else {

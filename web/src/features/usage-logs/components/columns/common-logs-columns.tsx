@@ -216,9 +216,22 @@ function buildTypeDetailSegments(
     }
   } else if (isTieredExpr) {
     if (tieredSummary) {
+      const tieredUserGR = other.user_group_ratio
+      const tieredIsUserGR =
+        tieredUserGR != null &&
+        Number.isFinite(tieredUserGR) &&
+        tieredUserGR !== -1
+      const tieredGroupMultiplier =
+        tieredIsUserGR
+          ? tieredUserGR
+          : other.group_ratio != null && Number.isFinite(other.group_ratio)
+            ? other.group_ratio
+            : 1
       const baseEntries = tieredSummary.priceEntries
         .filter((entry) => ['inputPrice', 'outputPrice'].includes(entry.field))
-        .map((entry) => formatPriceCompact(entry.price))
+        .map((entry) =>
+          formatPriceCompact(entry.price * tieredGroupMultiplier)
+        )
       if (baseEntries.length > 0) {
         const tierLabel = tieredSummary.tier.label || t('Default')
         segments.push({
@@ -233,7 +246,7 @@ function buildTypeDetailSegments(
           )
         )
         .map((entry) => {
-          return formatPriceCompact(entry.price)
+          return formatPriceCompact(entry.price * tieredGroupMultiplier)
         })
       if (cacheEntries.length > 0) {
         segments.push({
@@ -255,8 +268,8 @@ function buildTypeDetailSegments(
         )
         .map((entry) =>
           entry.unit
-            ? `${tieredSummary.tier.label || t('Default')} · ${t(entry.shortLabel)} ${formatPriceCompact(entry.price)}/${t(entry.unit)}`
-            : `${t(entry.shortLabel)} ${formatPrice(entry.price)}`
+            ? `${tieredSummary.tier.label || t('Default')} · ${t(entry.shortLabel)} ${formatPriceCompact(entry.price * tieredGroupMultiplier)}/${t(entry.unit)}`
+            : `${t(entry.shortLabel)} ${formatPrice(entry.price * tieredGroupMultiplier)}`
         )
       if (otherEntries.length > 0) {
         segments.push({
@@ -278,7 +291,18 @@ function buildTypeDetailSegments(
         text: `${t('Per-call')} · ${formatBillingCurrencyFromUSD(modelPrice, priceOpts)}`,
       })
     } else if (other.model_ratio != null) {
-      const inputPriceUSD = other.model_ratio * 2.0
+      const userGroupRatio = other.user_group_ratio
+      const isUserGroup =
+        userGroupRatio != null &&
+        Number.isFinite(userGroupRatio) &&
+        userGroupRatio !== -1
+      const groupMultiplier =
+        isUserGroup
+          ? userGroupRatio
+          : other.group_ratio != null && Number.isFinite(other.group_ratio)
+            ? other.group_ratio
+            : 1
+      const inputPriceUSD = other.model_ratio * 2.0 * groupMultiplier
       const baseEntries = [formatPriceCompact(inputPriceUSD)]
       if (other.completion_ratio != null) {
         baseEntries.push(

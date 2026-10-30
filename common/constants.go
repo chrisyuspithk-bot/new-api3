@@ -128,6 +128,12 @@ var TelegramBotToken = ""
 var TelegramBotName = ""
 
 var QuotaForNewUser = 0
+
+// ResellerMinCustomerCreditUSD is the global minimum starter credit (USD)
+// transferred from a reseller's cost balance to each newly created customer.
+// Default 10 (= 5_000_000 quota units when QuotaPerUnit is 500000). Admin-settable
+// via option key ResellerMinCustomerCreditUSD; 0 disables the starter credit.
+var ResellerMinCustomerCreditUSD = 10.0
 var QuotaForInviter = 0
 var QuotaForInvitee = 0
 var ChannelDisableThreshold = 5.0

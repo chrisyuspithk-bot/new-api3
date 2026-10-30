@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -589,12 +590,36 @@ func TransferResellerCustomerQuota(resellerId, customerId, customerDelta int, en
 	return nil
 }
 
-// CreateResellerCustomer inserts a customer with 0 sale quota. The
-// max_customers check and the insert run in one transaction holding a row lock
+// ResellerMinCustomerStarterQuota converts the admin option
+// ResellerMinCustomerCreditUSD into wallet quota units via QuotaPerUnit.
+// Returns 0 when the USD amount is <= 0 (starter credit disabled).
+func ResellerMinCustomerStarterQuota() (int, error) {
+	usd := common.ResellerMinCustomerCreditUSD
+	if usd <= 0 {
+		return 0, nil
+	}
+	return common.WalletQuotaFromDecimalStrict(
+		decimal.NewFromFloat(usd).Mul(decimal.NewFromFloat(common.QuotaPerUnit)),
+	)
+}
+
+// CreateResellerCustomer inserts a customer and optionally applies the global
+// minimum starter credit (starterQuota > 0). The max_customers check, insert,
+// reseller debit and customer credit run in one transaction holding a row lock
 // on the reseller profile, so concurrent creates cannot exceed the limit
-// (MySQL/PG; SQLite serialises writers anyway).
-func CreateResellerCustomer(resellerId int, user *User) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
+// (MySQL/PG; SQLite serialises writers anyway). When starterQuota > 0 the
+// reseller cost balance must cover it or ErrAmountExceedsResellerBalance is
+// returned and nothing is written. Existing customers are never touched.
+func CreateResellerCustomer(resellerId int, user *User, starterQuota int, operatorId int) error {
+	if starterQuota < 0 {
+		return errors.New("starter quota cannot be negative")
+	}
+	if starterQuota > 0 {
+		if err := common.ValidateWalletQuota(starterQuota); err != nil {
+			return err
+		}
+	}
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var profile ResellerProfile
 		if err := lockForUpdate(tx).Where("user_id = ?", resellerId).First(&profile).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
@@ -608,13 +633,49 @@ func CreateResellerCustomer(resellerId int, user *User) error {
 				return ErrCustomerLimitReached
 			}
 		}
+		// Debit reseller first so a failed insert never orphans a cost-balance
+		// reduction, and an insufficient balance rejects before the customer exists.
+		if starterQuota > 0 {
+			if err := applyQuotaDeltaTx(tx, resellerId, -starterQuota, ErrAmountExceedsResellerBalance); err != nil {
+				return err
+			}
+		}
 		if err := user.InsertWithTx(tx, 0); err != nil {
 			return err
 		}
-		// Customers start with 0 sale quota; the reseller credits them manually.
-		user.Quota = 0
-		return tx.Model(&User{}).Where("id = ?", user.Id).Update("quota", 0).Error
+		user.Quota = starterQuota
+		if err := tx.Model(&User{}).Where("id = ?", user.Id).Update("quota", starterQuota).Error; err != nil {
+			return err
+		}
+		if starterQuota > 0 {
+			usd := common.ResellerMinCustomerCreditUSD
+			entry := ResellerLedger{
+				ResellerId: resellerId,
+				CustomerId: user.Id,
+				Kind:       ResellerLedgerCustomerCredit,
+				QuotaDelta: int64(starterQuota),
+				MoneyUsd:   &usd,
+				OperatorId: operatorId,
+				Remark:     "minimum starter credit",
+				CreatedAt:  common.GetTimestamp(),
+			}
+			if err := tx.Create(&entry).Error; err != nil {
+				return err
+			}
+		}
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if starterQuota > 0 {
+		for _, uid := range []int{resellerId, user.Id} {
+			if cacheErr := invalidateUserCache(uid); cacheErr != nil {
+				common.SysError(common.LogText("failed to invalidate user cache after starter credit (user=%d): %s", uid, cacheErr.Error()))
+			}
+		}
+	}
+	return nil
 }
 
 // DisableResellerCustomer is the reseller "delete": the customer is disabled

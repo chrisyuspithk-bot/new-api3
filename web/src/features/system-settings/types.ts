@@ -272,6 +272,7 @@ export type ModelSettings = {
 
 export type BillingSettings = {
   QuotaForNewUser: number
+  ResellerMinCustomerCreditUSD: number
   QuotaForInviter: number
   QuotaForInvitee: number
   TopUpLink: string

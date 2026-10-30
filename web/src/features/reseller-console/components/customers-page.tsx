@@ -79,6 +79,8 @@ export function ResellerCustomersPage() {
   const [form, setForm] = useState({
     username: '',
     password: '',
+    email: '',
+    company_name: '',
     display_name: '',
     group: '',
     markup: '',
@@ -141,18 +143,24 @@ export function ResellerCustomersPage() {
   const onCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      requireServerSuccess(
+      const res = requireServerSuccess(
         await createCustomer({
           ...form,
           markup: form.markup ? Number(form.markup) : undefined,
           billing_mode: createMode,
         }),
       )
-      toast.success(t('Customer created'))
+      if (res.data?.sp_chat_warning) {
+        toast.warning(t(res.data.sp_chat_warning))
+      } else {
+        toast.success(t('Customer created'))
+      }
       setCreateOpen(false)
       setForm({
         username: '',
         password: '',
+        email: '',
+        company_name: '',
         display_name: '',
         group: '',
         markup: '',
@@ -392,18 +400,24 @@ export function ResellerCustomersPage() {
             <div className='grid gap-3 py-4'>
               {(
                 [
-                  ['username', t('Username'), true],
-                  ['password', t('Password'), true],
-                  ['display_name', t('Display Name'), false],
-                  ['group', t('Group'), false],
-                  ['markup', t('Markup override'), false],
+                  // Max lengths mirror the server validation on model.User.
+                  ['username', t('Username'), true, 20],
+                  ['email', t('Email'), true, 50],
+                  ['company_name', t('Company name'), true, 128],
+                  ['password', t('Password'), true, undefined],
+                  ['display_name', t('Display Name'), false, 20],
+                  ['group', t('Group'), false, undefined],
+                  ['markup', t('Markup override'), false, undefined],
                 ] as const
-              ).map(([key, label, required]) => (
+              ).map(([key, label, required, maxLength]) => (
                 <div key={key} className='space-y-1.5'>
                   <Label htmlFor={`reseller-customer-${key}`}>{label}</Label>
                   <Input
                     id={`reseller-customer-${key}`}
-                    type={key === 'password' ? 'password' : 'text'}
+                    type={
+                      key === 'password' || key === 'email' ? key : 'text'
+                    }
+                    maxLength={maxLength}
                     required={required}
                     placeholder={
                       key === 'group'

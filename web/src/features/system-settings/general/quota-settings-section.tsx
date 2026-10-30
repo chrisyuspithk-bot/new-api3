@@ -53,6 +53,7 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 const quotaSchema = z.object({
   QuotaForNewUser: z.coerce.number().min(0),
+  ResellerMinCustomerCreditUSD: z.coerce.number().min(0),
   QuotaForInviter: z.coerce.number().min(0),
   QuotaForInvitee: z.coerce.number().min(0),
   TopUpLink: z.string(),
@@ -159,6 +160,34 @@ export function QuotaSettingsSection({
                       {
                         formattedQuota: formatQuotaInputValue(field.value),
                       }
+                    )}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name='ResellerMinCustomerCreditUSD'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Reseller min customer starter credit (USD)')}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type='number'
+                      min={0}
+                      step='any'
+                      value={field.value ?? ''}
+                      onChange={handleNumberChange(field.onChange)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Minimum credit transferred from the reseller cost balance to each newly created customer company. Default 10 (= $10). Set 0 to disable. Existing customers are unchanged.'
                     )}
                   </FormDescription>
                   <FormMessage />

@@ -7458,5 +7458,9 @@
     "Direct credit top-ups": "直充充值",
     "Direct credit cost (paid to admin)": "直充成本（支付给管理员）",
     "Your cost for direct credit": "您的直充成本"
-  }
+    "Company name": "公司名称",
+    "Customer created, but SP Chat provisioning failed": "客户已创建，但 SP Chat 开通失败"
+  },
+  "Reseller min customer starter credit (USD)": "代理商新建客户最低起步额度（美元）",
+  "Minimum credit transferred from the reseller cost balance to each newly created customer company. Default 10 (= $10). Set 0 to disable. Existing customers are unchanged.": "从代理商成本余额转入每个新创建客户公司的最低额度。默认 10（= $10）。设为 0 可关闭。不影响已有客户。"
 }

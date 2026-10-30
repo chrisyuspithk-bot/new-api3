@@ -41,10 +41,10 @@ func TestCreateResellerCustomerEnforcesLimit(t *testing.T) {
 		DB.Exec("DELETE FROM reseller_profiles WHERE user_id = ?", rid)
 	})
 	first := &User{Username: "lim-c1", Password: "password123", ResellerId: rid, Group: "default"}
-	require.NoError(t, CreateResellerCustomer(rid, first))
+	require.NoError(t, CreateResellerCustomer(rid, first, 0, rid))
 	assert.Equal(t, 0, first.Quota)
 	second := &User{Username: "lim-c2", Password: "password123", ResellerId: rid, Group: "default"}
-	require.ErrorIs(t, CreateResellerCustomer(rid, second), ErrCustomerLimitReached)
+	require.ErrorIs(t, CreateResellerCustomer(rid, second, 0, rid), ErrCustomerLimitReached)
 }
 
 func TestTransferResellerCustomerQuotaSuccessAndInsufficient(t *testing.T) {

@@ -318,6 +318,9 @@ func ResetPassword(c *gin.Context) {
 		return
 	}
 	common.DeleteKey(req.Email, common.PasswordResetPurpose)
+	if resetUser, err := model.GetUniqueUserByEmail(req.Email); err == nil {
+		service.SyncSpChatPasswordInBackground(resetUser.Id, password)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

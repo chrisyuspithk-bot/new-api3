@@ -739,6 +739,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 	updatePassword := updatedUser.Password != ""
+	plainPassword := updatedUser.Password
 	auditParams := map[string]any{
 		"username": originUser.Username,
 		"id":       updatedUser.Id,
@@ -789,6 +790,19 @@ func UpdateUser(c *gin.Context) {
 	if err := model.PublishUserAuthCache(updatedUser.Id); err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if updatePassword {
+		if originUser.SpChatProvisioned == 1 {
+			service.SyncSpChatPasswordInBackground(updatedUser.Id, plainPassword)
+		} else if originUser.CompanyName != "" && originUser.Email != "" {
+			// Retry path for customers whose provisioning failed at creation.
+			if err := service.ProvisionSpChatOrg(updatedUser.Id, plainPassword, originUser.CompanyName); err != nil {
+				common.SysError(err.Error())
+				auditParams["sp_chat_provisioned"] = false
+			} else {
+				auditParams["sp_chat_provisioned"] = true
+			}
+		}
 	}
 	if applyMode {
 		// Same rule as the reseller UI: only at a 0 balance. Runs after the
@@ -974,6 +988,7 @@ func UpdateSelf(c *gin.Context) {
 			return
 		}
 		succeeded = true
+		service.SyncSpChatPasswordInBackground(cleanUser.Id, user.Password)
 		notificationFailed = service.NotifyAccountSecurityChange(current.Email, "Password updated") != nil
 		if err := model.PublishUserAuthCache(cleanUser.Id); err != nil {
 			writeSecurityOperationError(c, err)

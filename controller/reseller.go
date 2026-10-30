@@ -10,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
@@ -629,18 +630,21 @@ func billingModeOut(m string) string {
 
 func customerView(user *model.User) gin.H {
 	return gin.H{
-		"id":            user.Id,
-		"username":      user.Username,
-		"display_name":  user.DisplayName,
-		"status":        user.Status,
-		"group":         user.Group,
-		"quota":         user.Quota,
-		"used_quota":    user.UsedQuota,
-		"request_count": user.RequestCount,
-		"markup":        user.Markup,
-		"billing_mode":  billingModeOut(user.BillingMode),
-		"remark":        user.Remark,
-		"created_at":    user.CreatedAt,
+		"id":                  user.Id,
+		"username":            user.Username,
+		"display_name":        user.DisplayName,
+		"status":              user.Status,
+		"group":               user.Group,
+		"quota":               user.Quota,
+		"used_quota":          user.UsedQuota,
+		"request_count":       user.RequestCount,
+		"markup":              user.Markup,
+		"billing_mode":        billingModeOut(user.BillingMode),
+		"remark":              user.Remark,
+		"created_at":          user.CreatedAt,
+		"email":               user.Email,
+		"company_name":        user.CompanyName,
+		"sp_chat_provisioned": user.SpChatProvisioned == 1,
 	}
 }
 
@@ -694,6 +698,8 @@ func ResellerGetCustomer(c *gin.Context) {
 type resellerCustomerRequest struct {
 	Username    string   `json:"username"`
 	Password    string   `json:"password"`
+	Email       string   `json:"email"`
+	CompanyName string   `json:"company_name"`
 	DisplayName string   `json:"display_name"`
 	Group       string   `json:"group"`
 	Markup      *float64 `json:"markup"`
@@ -759,9 +765,23 @@ func createResellerCustomer(c *gin.Context, resellerId int, req resellerCustomer
 		common.ApiErrorMsg(c, "username and password (min 8 chars) are required")
 		return
 	}
+	// Email + company name are the SP Chat login and org; the reseller (or admin)
+	// asserts the address, the same trust level as admin CreateUser.
+	email := model.NormalizeEmail(req.Email)
+	companyName := strings.TrimSpace(req.CompanyName)
+	if common.Validate.Var(email, "required,email,max=50") != nil || companyName == "" {
+		common.ApiErrorMsg(c, "a valid email and company name are required")
+		return
+	}
+	if model.IsEmailAlreadyTaken(email) {
+		common.ApiErrorMsg(c, "email is already in use")
+		return
+	}
 	user := model.User{
 		Username:    username,
 		Password:    req.Password,
+		Email:       email,
+		CompanyName: companyName,
 		DisplayName: req.DisplayName,
 		Role:        common.RoleCommonUser,
 		Group:       group,
@@ -786,12 +806,29 @@ func createResellerCustomer(c *gin.Context, resellerId int, req resellerCustomer
 		common.ApiError(c, err)
 		return
 	}
-	// max_customers check + insert + zero quota in one transaction.
-	if err := model.CreateResellerCustomer(resellerId, &user); err != nil {
+	// Resolve global minimum starter credit (USD → quota). Default $10 when unset.
+	starterQuota, err := model.ResellerMinCustomerStarterQuota()
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, customerView(&user))
+	// max_customers check + insert + optional starter credit (reseller → customer)
+	// in one transaction. Insufficient reseller balance fails with a clear error
+	// and does not create the customer.
+	if err := model.CreateResellerCustomer(resellerId, &user, starterQuota, c.GetInt("id")); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// The New API customer is kept when SP Chat provisioning fails; the attempt
+	// cleans up after itself, and an admin password reset retries it later.
+	view := customerView(&user)
+	if err := service.ProvisionSpChatOrg(user.Id, req.Password, companyName); err != nil {
+		common.SysError(err.Error())
+		view["sp_chat_warning"] = "Customer created, but SP Chat provisioning failed"
+	} else {
+		view["sp_chat_provisioned"] = service.SpChatEnabled()
+	}
+	common.ApiSuccess(c, view)
 }
 
 func ResellerUpdateCustomer(c *gin.Context) {

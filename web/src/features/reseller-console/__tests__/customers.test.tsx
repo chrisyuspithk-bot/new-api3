@@ -20,6 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
+import { toast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ResellerCustomersPage } from '@/features/reseller-console/components/customers-page'
@@ -83,6 +84,14 @@ describe('reseller customers page', () => {
       within(dialog).getByRole('textbox', { name: 'Username' }),
       'newcust',
     )
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Email' }),
+      'owner@acme.test'
+    )
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Company name' }),
+      'Acme Ltd'
+    )
     await user.type(within(dialog).getByLabelText('Password'), 'password123')
 
     await user.click(within(dialog).getByRole('button', { name: 'Create' }))
@@ -90,8 +99,51 @@ describe('reseller customers page', () => {
     await waitFor(() =>
       expect(api.post).toHaveBeenCalledWith(
         '/api/reseller/customers',
-        expect.objectContaining({ username: 'newcust', group: '' }),
+        expect.objectContaining({
+          username: 'newcust',
+          email: 'owner@acme.test',
+          company_name: 'Acme Ltd',
+          group: '',
+        }),
       ),
+    )
+  })
+
+  it('warns when the customer is created but SP Chat provisioning failed', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          ...customer,
+          sp_chat_warning: 'Customer created, but SP Chat provisioning failed',
+        },
+      },
+    })
+    const warning = vi.spyOn(toast, 'warning')
+    const user = userEvent.setup()
+    renderPage()
+    await user.click(screen.getByRole('button', { name: 'Add Customer' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Username' }),
+      'newcust',
+    )
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Email' }),
+      'owner@acme.test',
+    )
+    await user.type(
+      within(dialog).getByRole('textbox', { name: 'Company name' }),
+      'Acme Ltd',
+    )
+    await user.type(within(dialog).getByLabelText('Password'), 'password123')
+    await user.click(within(dialog).getByRole('button', { name: 'Create' }))
+
+    await waitFor(() =>
+      expect(warning).toHaveBeenCalledWith(
+        'Customer created, but SP Chat provisioning failed',
+      ),
+    )
     )
   })
 

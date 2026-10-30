@@ -1,7 +1,9 @@
 package model
 
 import (
+	"errors"
 	"maps"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -141,6 +143,7 @@ func InitOptionMap() {
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
+	common.OptionMap["ResellerMinCustomerCreditUSD"] = strconv.FormatFloat(common.ResellerMinCustomerCreditUSD, 'f', -1, 64)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
 	common.OptionMap["QuotaRemindThreshold"] = strconv.Itoa(common.QuotaRemindThreshold)
@@ -230,6 +233,12 @@ func SyncOptions(frequency int) {
 func validateOptionValue(key string, value string) error {
 	if key == legacyAccessTokenRetireAtKey {
 		return errLegacyRetireAtReadOnly
+	}
+	if key == "ResellerMinCustomerCreditUSD" {
+		v, err := strconv.ParseFloat(value, 64)
+		if err != nil || v < 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+			return errors.New("ResellerMinCustomerCreditUSD must be a non-negative number")
+		}
 	}
 	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
 		return err
@@ -607,6 +616,10 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSecretKey = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
+	case "ResellerMinCustomerCreditUSD":
+		if v, err := strconv.ParseFloat(value, 64); err == nil && v >= 0 {
+			common.ResellerMinCustomerCreditUSD = v
+		}
 	case "QuotaForInviter":
 		common.QuotaForInviter, _ = strconv.Atoi(value)
 	case "QuotaForInvitee":

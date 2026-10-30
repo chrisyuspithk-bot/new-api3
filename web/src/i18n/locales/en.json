@@ -7458,5 +7458,9 @@
     "Direct credit top-ups": "Direct credit top-ups",
     "Direct credit cost (paid to admin)": "Direct credit cost (paid to admin)",
     "Your cost for direct credit": "Your cost for direct credit"
-  }
+    "Company name": "Company name",
+    "Customer created, but SP Chat provisioning failed": "Customer created, but SP Chat provisioning failed"
+  },
+  "Reseller min customer starter credit (USD)": "Reseller min customer starter credit (USD)",
+  "Minimum credit transferred from the reseller cost balance to each newly created customer company. Default 10 (= $10). Set 0 to disable. Existing customers are unchanged.": "Minimum credit transferred from the reseller cost balance to each newly created customer company. Default 10 (= $10). Set 0 to disable. Existing customers are unchanged."
 }

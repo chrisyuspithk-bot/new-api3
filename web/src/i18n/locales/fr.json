@@ -7347,5 +7347,9 @@
     "Direct credit top-ups": "Direct credit top-ups",
     "Direct credit cost (paid to admin)": "Direct credit cost (paid to admin)",
     "Your cost for direct credit": "Your cost for direct credit"
-  }
+    "Company name": "Nom de l'entreprise",
+    "Customer created, but SP Chat provisioning failed": "Client créé, mais le provisionnement SP Chat a échoué"
+  },
+  "Reseller min customer starter credit (USD)": "Crédit de démarrage minimum client revendeur (USD)",
+  "Minimum credit transferred from the reseller cost balance to each newly created customer company. Default 10 (= $10). Set 0 to disable. Existing customers are unchanged.": "Crédit minimum transféré du solde coût du revendeur vers chaque nouvelle société cliente. Défaut 10 (= 10 $). 0 pour désactiver. Clients existants inchangés."
 }

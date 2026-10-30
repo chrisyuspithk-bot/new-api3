@@ -20,6 +20,7 @@ import { api } from '@/lib/api'
 
 import type {
   ApiResponse,
+  CreatedCustomer,
   Customer,
   CustomerToken,
   GrossProfitRow,
@@ -60,12 +61,14 @@ export async function getCustomer(id: number): Promise<ApiResponse<Customer>> {
 export async function createCustomer(body: {
   username: string
   password: string
+  email: string
+  company_name: string
   display_name?: string
   group?: string
   markup?: number
   remark?: string
   billing_mode?: 'markup' | 'direct_credit'
-}): Promise<ApiResponse<Customer>> {
+}): Promise<ApiResponse<CreatedCustomer>> {
   const res = await api.post('/api/reseller/customers', body)
   return res.data
 }
