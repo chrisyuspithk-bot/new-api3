@@ -7,6 +7,8 @@ https://github.com/chrisyuspithk-bot/sp-chat/blob/main/docs/CLAUDE_CODE_DEPLOY.m
 **Repo:** https://github.com/chrisyuspithk-bot/new-api3
 
 ---
+> **Also see:** free/easy **two-app** deploy (New API + SP Chat over Cloudflare Tunnel) — [`CLAUDE_CODE_2APP_CF_TUNNEL.md`](./CLAUDE_CODE_2APP_CF_TUNNEL.md) (twin: [sp-chat](https://github.com/chrisyuspithk-bot/sp-chat/blob/main/docs/CLAUDE_CODE_2APP_CF_TUNNEL.md)). New target only — do **not** disrupt live spit Credits `:8092` / existing stacks unless asked.
+
 
 ## 0. Safety
 
