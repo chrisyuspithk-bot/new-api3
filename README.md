@@ -440,4 +440,4 @@ If this project is helpful to you, welcome to give us a ⭐️ Star！
 ## SP Chat / Claude Code 部署说明（本 fork）
 
 见 [`docs/CLAUDE_CODE_DEPLOY.md`](./docs/CLAUDE_CODE_DEPLOY.md)。SP Chat Credits 产品栈（`:8092`）：
-[sp-chat `copy-8092`](https://github.com/chrisyuspithk-bot/sp-chat/blob/copy-8092/docs/CLAUDE_CODE_DEPLOY.md)。
+[sp-chat `main`](https://github.com/chrisyuspithk-bot/sp-chat/blob/main/docs/CLAUDE_CODE_DEPLOY.md)。

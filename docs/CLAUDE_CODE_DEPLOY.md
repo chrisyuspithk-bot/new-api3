@@ -2,7 +2,7 @@
 
 How to rebuild / swap the **New API** gateway used by SP Chat on a host like
 `api.spit.hk`, using **Claude Code**. Companion SP Chat Credits-stack guide:
-https://github.com/chrisyuspithk-bot/sp-chat/blob/copy-8092/docs/CLAUDE_CODE_DEPLOY.md
+https://github.com/chrisyuspithk-bot/sp-chat/blob/main/docs/CLAUDE_CODE_DEPLOY.md
 
 **Repo:** https://github.com/chrisyuspithk-bot/new-api3
 
@@ -117,7 +117,7 @@ Steps:
 | Historical provision base | `:8089` (`owui-copy`) — currently stopped; retarget/dual-wire only if Chris asks |
 
 For redeploying the **:8092** Credits UI/backend, follow the sp-chat
-`docs/CLAUDE_CODE_DEPLOY.md` on branch `copy-8092`.
+`docs/CLAUDE_CODE_DEPLOY.md` on branch `main`.
 
 ---
 
@@ -138,5 +138,5 @@ If a dated `pre-*` tag was used instead, retag that image to `:local` the same w
 
 ## 6. Cross-links
 
-- SP Chat Credits `:8092` deploy: https://github.com/chrisyuspithk-bot/sp-chat/blob/copy-8092/docs/CLAUDE_CODE_DEPLOY.md
-- SP Chat `:8092` feature notes: https://github.com/chrisyuspithk-bot/sp-chat/blob/copy-8092/docs/FEATURES_8092_DONE.md
+- SP Chat Credits `:8092` deploy: https://github.com/chrisyuspithk-bot/sp-chat/blob/main/docs/CLAUDE_CODE_DEPLOY.md
+- SP Chat `:8092` feature notes: https://github.com/chrisyuspithk-bot/sp-chat/blob/main/docs/FEATURES_8092_DONE.md
