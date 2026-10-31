@@ -363,3 +363,11 @@ If this project is helpful to you, welcome to give us a ⭐️ Star！
 <sub>Built with ❤️ by QuantumNous</sub>
 
 </div>
+
+---
+
+## SP Chat / Claude Code deploy (fork notes)
+
+For rebuilding this B2B2C New API image on `api.spit.hk` and linking
+`ProvisionSpChatOrg` to SP Chat, see [`docs/CLAUDE_CODE_DEPLOY.md`](./docs/CLAUDE_CODE_DEPLOY.md).
+Companion SP Chat copy stack: [sp-chat `copy-8092` deploy doc](https://github.com/chrisyuspithk-bot/sp-chat/blob/copy-8092/docs/CLAUDE_CODE_DEPLOY.md).
